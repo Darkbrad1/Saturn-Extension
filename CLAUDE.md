@@ -11,6 +11,11 @@ It adds:
 - **System Logs** (`src-logs/` + `syslogs-host.js`) — a separate, read-only webview panel listing the System Logs core resource's records.
 - **Logs tab** (`src/logs.tsx`) — a side-panel tab in the node view showing the System Logs records about the open workflow (or action / step). Read-only; served by the same `syslogs-host.js` module.
 
+## Branches
+
+- **`dev`** is the working branch: all new work is committed and pushed to `dev`.
+- **`main`** is the stable branch; changes reach it from `dev` (e.g. by a pull request) when the owner decides.
+
 ## Layout
 
 | Path | Role |
