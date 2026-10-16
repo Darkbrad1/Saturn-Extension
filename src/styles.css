@@ -1,0 +1,3224 @@
+/* Sonover node view — styled after Blender's node editor. Everything is
+   scoped under #sonover-node-view so it can't leak into the list editor. */
+
+#sonover-node-view {
+  --nv-bg: #1d1d1d;
+  --nv-grid: #262626;
+  --nv-panel: #2b2b2b;
+  --nv-panel-2: #303030;
+  --nv-border: #3d3d3d;
+  --nv-text: #dcdcdc;
+  --nv-muted: #9a9a9a;
+  --nv-node: #303030;
+  --nv-node-border: #1a1a1a;
+  --nv-accent: #4772b3;
+  --nv-select: #ffa033;
+  --nv-active: #ffffff;
+  --nv-wire: #8a8a8a;
+  --nv-true: #67b26a;
+  --nv-false: #c4624f;
+  --nv-font: var(--vscode-font-family, -apple-system, "Segoe UI", system-ui, sans-serif);
+  --nv-mono: var(--vscode-editor-font-family, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+  font-family: var(--nv-font);
+  font-size: 12px;
+  color: var(--nv-text);
+}
+#sonover-node-view *,
+#sonover-node-view *::before,
+#sonover-node-view *::after {
+  box-sizing: border-box;
+}
+#sonover-node-view button,
+#sonover-node-view input,
+#sonover-node-view select,
+#sonover-node-view textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* launcher pill shown over the list editor */
+#sonover-node-view .nv-launch {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2147483000;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #555;
+  background: #2b2b2b;
+  color: #eee;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  font-weight: 600;
+}
+#sonover-node-view .nv-launch:hover {
+  background: var(--nv-accent);
+  border-color: var(--nv-accent);
+}
+
+/* overlay */
+#sonover-node-view .nv-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  flex-direction: column;
+  background: var(--nv-bg);
+}
+#sonover-node-view .nv-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px;
+  background: var(--nv-panel);
+  border-bottom: 1px solid #161616;
+  flex: none;
+  min-width: 0;
+}
+#sonover-node-view .nv-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: #fff;
+  padding-right: 6px;
+  border-right: 1px solid var(--nv-border);
+  white-space: nowrap;
+}
+#sonover-node-view .nv-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--nv-muted);
+}
+#sonover-node-view .nv-crumb-wf {
+  color: var(--nv-text);
+  font-weight: 600;
+}
+#sonover-node-view .nv-crumb.is-current {
+  color: #fff;
+}
+#sonover-node-view .nv-spacer {
+  flex: 1;
+}
+#sonover-node-view .nv-busy {
+  color: var(--nv-select);
+}
+#sonover-node-view .nv-draft {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 10px;
+  border-radius: 4px;
+  background: #3a3220;
+  color: #f0c674;
+  white-space: nowrap;
+}
+
+#sonover-node-view .nv-btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 4px;
+  border: 1px solid #1f1f1f;
+  background: #545454;
+  color: #e6e6e6;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#sonover-node-view .nv-btn:hover {
+  background: #656565;
+}
+#sonover-node-view .nv-btn.is-primary,
+#sonover-node-view .nv-btn.is-on {
+  background: var(--nv-accent);
+  color: #fff;
+}
+#sonover-node-view .nv-btn.is-primary:hover {
+  background: #5683c7;
+}
+#sonover-node-view .nv-btn.is-danger:hover {
+  background: #a13e3e;
+}
+#sonover-node-view .nv-btn.is-small {
+  height: 20px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+#sonover-node-view .nv-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+#sonover-node-view .nv-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* outliner */
+#sonover-node-view .nv-outliner {
+  width: 230px;
+  flex: none;
+  overflow: auto;
+  background: var(--nv-panel);
+  border-right: 1px solid #161616;
+  padding: 6px 0;
+}
+#sonover-node-view .nv-ol-head {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--nv-muted);
+}
+#sonover-node-view .nv-ol-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 12px 4px 18px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+#sonover-node-view .nv-ol-item:hover {
+  background: #383838;
+}
+#sonover-node-view .nv-ol-item.is-active {
+  background: #334d80;
+  color: #fff;
+}
+#sonover-node-view .nv-ol-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+#sonover-node-view .nv-ol-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .nv-ol-count {
+  color: var(--nv-muted);
+  font-variant-numeric: tabular-nums;
+}
+#sonover-node-view .nv-ol-empty,
+#sonover-node-view .nv-empty-state {
+  padding: 16px;
+  color: var(--nv-muted);
+}
+#sonover-node-view .nv-empty-state {
+  margin: auto;
+}
+
+/* canvas */
+#sonover-node-view .nv-canvas {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  background: var(--nv-bg);
+}
+#sonover-node-view .react-flow {
+  --xy-background-color: var(--nv-bg);
+  --xy-edge-stroke: var(--nv-wire);
+  --xy-edge-stroke-selected: var(--nv-active);
+  --xy-edge-stroke-width: 2;
+  --xy-node-boxshadow-selected: none;
+  --xy-minimap-background-color: #232323;
+}
+#sonover-node-view .nv-hints {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  color: #777;
+  font-size: 11px;
+  pointer-events: none;
+  max-width: calc(100% - 260px);
+}
+
+/* edges */
+#sonover-node-view .react-flow__edge-path {
+  stroke: var(--nv-wire);
+  stroke-width: 2;
+}
+#sonover-node-view .react-flow__edge.is-true .react-flow__edge-path {
+  stroke: var(--nv-true);
+}
+#sonover-node-view .react-flow__edge.is-false .react-flow__edge-path {
+  stroke: var(--nv-false);
+}
+#sonover-node-view .react-flow__edge.is-fixed .react-flow__edge-path {
+  stroke-dasharray: 4 4;
+}
+#sonover-node-view .react-flow__edge:hover .react-flow__edge-path {
+  stroke: #bdbdbd;
+}
+#sonover-node-view .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--nv-active);
+  stroke-width: 3;
+}
+#sonover-node-view .react-flow__edge.is-hot .react-flow__edge-path {
+  stroke: var(--nv-select);
+  stroke-width: 4;
+}
+
+/* nodes */
+#sonover-node-view .react-flow__node {
+  font-size: 12px;
+}
+#sonover-node-view .react-flow__node-nv,
+#sonover-node-view .react-flow__node-reroute {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+#sonover-node-view .nv-node {
+  position: relative;
+  border-radius: 6px;
+  background: var(--nv-node);
+  border: 1px solid var(--nv-node-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  color: var(--nv-text);
+}
+#sonover-node-view .nv-node.is-selected {
+  outline: 2px solid var(--nv-select);
+  outline-offset: 0;
+}
+#sonover-node-view .nv-node.is-invalid .nv-node-header {
+  background: repeating-linear-gradient(45deg, #6b2424, #6b2424 6px, #5a1f1f 6px, #5a1f1f 12px) !important;
+}
+#sonover-node-view .nv-node-header {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 5px 5px 0 0;
+  color: #fff;
+  min-width: 0;
+}
+#sonover-node-view .nv-role-terminal .nv-node-header {
+  border-radius: 5px;
+}
+#sonover-node-view .nv-node-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+#sonover-node-view .nv-node-sub {
+  font-size: 10px;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 45%;
+}
+#sonover-node-view .nv-node-body {
+  padding: 10px 10px;
+}
+#sonover-node-view .nv-row {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+#sonover-node-view .nv-row-k {
+  color: var(--nv-muted);
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .nv-row-v {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #222;
+  font-family: var(--nv-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .nv-more,
+#sonover-node-view .nv-empty {
+  color: #777;
+  font-style: italic;
+}
+#sonover-node-view .nv-socket-row {
+  position: relative;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  color: var(--nv-muted);
+}
+
+/* sockets: Blender's round grey flow sockets */
+#sonover-node-view .nv-h {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1px solid #111;
+  background: #a1a1a1;
+  min-width: 0;
+  min-height: 0;
+}
+#sonover-node-view .nv-h-in,
+#sonover-node-view .nv-h-out {
+  top: 14px;
+}
+#sonover-node-view .nv-socket-row .react-flow__handle-right {
+  right: -16px;
+  top: 50%;
+}
+#sonover-node-view .nv-h-true {
+  background: var(--nv-true);
+}
+#sonover-node-view .nv-h-false {
+  background: var(--nv-false);
+}
+#sonover-node-view .nv-reroute {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #8a8a8a;
+  border: 1px solid #111;
+  position: relative;
+}
+#sonover-node-view .nv-h-reroute {
+  opacity: 0;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+}
+#sonover-node-view .nv-h-reroute.react-flow__handle-left {
+  left: 5px;
+}
+#sonover-node-view .nv-h-reroute.react-flow__handle-right {
+  right: 5px;
+}
+
+/* frames */
+#sonover-node-view .react-flow__node-frame {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+#sonover-node-view .nv-frame {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+#sonover-node-view .nv-frame.is-selected {
+  border-color: var(--nv-select);
+}
+#sonover-node-view .nv-frame-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  filter: brightness(1.7);
+}
+#sonover-node-view .nv-frame-chip {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* side panel (N) */
+#sonover-node-view .nv-panel {
+  width: 290px;
+  flex: none;
+  overflow: auto;
+  background: var(--nv-panel);
+  border-left: 1px solid #161616;
+}
+#sonover-node-view .nv-panel-tab {
+  padding: 8px 12px;
+  font-weight: 600;
+  background: var(--nv-panel-2);
+  border-bottom: 1px solid #1f1f1f;
+}
+#sonover-node-view .nv-panel-sec {
+  padding: 12px;
+  border-bottom: 1px solid #242424;
+}
+#sonover-node-view .nv-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+#sonover-node-view .nv-panel-sub {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--nv-muted);
+  margin-bottom: 8px;
+}
+#sonover-node-view .nv-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px;
+  border-bottom: 1px solid #242424;
+}
+#sonover-node-view .nv-muted {
+  color: var(--nv-muted);
+  margin: 4px 0;
+  line-height: 1.45;
+}
+#sonover-node-view .nv-desc {
+  margin: 8px 0 0;
+  line-height: 1.45;
+}
+#sonover-node-view code {
+  font-family: var(--nv-mono);
+  font-size: 11px;
+}
+#sonover-node-view .nv-kv {
+  margin: 0;
+}
+#sonover-node-view .nv-kv-row {
+  display: grid;
+  grid-template-columns: 40% 60%;
+  gap: 6px;
+  padding: 4px 0;
+}
+#sonover-node-view .nv-kv dt {
+  color: var(--nv-muted);
+  word-break: break-word;
+}
+#sonover-node-view .nv-kv dd {
+  margin: 0;
+  font-family: var(--nv-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 160px;
+  overflow: auto;
+}
+
+/* Shift+A menu */
+#sonover-node-view .nv-menu-back {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+#sonover-node-view .nv-menu {
+  position: fixed;
+  width: 280px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: #2d2d2d;
+  border: 1px solid #141414;
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+#sonover-node-view .nv-menu-title {
+  padding: 7px 10px 4px;
+  font-weight: 600;
+  color: #fff;
+}
+#sonover-node-view .nv-menu-search {
+  margin: 4px 8px 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1px solid #191919;
+  background: #1d1d1d;
+  outline: none;
+}
+#sonover-node-view .nv-menu-search:focus {
+  border-color: var(--nv-accent);
+}
+#sonover-node-view .nv-menu-list {
+  overflow: auto;
+  padding-bottom: 6px;
+}
+#sonover-node-view .nv-menu-cat {
+  padding: 6px 10px 2px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--nv-muted);
+}
+#sonover-node-view .nv-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+#sonover-node-view .nv-menu-item.is-active {
+  background: var(--nv-accent);
+  color: #fff;
+}
+#sonover-node-view .nv-menu-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+#sonover-node-view .nv-menu-itemcat {
+  margin-left: auto;
+  font-size: 10px;
+  opacity: 0.7;
+}
+#sonover-node-view .nv-menu-empty {
+  padding: 8px 12px;
+  color: var(--nv-muted);
+}
+
+/* step form */
+#sonover-node-view .nv-modal-back {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+#sonover-node-view .nv-modal {
+  width: 460px;
+  max-width: 100%;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  background: #2d2d2d;
+  border: 1px solid #141414;
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+#sonover-node-view .nv-modal-head {
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid #222;
+}
+#sonover-node-view .nv-modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+#sonover-node-view .nv-modal-sub {
+  color: var(--nv-muted);
+  margin-top: 2px;
+}
+#sonover-node-view .nv-modal-body {
+  padding: 12px 14px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#sonover-node-view .nv-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid #222;
+}
+#sonover-node-view .nv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#sonover-node-view .nv-field-label {
+  color: #cfcfcf;
+}
+#sonover-node-view .nv-req {
+  color: var(--nv-select);
+  margin-left: 3px;
+}
+#sonover-node-view .nv-field input,
+#sonover-node-view .nv-field select,
+#sonover-node-view .nv-field textarea {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid #191919;
+  background: #1d1d1d;
+  outline: none;
+}
+#sonover-node-view .nv-field textarea {
+  resize: vertical;
+}
+#sonover-node-view .nv-field textarea.is-code {
+  font-family: var(--nv-mono);
+  font-size: 12px;
+}
+#sonover-node-view .nv-field input:focus,
+#sonover-node-view .nv-field select:focus,
+#sonover-node-view .nv-field textarea:focus {
+  border-color: var(--nv-accent);
+}
+#sonover-node-view .nv-field.has-error input,
+#sonover-node-view .nv-field.has-error select,
+#sonover-node-view .nv-field.has-error textarea {
+  border-color: #c4624f;
+}
+#sonover-node-view .nv-field-help {
+  color: #8a8a8a;
+  font-size: 11px;
+}
+#sonover-node-view .nv-field-err {
+  color: #ff8f7a;
+  font-size: 11px;
+}
+#sonover-node-view .nv-note {
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: #3a3220;
+  color: #f0c674;
+  line-height: 1.4;
+}
+
+/* toasts */
+#sonover-node-view .nv-toasts {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  pointer-events: none;
+}
+#sonover-node-view .nv-toast {
+  max-width: 380px;
+  padding: 8px 12px;
+  border-radius: 5px;
+  background: #3b3b3b;
+  border: 1px solid #1a1a1a;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+#sonover-node-view .nv-toast.is-error {
+  background: #5a2626;
+}
+
+#sonover-node-view .react-flow__minimap {
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #111;
+}
+
+@media (max-width: 760px) {
+  #sonover-node-view .nv-outliner {
+    width: 160px;
+  }
+  #sonover-node-view .nv-panel {
+    width: 230px;
+  }
+  #sonover-node-view .nv-hints {
+    display: none;
+  }
+}
+
+/* ---- code / email rows ---------------------------------------------- */
+#sonover-node-view .nv-row-btn {
+  flex: none;
+  height: 16px;
+  min-width: 22px;
+  padding: 0 5px;
+  border-radius: 3px;
+  border: 0;
+  background: #4a4a4a;
+  color: #eaeaea;
+  font-family: var(--nv-mono);
+  font-size: 10px;
+  line-height: 16px;
+  cursor: pointer;
+}
+#sonover-node-view .nv-row-btn:hover {
+  background: var(--nv-accent);
+  color: #fff;
+}
+#sonover-node-view .nv-row-btn.is-email {
+  font-family: var(--nv-font);
+  font-size: 11px;
+}
+#sonover-node-view .nv-row-v.has-action {
+  color: #b9c8e6;
+}
+#sonover-node-view .nv-panel-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-bottom: 1px solid #242424;
+}
+#sonover-node-view .nv-file-btn {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 5px;
+  border: 1px solid #1c1c1c;
+  background: #353535;
+  text-align: left;
+  cursor: pointer;
+}
+#sonover-node-view .nv-file-btn:hover {
+  background: #3e4a5e;
+  border-color: var(--nv-accent);
+}
+#sonover-node-view .nv-file-ico {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  background: #24324a;
+  color: #9fc0ff;
+  font-family: var(--nv-mono);
+  font-size: 11px;
+}
+#sonover-node-view .nv-file-ico.is-email {
+  background: #2f2a44;
+  color: #c9b6ff;
+  font-family: var(--nv-font);
+  font-size: 13px;
+}
+#sonover-node-view .nv-file-label {
+  font-weight: 600;
+  color: #f0f0f0;
+}
+#sonover-node-view .nv-file-hint {
+  color: var(--nv-muted);
+  font-size: 11px;
+}
+#sonover-node-view .nv-link {
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #8fb4ff;
+  font-size: 11px;
+  cursor: pointer;
+}
+#sonover-node-view .nv-link:hover {
+  text-decoration: underline;
+}
+
+/* ---- disabled steps (Saturn "mock": true), drawn like Blender's muted nodes */
+#sonover-node-view .nv-node-off {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: rgba(240, 180, 41, 0.22);
+  color: #f6d48a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 16px;
+}
+#sonover-node-view .nv-node.is-disabled {
+  background: #2a2a2a;
+  border-style: dashed;
+  border-color: rgba(240, 180, 41, 0.55);
+}
+#sonover-node-view .nv-node.is-disabled .nv-node-header {
+  filter: grayscale(0.85) brightness(0.75);
+}
+#sonover-node-view .nv-node.is-disabled .nv-node-header .nv-node-off {
+  filter: grayscale(0) brightness(1.35);
+}
+#sonover-node-view .nv-node.is-disabled .nv-node-body {
+  opacity: 0.5;
+}
+#sonover-node-view .nv-bypass {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 14px;
+  height: 2px;
+  margin-top: -1px;
+  background: #c4554a;
+  pointer-events: none;
+  z-index: 1;
+}
+#sonover-node-view .nv-frame.is-disabled {
+  border-style: dashed;
+  border-color: rgba(240, 180, 41, 0.45);
+  background: rgba(255, 255, 255, 0.015);
+}
+#sonover-node-view .nv-frame-label .nv-node-off {
+  margin-left: 4px;
+  filter: brightness(0.6);
+}
+#sonover-node-view .nv-off-note {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: #3a3220;
+  color: #f0c674;
+  line-height: 1.4;
+}
+
+/* =====================================================================
+   Side panel — Figma Design-panel style
+   ===================================================================== */
+#sonover-node-view .fg-panel {
+  --fg-bg: #2c2c2c;
+  --fg-line: #3a3a3a;
+  --fg-text: #f5f5f5;
+  --fg-text-2: #b3b3b3;
+  --fg-text-3: #8a8a8a;
+  --fg-hover: #383838;
+  --fg-input-hover: #4a4a4a;
+  --fg-blue: #0d99ff;
+  --fg-amber: #ffc23d;
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  background: var(--fg-bg);
+  border-left: 1px solid #1e1e1e;
+  font-size: 11px;
+  color: var(--fg-text);
+}
+#sonover-node-view .fg-resize {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 5;
+}
+#sonover-node-view .fg-resize::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 0.12s;
+}
+#sonover-node-view .fg-resize:hover::after,
+#sonover-node-view .fg-resize.is-dragging::after {
+  background: var(--fg-blue);
+}
+#sonover-node-view .fg-tabs {
+  display: flex;
+  gap: 2px;
+  height: 40px;
+  align-items: center;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--fg-line);
+  flex: none;
+}
+#sonover-node-view .fg-tab {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-text-3);
+  font-weight: 600;
+  cursor: pointer;
+}
+#sonover-node-view .fg-tab:hover {
+  color: var(--fg-text);
+}
+#sonover-node-view .fg-tab.is-active {
+  color: var(--fg-text);
+  background: #383838;
+}
+#sonover-node-view .fg-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* header */
+#sonover-node-view .fg-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 8px 12px 16px;
+  border-bottom: 1px solid var(--fg-line);
+}
+#sonover-node-view .fg-head-chip {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+#sonover-node-view .fg-head.is-off .fg-head-chip {
+  filter: grayscale(0.9) brightness(0.7);
+}
+#sonover-node-view .fg-head-text {
+  flex: 1;
+  min-width: 0;
+}
+#sonover-node-view .fg-head-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#sonover-node-view .fg-head.is-off .fg-head-title {
+  color: var(--fg-text-2);
+}
+#sonover-node-view .fg-head-sub {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+  color: var(--fg-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+}
+#sonover-node-view .fg-head-sub code {
+  font-size: 10px;
+  color: var(--fg-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#sonover-node-view .fg-head-actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+#sonover-node-view .fg-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-text-2);
+  cursor: pointer;
+}
+#sonover-node-view .fg-icon-btn:hover {
+  background: var(--fg-hover);
+  color: var(--fg-text);
+}
+#sonover-node-view .fg-icon-btn.is-active {
+  color: var(--fg-amber);
+}
+#sonover-node-view .fg-icon-btn.is-danger:hover {
+  color: #ff7262;
+}
+
+#sonover-node-view .fg-banner {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 10px 12px 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 194, 61, 0.1);
+  color: var(--fg-amber);
+  line-height: 1.45;
+}
+#sonover-node-view .fg-banner svg {
+  flex: none;
+  margin-top: 1px;
+}
+#sonover-node-view .fg-banner button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* sections */
+#sonover-node-view .fg-section {
+  border-bottom: 1px solid var(--fg-line);
+  padding: 4px 0 10px;
+}
+#sonover-node-view .fg-section.is-collapsed {
+  padding-bottom: 4px;
+}
+#sonover-node-view .fg-section-head {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 8px 0 6px;
+}
+#sonover-node-view .fg-section-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  height: 24px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg-text);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+#sonover-node-view .fg-section-title svg {
+  color: var(--fg-text-3);
+}
+#sonover-node-view .fg-section-title:hover svg {
+  color: var(--fg-text);
+}
+#sonover-node-view .fg-saving {
+  color: var(--fg-blue);
+}
+#sonover-node-view .fg-section-body {
+  padding: 0 12px 0 16px;
+}
+
+/* key / value rows */
+#sonover-node-view .fg-row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+#sonover-node-view .fg-row.is-wide {
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: 4px 0;
+}
+#sonover-node-view .fg-label {
+  color: var(--fg-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .fg-value {
+  color: var(--fg-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .fg-value.mono {
+  font-family: var(--nv-mono);
+  font-size: 10.5px;
+}
+#sonover-node-view .fg-value.pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 180px;
+  overflow: auto;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: #242424;
+}
+#sonover-node-view .fg-value.is-off {
+  color: var(--fg-amber);
+}
+#sonover-node-view .fg-hint {
+  margin: 6px 0 2px;
+  color: var(--fg-text-3);
+  line-height: 1.5;
+}
+#sonover-node-view .fg-hint.is-warn {
+  color: #ff9a7a;
+}
+#sonover-node-view kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #3a3a3a;
+  color: var(--fg-text-2);
+  font-family: var(--nv-font);
+  font-size: 10px;
+  text-align: center;
+}
+#sonover-node-view .fg-wide-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: 30px;
+  margin-top: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--fg-line);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-text);
+  cursor: pointer;
+}
+#sonover-node-view .fg-wide-btn:hover {
+  background: var(--fg-hover);
+}
+
+/* code & email rows */
+#sonover-node-view .fg-file {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto 14px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 6px;
+  margin: 0 -6px;
+  width: calc(100% + 12px);
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-text);
+  text-align: left;
+  cursor: pointer;
+}
+#sonover-node-view .fg-file:hover {
+  background: var(--fg-hover);
+}
+#sonover-node-view .fg-file-ico {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  background: #24324a;
+  color: #9fc0ff;
+  font-family: var(--nv-mono);
+  font-size: 10px;
+}
+#sonover-node-view .fg-file-ico.is-email {
+  background: #2f2a44;
+  color: #c9b6ff;
+  font-family: var(--nv-font);
+  font-size: 12px;
+}
+#sonover-node-view .fg-file-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .fg-file-hint,
+#sonover-node-view .fg-file-go {
+  color: var(--fg-text-3);
+}
+#sonover-node-view .fg-file:hover .fg-file-go {
+  color: var(--fg-blue);
+}
+
+/* the property editor inside the panel: Figma inputs */
+#sonover-node-view .fg-panel .nv-panel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#sonover-node-view .fg-panel .nv-field {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  min-height: 30px;
+}
+#sonover-node-view .fg-panel .nv-field.is-wide {
+  grid-template-columns: 1fr;
+  padding: 4px 0;
+}
+#sonover-node-view .fg-panel .nv-field-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--fg-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#sonover-node-view .fg-panel .nv-field.is-wide .nv-field-label {
+  justify-content: space-between;
+}
+#sonover-node-view .fg-panel .nv-field input,
+#sonover-node-view .fg-panel .nv-field select,
+#sonover-node-view .fg-panel .nv-field textarea {
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: #383838;
+  color: var(--fg-text);
+  font-size: 11px;
+  outline: none;
+  transition: border-color 0.08s;
+}
+#sonover-node-view .fg-panel .nv-field textarea {
+  height: auto;
+  min-height: 64px;
+  padding: 6px 7px;
+  line-height: 1.5;
+}
+#sonover-node-view .fg-panel .nv-field input:hover,
+#sonover-node-view .fg-panel .nv-field select:hover,
+#sonover-node-view .fg-panel .nv-field textarea:hover {
+  border-color: var(--fg-input-hover);
+}
+#sonover-node-view .fg-panel .nv-field input:focus,
+#sonover-node-view .fg-panel .nv-field select:focus,
+#sonover-node-view .fg-panel .nv-field textarea:focus {
+  border-color: var(--fg-blue);
+  background: #2c2c2c;
+}
+#sonover-node-view .fg-panel .nv-field.has-error input,
+#sonover-node-view .fg-panel .nv-field.has-error select,
+#sonover-node-view .fg-panel .nv-field.has-error textarea {
+  border-color: #f24822;
+}
+#sonover-node-view .fg-panel .nv-field-help,
+#sonover-node-view .fg-panel .nv-field-err {
+  grid-column: 2;
+  font-size: 10.5px;
+}
+#sonover-node-view .fg-panel .nv-field.is-wide .nv-field-help,
+#sonover-node-view .fg-panel .nv-field.is-wide .nv-field-err {
+  grid-column: 1;
+}
+#sonover-node-view .fg-panel .nv-field-help {
+  display: none; /* Figma keeps fields terse; help shows on focus */
+  color: var(--fg-text-3);
+}
+#sonover-node-view .fg-panel .nv-field:focus-within .nv-field-help {
+  display: block;
+}
+#sonover-node-view .fg-panel .nv-field-err {
+  color: #ff8f7a;
+}
+#sonover-node-view .fg-panel .nv-req {
+  color: var(--fg-text-3);
+}
+#sonover-node-view .fg-panel .nv-link {
+  margin-left: 0;
+  color: var(--fg-blue);
+  font-size: 10.5px;
+  flex: none;
+}
+#sonover-node-view .fg-panel .nv-file-btn {
+  padding: 6px 8px;
+  border-color: transparent;
+  background: #383838;
+}
+#sonover-node-view .fg-panel .nv-file-btn:hover {
+  border-color: var(--fg-input-hover);
+  background: #383838;
+}
+#sonover-node-view .fg-panel .nv-panel-hint {
+  margin-top: 8px;
+  color: var(--fg-text-3);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+#sonover-node-view .fg-panel .nv-panel-loading {
+  padding: 8px 0;
+  color: var(--fg-text-3);
+}
+#sonover-node-view .nv-toasts.is-launcher {
+  bottom: 70px;
+}
+#sonover-node-view .nv-field-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- frames let clicks through to the wires inside; only the title bar is grabbable */
+#sonover-node-view .react-flow__node.react-flow__node-frame {
+  pointer-events: none !important;
+}
+#sonover-node-view .react-flow__node-frame .nv-frame-label {
+  pointer-events: all;
+  display: inline-flex;
+  cursor: grab;
+  border-radius: 6px;
+}
+#sonover-node-view .react-flow__node-frame .nv-frame-label:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ---- empty-branch slot */
+#sonover-node-view .react-flow__node-slot {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+#sonover-node-view .nv-slot {
+  position: relative;
+  width: 100%;
+}
+#sonover-node-view .nv-slot-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1.5px dashed #5a5a5a;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: #9a9a9a;
+  font-size: 11.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+#sonover-node-view .nv-slot-btn:hover {
+  border-color: var(--nv-accent);
+  color: #fff;
+  background: rgba(71, 114, 179, 0.15);
+}
+#sonover-node-view .react-flow__node-slot.is-hot .nv-slot-btn {
+  border-color: var(--nv-select);
+  color: #fff;
+  background: rgba(255, 160, 51, 0.15);
+}
+#sonover-node-view .nv-slot-plus {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #3d3d3d;
+  font-size: 11px;
+  color: #ddd;
+}
+#sonover-node-view .nv-slot-btn:hover .nv-slot-plus {
+  background: var(--nv-accent);
+  color: #fff;
+}
+
+/* ---- + button on wires */
+#sonover-node-view .nv-wire-add {
+  position: absolute;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #111;
+  border-radius: 50%;
+  background: #4a4a4a;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: none; /* an invisible button must not swallow clicks meant for the wire */
+  opacity: 0;
+  transform-origin: center;
+  transition: opacity 0.1s;
+}
+#sonover-node-view .nv-wire-add.is-visible {
+  opacity: 1;
+  pointer-events: all;
+}
+#sonover-node-view .nv-wire-add:hover {
+  background: var(--nv-accent);
+}
+
+/* ---- outliner as a layers panel */
+#sonover-node-view .nv-ol-group {
+  padding-bottom: 6px;
+  border-bottom: 1px solid #232323;
+}
+#sonover-node-view .nv-ol-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px 4px 12px;
+}
+#sonover-node-view .nv-ol-add,
+#sonover-node-view .nv-ol-more {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #9a9a9a;
+  font-size: 12px;
+  cursor: pointer;
+  flex: none;
+}
+#sonover-node-view .nv-ol-add:hover,
+#sonover-node-view .nv-ol-more:hover {
+  background: #3d3d3d;
+  color: #fff;
+}
+#sonover-node-view .nv-ol-more {
+  opacity: 0;
+}
+#sonover-node-view .nv-ol-item:hover .nv-ol-more,
+#sonover-node-view .nv-ol-stagehead:hover .nv-ol-more,
+#sonover-node-view .nv-ol-item.is-active .nv-ol-more {
+  opacity: 1;
+}
+#sonover-node-view .nv-ol-stagehead .nv-ol-add {
+  opacity: 0;
+}
+#sonover-node-view .nv-ol-stagehead:hover .nv-ol-add {
+  opacity: 1;
+}
+#sonover-node-view .nv-ol-stagehead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px 0 12px;
+  color: #d0d0d0;
+  font-weight: 600;
+  user-select: none;
+}
+#sonover-node-view .nv-ol-stagedot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+#sonover-node-view .nv-ol-item {
+  padding: 4px 6px 4px 18px;
+  min-height: 26px;
+  user-select: none;
+}
+#sonover-node-view .nv-ol-item.is-indent,
+#sonover-node-view .nv-ol-edit.is-indent,
+#sonover-node-view .nv-ol-empty-add.is-indent {
+  padding-left: 30px;
+}
+#sonover-node-view .nv-ol-item .nv-ol-count {
+  min-width: 14px;
+  text-align: right;
+}
+#sonover-node-view .nv-ol-empty-add {
+  display: block;
+  width: 100%;
+  padding: 4px 12px 4px 18px;
+  border: 0;
+  background: none;
+  color: #7f7f7f;
+  font-style: italic;
+  text-align: left;
+  cursor: pointer;
+}
+#sonover-node-view .nv-ol-empty-add:hover {
+  color: #8fb4ff;
+}
+#sonover-node-view .nv-ol-edit {
+  padding: 3px 8px 3px 14px;
+}
+#sonover-node-view .nv-ol-inline input {
+  width: 100%;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid #0d99ff;
+  border-radius: 5px;
+  background: #1e1e1e;
+  color: #fff;
+  outline: none;
+}
+#sonover-node-view .nv-ol-hint,
+#sonover-node-view .nv-ol-err {
+  padding: 3px 2px 0;
+  font-size: 10.5px;
+  color: #7f7f7f;
+}
+#sonover-node-view .nv-ol-err {
+  color: #ff8f7a;
+}
+
+/* context menu */
+#sonover-node-view .nv-ctx {
+  position: fixed;
+  min-width: 170px;
+  padding: 4px;
+  border: 1px solid #141414;
+  border-radius: 7px;
+  background: #2d2d2d;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+#sonover-node-view .nv-ctx-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+#sonover-node-view .nv-ctx-item:hover {
+  background: var(--nv-accent);
+  color: #fff;
+}
+#sonover-node-view .nv-ctx-item.is-danger:hover {
+  background: #a13e3e;
+}
+
+/* =====================================================================
+   v0.3 — parity with the list view
+   ===================================================================== */
+
+/* ---- top bar: workflow switcher, offline pill, remote-change banner */
+#sonover-node-view .nv-wf-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .nv-wf-switch:hover {
+  background: #3a3a3a;
+}
+#sonover-node-view .nv-caret {
+  color: #8a8a8a;
+  font-size: 10px;
+}
+#sonover-node-view .nv-offline {
+  height: 22px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 11px;
+  background: #4a2a22;
+  color: #ffb199;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#sonover-node-view .nv-remote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: #2f2a1c;
+  border-bottom: 1px solid #1a1a1a;
+  color: #f0d79a;
+  flex: none;
+}
+#sonover-node-view .nv-remote > span {
+  flex: 1;
+}
+#sonover-node-view .nv-wf-menu {
+  position: fixed;
+  top: 40px;
+  left: 120px;
+  width: 420px;
+  max-height: 70vh;
+  display: flex;
+  border: 1px solid #141414;
+  border-radius: 8px;
+  background: #2b2b2b;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+#sonover-node-view .nv-picker {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+#sonover-node-view .nv-picker-head {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid #222;
+}
+#sonover-node-view .nv-picker-head .nv-menu-search {
+  flex: 1;
+  margin: 0;
+  height: 26px;
+}
+#sonover-node-view .nv-picker-head .nv-btn {
+  height: 26px;
+}
+#sonover-node-view .nv-picker-list {
+  overflow: auto;
+  padding: 4px;
+}
+#sonover-node-view .nv-picker-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+#sonover-node-view .nv-picker-item:hover {
+  background: #383838;
+}
+#sonover-node-view .nv-picker-item.is-current {
+  background: #334d80;
+}
+#sonover-node-view .nv-picker-name {
+  font-weight: 600;
+  color: #f0f0f0;
+}
+#sonover-node-view .nv-picker-stages {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  grid-row: 1 / span 2;
+  grid-column: 2;
+}
+#sonover-node-view .nv-picker-stage {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+#sonover-node-view .nv-picker-meta {
+  color: #8a8a8a;
+  font-size: 11px;
+}
+#sonover-node-view .nv-picker-page {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 40px 16px;
+  min-height: 0;
+}
+#sonover-node-view .nv-picker-page .nv-picker {
+  max-width: 560px;
+  border: 1px solid #222;
+  border-radius: 10px;
+  background: #262626;
+}
+
+/* ---- context menu extras */
+#sonover-node-view .nv-ctx-title {
+  padding: 6px 10px 4px;
+  color: #8a8a8a;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+#sonover-node-view .nv-ctx-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: #3a3a3a;
+}
+#sonover-node-view .nv-ctx-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+#sonover-node-view .nv-ctx-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: none;
+}
+#sonover-node-view .nv-ctx-item kbd {
+  background: transparent;
+  color: #8a8a8a;
+  padding: 0;
+}
+#sonover-node-view .nv-ctx-item:hover:not(:disabled) kbd {
+  color: #e8e8e8;
+}
+
+/* ---- outliner extras */
+#sonover-node-view .nv-ol-workflow {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid #232323;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+#sonover-node-view .nv-ol-workflow:hover {
+  background: #333;
+}
+#sonover-node-view .nv-ol-workflow.is-active {
+  background: #334d80;
+}
+#sonover-node-view .nv-ol-wf-ico {
+  grid-row: 1 / span 2;
+  color: #b0b0b0;
+}
+#sonover-node-view .nv-ol-wf-sub {
+  color: #808080;
+  font-size: 10.5px;
+}
+#sonover-node-view .nv-ol-stagehead {
+  cursor: pointer;
+  border-radius: 0;
+}
+#sonover-node-view .nv-ol-stagehead:hover {
+  background: #333;
+}
+#sonover-node-view .nv-ol-stagehead.is-active {
+  background: #334d80;
+  color: #fff;
+}
+#sonover-node-view .is-drop {
+  box-shadow: inset 0 2px 0 #0d99ff;
+}
+
+/* ---- settings panels (fg-*) */
+#sonover-node-view .fg-pad {
+  padding: 16px;
+}
+#sonover-node-view .fg-head-chip.is-round {
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  margin: 3px;
+}
+#sonover-node-view .fg-input {
+  width: 100%;
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: #383838;
+  color: #f5f5f5;
+  font-size: 11px;
+  outline: none;
+}
+#sonover-node-view select.fg-input {
+  padding: 0 4px;
+}
+#sonover-node-view .fg-input:hover {
+  border-color: #4a4a4a;
+}
+#sonover-node-view .fg-input:focus {
+  border-color: #0d99ff;
+  background: #2c2c2c;
+}
+#sonover-node-view .fg-input.is-mono,
+#sonover-node-view .fg-code {
+  font-family: var(--nv-mono);
+}
+#sonover-node-view .fg-code {
+  width: 100%;
+  padding: 6px 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: #383838;
+  color: #f5f5f5;
+  font-size: 11px;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+}
+#sonover-node-view .fg-code:focus {
+  border-color: #0d99ff;
+}
+#sonover-node-view .fg-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #444;
+  border-radius: 5px;
+  background: transparent;
+  color: #eee;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#sonover-node-view .fg-btn:hover:not(:disabled) {
+  background: #383838;
+}
+#sonover-node-view .fg-btn.is-primary {
+  border-color: #0d99ff;
+  background: #0d99ff;
+  color: #fff;
+}
+#sonover-node-view .fg-btn.is-primary:hover:not(:disabled) {
+  background: #2aa6ff;
+}
+#sonover-node-view .fg-btn.is-danger {
+  border-color: #6a2b2b;
+  color: #ff8f7a;
+}
+#sonover-node-view .fg-btn.is-danger:hover {
+  background: #4a2020;
+}
+#sonover-node-view .fg-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+#sonover-node-view .fg-btn-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+#sonover-node-view .fg-btn-row.is-wrap {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+#sonover-node-view .fg-plus {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #b3b3b3;
+  font-size: 12px;
+  cursor: pointer;
+}
+#sonover-node-view .fg-plus:hover:not(:disabled) {
+  background: #383838;
+  color: #fff;
+}
+#sonover-node-view .fg-plus:disabled {
+  opacity: 0.35;
+}
+#sonover-node-view .fg-section-actions {
+  display: flex;
+  gap: 2px;
+}
+#sonover-node-view .fg-list-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  border-radius: 5px;
+  padding: 0 4px 0 0;
+}
+#sonover-node-view .fg-list-row:hover {
+  background: #333;
+}
+#sonover-node-view .fg-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #f0f0f0;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+}
+#sonover-node-view .fg-link-row:hover {
+  background: #383838;
+}
+#sonover-node-view .fg-link-row code,
+#sonover-node-view .fg-field-sum code,
+#sonover-node-view .fg-check code {
+  color: #8a8a8a;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#sonover-node-view .fg-row-tools {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+#sonover-node-view .fg-row-tools button {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+#sonover-node-view .fg-row-tools button:hover:not(:disabled) {
+  background: #444;
+  color: #fff;
+}
+#sonover-node-view .fg-row-tools button:disabled {
+  opacity: 0.3;
+}
+#sonover-node-view .fg-field-sum {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+}
+#sonover-node-view .fg-field-editor,
+#sonover-node-view .fg-trigger-editor,
+#sonover-node-view .fg-access {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 6px;
+  padding: 10px;
+  border: 1px solid #3a3a3a;
+  border-radius: 7px;
+  background: #262626;
+}
+#sonover-node-view .fg-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  cursor: pointer;
+}
+#sonover-node-view .fg-check input {
+  accent-color: #0d99ff;
+}
+#sonover-node-view .fg-count {
+  margin-left: auto;
+  color: #8a8a8a;
+  font-size: 10.5px;
+}
+#sonover-node-view .fg-error {
+  color: #ff8f7a;
+  font-size: 10.5px;
+  padding: 4px 0;
+}
+#sonover-node-view .fg-hint.is-ok {
+  color: #7fd18b;
+}
+#sonover-node-view .fg-link {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: #0d99ff;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+#sonover-node-view .fg-subhead {
+  margin-top: 6px;
+  color: #b3b3b3;
+  font-weight: 600;
+}
+#sonover-node-view .fg-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: #3a3a3a;
+  color: #b3b3b3;
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 500;
+}
+#sonover-node-view .fg-badge.is-amber {
+  background: rgba(255, 194, 61, 0.15);
+  color: #ffc23d;
+}
+
+/* colour picker */
+#sonover-node-view .fg-swatches {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 6px;
+  margin: 2px 0 8px;
+}
+#sonover-node-view .fg-swatch {
+  aspect-ratio: 1;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+}
+#sonover-node-view .fg-swatch.is-none {
+  background: repeating-linear-gradient(45deg, #444, #444 3px, #2c2c2c 3px, #2c2c2c 6px);
+}
+#sonover-node-view .fg-swatch.is-on {
+  border-color: #fff;
+}
+#sonover-node-view .fg-hex {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#sonover-node-view .fg-hex-chip {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 4px;
+  border: 1px solid #555;
+}
+
+/* access */
+#sonover-node-view .fg-access-method {
+  border-bottom: 1px solid #333;
+  padding: 4px 0;
+}
+#sonover-node-view .fg-access-method:last-of-type {
+  border-bottom: 0;
+}
+#sonover-node-view .fg-access-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 0 6px 22px;
+}
+#sonover-node-view .fg-checklist {
+  display: flex;
+  flex-direction: column;
+  max-height: 180px;
+  overflow: auto;
+  padding: 2px 0;
+}
+
+/* triggers */
+#sonover-node-view .fg-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 6px 6px;
+  border-radius: 5px;
+}
+#sonover-node-view .fg-trigger:hover {
+  background: #333;
+}
+#sonover-node-view .fg-trigger-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+#sonover-node-view .fg-trigger-name {
+  color: #f0f0f0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#sonover-node-view .fg-trigger-sub {
+  color: #8a8a8a;
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .fg-providers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 6px;
+  margin: 4px 0 6px;
+}
+#sonover-node-view .fg-provider {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 8px;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  background: #2c2c2c;
+  color: #eee;
+  cursor: pointer;
+  text-align: left;
+}
+#sonover-node-view .fg-provider code {
+  color: #8a8a8a;
+  font-size: 10px;
+}
+#sonover-node-view .fg-provider.is-on {
+  border-color: #0d99ff;
+  background: #1f2f44;
+}
+#sonover-node-view .fg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0;
+}
+#sonover-node-view .fg-chip {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid #3a3a3a;
+  border-radius: 11px;
+  background: transparent;
+  color: #ccc;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+#sonover-node-view .fg-chip.is-on,
+#sonover-node-view .fg-chip:hover {
+  border-color: #0d99ff;
+  color: #fff;
+}
+#sonover-node-view .fg-webhook {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: #1f1f1f;
+}
+#sonover-node-view .fg-webhook code {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  font-size: 10.5px;
+}
+
+/* resources */
+#sonover-node-view .fg-resource {
+  padding: 6px 0;
+  border-bottom: 1px solid #333;
+}
+#sonover-node-view .fg-resource:last-child {
+  border-bottom: 0;
+}
+#sonover-node-view .fg-resource-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+}
+#sonover-node-view .fg-hook {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 0;
+}
+#sonover-node-view .fg-hook > code {
+  flex: none;
+  width: 92px;
+  color: #b3b3b3;
+  font-size: 10.5px;
+  padding-top: 3px;
+}
+#sonover-node-view .fg-hook-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+#sonover-node-view .fg-hook-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 2px 1px 8px;
+  border-radius: 10px;
+  background: #383838;
+}
+#sonover-node-view .fg-hook-chip button {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+#sonover-node-view .fg-hook-chip button:hover {
+  background: #a13e3e;
+  color: #fff;
+}
+#sonover-node-view .fg-hook-add {
+  display: grid;
+  grid-template-columns: 80px 90px 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+#sonover-node-view .fg-hook-add .fg-btn-row {
+  grid-column: 1 / -1;
+}
+
+/* ---- step editors */
+#sonover-node-view .nv-field-caption {
+  color: #707070;
+  font-family: var(--nv-mono);
+  font-size: 10px;
+}
+#sonover-node-view .fg-panel .nv-field-caption {
+  grid-column: 2;
+}
+#sonover-node-view .fg-panel .nv-field.is-wide .nv-field-caption {
+  grid-column: 1;
+}
+#sonover-node-view .nv-field-caption.is-warn,
+#sonover-node-view .nv-field.is-stale .nv-field-name {
+  color: #ffb36b;
+}
+#sonover-node-view .nv-email-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  background: #2a2a2a;
+}
+#sonover-node-view .nv-email-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#sonover-node-view .nv-email-title {
+  font-weight: 600;
+  color: #eee;
+}
+#sonover-node-view .nv-email-note {
+  margin: 0;
+  color: #8a8a8a;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+#sonover-node-view .nv-email-note b {
+  color: #ffc23d;
+  font-weight: 600;
+}
+#sonover-node-view .nv-mini-btn {
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: #333;
+  color: #eee;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+#sonover-node-view .nv-mini-btn:hover {
+  border-color: #0d99ff;
+}
+#sonover-node-view .nv-lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 190px;
+  overflow: auto;
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: #383838;
+}
+#sonover-node-view .nv-lookup-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 22px;
+  cursor: pointer;
+  color: #eee;
+}
+#sonover-node-view .nv-lookup-row input {
+  accent-color: #0d99ff;
+}
+#sonover-node-view .nv-lookup-note {
+  color: #8a8a8a;
+  font-size: 10.5px;
+}
+#sonover-node-view .nv-lookup-note.is-warn {
+  color: #ffb36b;
+}
+#sonover-node-view .nv-kv-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+#sonover-node-view .nv-kv-item,
+#sonover-node-view .nv-kv-add {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) 22px;
+  gap: 4px;
+  align-items: center;
+}
+#sonover-node-view .nv-kv-k {
+  padding: 0 7px;
+  color: #cfcfcf;
+  font-family: var(--nv-mono);
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .nv-kv-editor input {
+  height: 26px !important;
+}
+#sonover-node-view .nv-kv-x,
+#sonover-node-view .nv-kv-plus {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+#sonover-node-view .nv-kv-x:hover {
+  background: #a13e3e;
+  color: #fff;
+}
+#sonover-node-view .nv-kv-plus:hover:not(:disabled) {
+  background: #0d99ff;
+  color: #fff;
+}
+#sonover-node-view .nv-kv-plus:disabled {
+  opacity: 0.35;
+}
+#sonover-node-view .nv-modal .nv-field-caption {
+  display: block;
+}
+
+/* =====================================================================
+   v0.3.1 — collapsible layers, search
+   ===================================================================== */
+#sonover-node-view .nv-ol-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 8px 8px 2px;
+  color: #8a8a8a;
+}
+#sonover-node-view .nv-ol-search svg {
+  position: absolute;
+  left: 8px;
+  pointer-events: none;
+}
+#sonover-node-view .nv-ol-search input {
+  width: 100%;
+  height: 28px;
+  padding: 0 24px 0 26px;
+  border: 1px solid #1c1c1c;
+  border-radius: 6px;
+  background: #1f1f1f;
+  color: #eee;
+  outline: none;
+}
+#sonover-node-view .nv-ol-search input:focus {
+  border-color: #0d99ff;
+}
+#sonover-node-view .nv-ol-search-x {
+  position: absolute;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+#sonover-node-view .nv-ol-search-x:hover {
+  background: #3a3a3a;
+  color: #fff;
+}
+#sonover-node-view .nv-ol-head {
+  gap: 4px;
+  padding: 10px 8px 4px 6px;
+  cursor: pointer;
+  user-select: none;
+}
+#sonover-node-view .nv-ol-head.is-static {
+  cursor: default;
+  padding-left: 12px;
+}
+#sonover-node-view .nv-ol-head-label {
+  flex: 1;
+}
+#sonover-node-view .nv-ol-chev {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #8a8a8a;
+  cursor: pointer;
+  flex: none;
+}
+#sonover-node-view .nv-ol-chev svg {
+  transition: transform 0.12s;
+}
+#sonover-node-view .nv-ol-chev.is-open svg {
+  transform: rotate(90deg);
+}
+#sonover-node-view .nv-ol-chev:hover {
+  color: #fff;
+  background: #3a3a3a;
+}
+#sonover-node-view .nv-ol-stagehead {
+  padding-left: 6px;
+  gap: 6px;
+}
+#sonover-node-view .nv-ol-stagehead .nv-ol-gear {
+  opacity: 0;
+}
+#sonover-node-view .nv-ol-stagehead:hover .nv-ol-gear,
+#sonover-node-view .nv-ol-stagehead.is-active .nv-ol-gear {
+  opacity: 1;
+}
+#sonover-node-view .nv-ol-stagehead .nv-ol-count {
+  color: #8a8a8a;
+  font-weight: 400;
+}
+#sonover-node-view .nv-ol-results {
+  padding-bottom: 12px;
+}
+#sonover-node-view .nv-ol-noresults {
+  padding: 18px 14px;
+  color: #8a8a8a;
+}
+#sonover-node-view .nv-ol-machine {
+  color: #7a7a7a;
+  font-size: 10px;
+}
+#sonover-node-view .nv-ol-result {
+  align-items: flex-start;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+#sonover-node-view .nv-ol-result .nv-ol-dot {
+  margin-top: 4px;
+}
+#sonover-node-view .nv-ol-result-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+#sonover-node-view .nv-ol-where {
+  color: #808080;
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .nv-ol-badge {
+  flex: none;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #0d99ff;
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+#sonover-node-view .nv-ol-hit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 10px 3px 34px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+#sonover-node-view .nv-ol-hit:hover {
+  background: #333;
+}
+#sonover-node-view .nv-ol-hit-title {
+  flex: 1;
+  min-width: 0;
+  color: #d8d8d8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .nv-ol-hit-title.is-off {
+  color: #8a8a8a;
+  text-decoration: line-through;
+}
+#sonover-node-view .nv-ol-hit-why {
+  flex: none;
+  max-width: 45%;
+  color: #6f9fd8;
+  font-family: var(--nv-mono);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .nv-ol-hit-more {
+  padding: 2px 10px 4px 34px;
+  color: #7a7a7a;
+  font-size: 10.5px;
+}
+/* matches on the canvas */
+#sonover-node-view .react-flow__node.is-match .nv-node {
+  box-shadow: 0 0 0 2px #0d99ff, 0 0 18px rgba(13, 153, 255, 0.45);
+}
+
+/* ===== v0.3.2: syntax-highlighted inputs ===== */
+#sonover-node-view .nv-hl {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+#sonover-node-view .nv-input-row .nv-hl,
+#sonover-node-view .fg-row .nv-hl {
+  flex: 1 1 auto;
+}
+#sonover-node-view .nv-hl > .nv-hl-input {
+  display: block;
+  width: 100%;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  caret-color: #f5f5f5;
+}
+#sonover-node-view .nv-hl > .nv-hl-input::placeholder {
+  color: #7a7a7a;
+  -webkit-text-fill-color: #7a7a7a;
+}
+#sonover-node-view .nv-hl > .nv-hl-input::selection {
+  background: rgba(13, 153, 255, 0.45);
+  -webkit-text-fill-color: transparent;
+}
+#sonover-node-view .nv-hl.is-mono > .nv-hl-input {
+  font-family: var(--nv-mono);
+}
+#sonover-node-view .nv-hl-pre {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: transparent;
+  color: #f0f0f0;
+  white-space: pre;
+  box-sizing: border-box;
+}
+#sonover-node-view .nv-hl.is-multi .nv-hl-pre {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+#sonover-node-view .nv-hl-pre code {
+  font: inherit;
+  background: none;
+  padding: 0;
+  color: inherit;
+  white-space: inherit;
+}
+#sonover-node-view .nv-hl-suffix {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #8a8a8a;
+  font-size: 10px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* tokens (Figma dark / VS Code Dark+ inspired) */
+#sonover-node-view .nv-hl-pre .token.template { color: #c586c0; }
+#sonover-node-view .nv-hl-pre .token.template-punctuation { color: #da70d6; font-weight: 600; }
+#sonover-node-view .nv-hl-pre .token.template .token.template-expression { color: #9cdcfe; }
+#sonover-node-view .nv-hl-pre .token.comment,
+#sonover-node-view .nv-hl-pre .token.prolog,
+#sonover-node-view .nv-hl-pre .token.doctype,
+#sonover-node-view .nv-hl-pre .token.cdata { color: #6a9955; }
+#sonover-node-view .nv-hl-pre .token.punctuation { color: #a8a8a8; }
+#sonover-node-view .nv-hl-pre .token.property,
+#sonover-node-view .nv-hl-pre .token.attr-name { color: #9cdcfe; }
+#sonover-node-view .nv-hl-pre .token.tag { color: #569cd6; }
+#sonover-node-view .nv-hl-pre .token.boolean,
+#sonover-node-view .nv-hl-pre .token.null,
+#sonover-node-view .nv-hl-pre .token.constant { color: #569cd6; }
+#sonover-node-view .nv-hl-pre .token.number,
+#sonover-node-view .nv-hl-pre .token.cron-name { color: #b5cea8; }
+#sonover-node-view .nv-hl-pre .token.string,
+#sonover-node-view .nv-hl-pre .token.attr-value,
+#sonover-node-view .nv-hl-pre .token.template-string { color: #ce9178; }
+#sonover-node-view .nv-hl-pre .token.operator,
+#sonover-node-view .nv-hl-pre .token.cron-special { color: #d4d4d4; }
+#sonover-node-view .nv-hl-pre .token.cron-special { color: #ffa033; font-weight: 600; }
+#sonover-node-view .nv-hl-pre .token.keyword { color: #c586c0; }
+#sonover-node-view .nv-hl-pre .token.function { color: #dcdcaa; }
+#sonover-node-view .nv-hl-pre .token.class-name { color: #4ec9b0; }
+#sonover-node-view .nv-hl-pre .token.regex { color: #d16969; }
+#sonover-node-view .nv-hl-pre .token.selector { color: #d7ba7d; }
+#sonover-node-view .nv-hl-pre .token.atrule,
+#sonover-node-view .nv-hl-pre .token.rule { color: #c586c0; }
+#sonover-node-view .nv-hl-pre .token.url { color: #ce9178; text-decoration: underline; }
+
+/* ===== scrubbing ===== */
+#sonover-node-view .nv-scrub {
+  cursor: ew-resize;
+  user-select: none;
+  touch-action: none;
+}
+#sonover-node-view .nv-scrub.is-off {
+  cursor: default;
+}
+#sonover-node-view .nv-scrub:not(.is-off):hover {
+  color: #fff;
+}
+body.nv-scrubbing,
+body.nv-scrubbing * {
+  cursor: ew-resize !important;
+  user-select: none !important;
+}
+
+/* ===== input rows with buttons (date, colour) ===== */
+#sonover-node-view .nv-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+#sonover-node-view .nv-icon-btn {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: #383838;
+  color: #cfcfcf;
+  cursor: pointer;
+}
+#sonover-node-view .nv-icon-btn:hover,
+#sonover-node-view .nv-icon-btn.is-on {
+  border-color: #0d99ff;
+  color: #fff;
+}
+#sonover-node-view .nv-now-btn {
+  flex: none;
+  height: 26px;
+}
+#sonover-node-view .nv-color-chip {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+#sonover-node-view .nv-color-chip.is-empty {
+  background: repeating-conic-gradient(#555 0 25%, #333 0 50%) 50% / 10px 10px;
+}
+#sonover-node-view .nv-color-chip:hover,
+#sonover-node-view .nv-color-chip.is-on {
+  border-color: #0d99ff;
+}
+
+/* ===== popovers ===== */
+#sonover-node-view .nv-pop {
+  position: fixed;
+  z-index: 2147483600;
+  padding: 10px;
+  border-radius: 8px;
+  background: #2c2c2c;
+  border: 1px solid #444;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  color: #eee;
+  font-size: 11px;
+}
+#sonover-node-view .nv-cal-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+#sonover-node-view .nv-cal-title {
+  flex: 1;
+  text-align: center;
+  font-weight: 600;
+}
+#sonover-node-view .nv-cal-nav {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #ddd;
+  font-size: 15px;
+  cursor: pointer;
+}
+#sonover-node-view .nv-cal-nav:hover {
+  background: #3a3a3a;
+}
+#sonover-node-view .nv-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+#sonover-node-view .nv-cal-wd {
+  text-align: center;
+  color: #8a8a8a;
+  font-size: 10px;
+  padding: 2px 0 4px;
+}
+#sonover-node-view .nv-cal-day {
+  height: 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #e6e6e6;
+  cursor: pointer;
+  font-size: 11px;
+}
+#sonover-node-view .nv-cal-day:hover {
+  background: #3a3a3a;
+}
+#sonover-node-view .nv-cal-day.is-other {
+  color: #666;
+}
+#sonover-node-view .nv-cal-day.is-today {
+  box-shadow: inset 0 0 0 1px #0d99ff;
+}
+#sonover-node-view .nv-cal-day.is-on {
+  background: #0d99ff;
+  color: #fff;
+}
+#sonover-node-view .nv-cal-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #3a3a3a;
+}
+#sonover-node-view .nv-cal-time-label {
+  color: #9a9a9a;
+  margin-right: 4px;
+}
+#sonover-node-view .nv-cal-num {
+  width: 36px;
+  height: 24px;
+  text-align: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: #383838;
+  color: #fff;
+  font-family: var(--nv-mono);
+  font-size: 11px;
+  outline: none;
+  cursor: ew-resize;
+}
+#sonover-node-view .nv-cal-num:focus {
+  border-color: #0d99ff;
+  cursor: text;
+}
+#sonover-node-view .nv-cal-tz {
+  margin-left: auto;
+  color: #777;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#sonover-node-view .nv-cal-foot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+#sonover-node-view .nv-mini-btn.is-primary {
+  background: #0d99ff;
+  border-color: #0d99ff;
+  color: #fff;
+}
+#sonover-node-view .nv-color {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#sonover-node-view .nv-color-sv {
+  position: relative;
+  height: 150px;
+  border-radius: 5px;
+  cursor: crosshair;
+  touch-action: none;
+  overflow: hidden;
+}
+#sonover-node-view .nv-color-sv-white,
+#sonover-node-view .nv-color-sv-black {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+#sonover-node-view .nv-color-sv-white {
+  background: linear-gradient(to right, #fff, rgba(255, 255, 255, 0));
+}
+#sonover-node-view .nv-color-sv-black {
+  background: linear-gradient(to top, #000, rgba(0, 0, 0, 0));
+}
+#sonover-node-view .nv-color-thumb {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+#sonover-node-view .nv-color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#sonover-node-view .nv-color-hue {
+  position: relative;
+  flex: 1;
+  height: 12px;
+  border-radius: 6px;
+  cursor: ew-resize;
+  touch-action: none;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+#sonover-node-view .nv-color-hue-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+#sonover-node-view .nv-color-preview {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+#sonover-node-view .nv-color-hex {
+  flex: 1;
+  height: 26px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: #383838;
+  color: #fff;
+  font-family: var(--nv-mono);
+  font-size: 11px;
+  outline: none;
+}
+#sonover-node-view .nv-color-hex:focus {
+  border-color: #0d99ff;
+}
+#sonover-node-view .nv-color-swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+#sonover-node-view .nv-color-swatch {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+#sonover-node-view .nv-color-swatch.is-on {
+  box-shadow: 0 0 0 2px #fff;
+}
+#sonover-node-view .nv-color-swatch.is-none {
+  background: linear-gradient(135deg, transparent 45%, #f24822 45%, #f24822 55%, transparent 55%), #3a3a3a;
+}
+
+/* ===== advanced form-field settings ===== */
+#sonover-node-view .fg-field-edit .fg-field-editor {
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+#sonover-node-view .fg-field-more {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 6px;
+  padding: 6px 10px 10px;
+  border: 1px solid #3a3a3a;
+  border-top: 0;
+  border-radius: 0 0 6px 6px;
+  background: #262626;
+}
+#sonover-node-view .fg-sub {
+  border-top: 1px solid #333;
+}
+#sonover-node-view .fg-sub:first-of-type {
+  border-top: 0;
+}
+#sonover-node-view .fg-sub-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #e6e6e6;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+#sonover-node-view .fg-sub-caret {
+  width: 10px;
+  color: #8a8a8a;
+}
+#sonover-node-view .fg-sub-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 0 8px 16px;
+}
+#sonover-node-view .fg-toggle-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 8px;
+}
+#sonover-node-view .fg-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+#sonover-node-view .fg-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 2px 0 7px;
+  border-radius: 11px;
+  background: #3a3a3a;
+  color: #eee;
+  font-size: 10.5px;
+}
+#sonover-node-view .fg-tag button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+}
+#sonover-node-view .fg-tag button:hover {
+  background: #a13e3e;
+  color: #fff;
+}
+#sonover-node-view .fg-tags .nv-hl {
+  flex: 1 1 90px;
+  width: auto;
+}
+#sonover-node-view .fg-btn.is-primary:disabled,
+#sonover-node-view .fg-btn:disabled {
+  opacity: 0.45;
+}
+#sonover-node-view .nv-date-hint {
+  color: #8fb8e8;
+  font-size: 10.5px;
+}
+#sonover-node-view .fg-date-hint,
+#sonover-node-view .fg-panel .nv-field .nv-date-hint {
+  grid-column: 2;
+}
+#sonover-node-view .fg-date-hint {
+  margin-top: -4px;
+}
+#sonover-node-view .fg-field-more .fg-row {
+  grid-template-columns: 112px minmax(0, 1fr);
+}
+
+/* ===== v0.3.3: stage indent guides + separators (VS Code style) ===== */
+#sonover-node-view .nv-ol-stage + .nv-ol-stage {
+  border-top: 1px solid #333;
+}
+#sonover-node-view .nv-ol-stage-body {
+  position: relative;
+  padding-bottom: 2px;
+}
+#sonover-node-view .nv-ol-stage-body::before {
+  content: "";
+  position: absolute;
+  left: 19.5px;
+  top: 0;
+  bottom: 4px;
+  width: 1px;
+  background: #4a4a4a;
+  pointer-events: none;
+  z-index: 1;
+}
+#sonover-node-view .nv-ol-stage:hover > .nv-ol-stage-body::before {
+  background: #6a6a6a;
+}
+#sonover-node-view .nv-ol-stage-body.has-active::before {
+  background: var(--nv-stage-color);
+  opacity: 0.9;
+}
+#sonover-node-view .nv-ol-stage-body .nv-ol-item.is-indent,
+#sonover-node-view .nv-ol-stage-body .nv-ol-edit.is-indent,
+#sonover-node-view .nv-ol-stage-body .nv-ol-empty-add.is-indent {
+  padding-left: 30px;
+}
+
+/* ===== vertical flow (top → bottom) ===== */
+#sonover-node-view .nv-dir-v .nv-h-in.react-flow__handle-top {
+  top: -6px;
+  left: 50%;
+}
+#sonover-node-view .nv-dir-v .nv-h-out.react-flow__handle-bottom,
+#sonover-node-view .nv-dir-v .nv-h-vb {
+  top: auto;
+  bottom: -6px;
+}
+#sonover-node-view .nv-dir-v .nv-h-reroute.react-flow__handle-top {
+  top: 5px;
+  left: 50%;
+}
+#sonover-node-view .nv-dir-v .nv-h-reroute.react-flow__handle-bottom {
+  top: auto;
+  bottom: 5px;
+  left: 50%;
+}
+#sonover-node-view .nv-dir-v .nv-slot .nv-h-reroute.react-flow__handle-top {
+  top: 0;
+}
+#sonover-node-view .nv-dir-v .nv-slot .nv-h-reroute.react-flow__handle-bottom {
+  bottom: 0;
+}
+#sonover-node-view .nv-branch-foot {
+  display: flex;
+  justify-content: space-around;
+  height: 20px;
+  align-items: center;
+  font-size: 11px;
+}
+#sonover-node-view .nv-branch-foot .is-true {
+  color: var(--nv-true);
+}
+#sonover-node-view .nv-branch-foot .is-false {
+  color: var(--nv-false);
+}
+#sonover-node-view .nv-dir-toggle svg {
+  vertical-align: -2px;
+}
+
+/* ===== Changes tab, multi-select panel ===== */
+#sonover-node-view .fg-tab-badge {
+  display: inline-block;
+  min-width: 16px;
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #0d99ff;
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+#sonover-node-view .fg-changes {
+  margin: 0 0 8px;
+  padding-left: 22px;
+  color: #ddd;
+  font-size: 11px;
+}
+#sonover-node-view .fg-changes li {
+  padding: 3px 0;
+  border-bottom: 1px solid #333;
+}
+#sonover-node-view .fg-changes li::marker {
+  color: #777;
+}
+#sonover-node-view .fg-changes li.is-latest .fg-change-text {
+  color: #fff;
+}
+#sonover-node-view .fg-changes .fg-link {
+  margin-left: 8px;
+}
+#sonover-node-view .fg-release {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: #ccc;
+}
+#sonover-node-view .fg-release summary {
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 0;
+}
+#sonover-node-view .fg-release summary b {
+  color: #fff;
+}
+#sonover-node-view .fg-release-title {
+  color: #9a9a9a;
+}
+#sonover-node-view .fg-release ul {
+  margin: 2px 0 6px;
+  padding-left: 18px;
+  line-height: 1.5;
+}
+#sonover-node-view .fg-multi-chip {
+  display: grid;
+  place-items: center;
+  background: #0d99ff;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+#sonover-node-view .fg-btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+#sonover-node-view .fg-multi-row .fg-link-row {
+  width: 100%;
+}
+#sonover-node-view .fg-multi-row .is-off {
+  text-decoration: line-through;
+  color: #9a9a9a;
+}

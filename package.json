@@ -1,0 +1,26 @@
+{
+  "name": "nodeview",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@xyflow/react": "^12.6.0",
+    "esbuild": "^0.25.5",
+    "prismjs": "^1.29.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/prismjs": "^1.26.4",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "playwright": "^1.52.0",
+    "typescript": "^5.8.3"
+  }
+}
