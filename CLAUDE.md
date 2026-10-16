@@ -69,7 +69,7 @@ Caveats:
 - The Playwright tests expect a static server on `http://localhost:8765` serving `harness/` plus `nodeview.js`, `logs.js` (from `dist/`) and the original list-view bundle as `wf.js` / `wf.css` (from the vsix). `test.mjs` also expects an `index.html` that isn't in the repo.
 - Tests hard-code a screenshot directory (`out = "/tmp/claude-0/-home-claude/.../shots"`) and `executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"`; adjust locally if they differ.
 - `npm test` is a placeholder; there is no test runner — run the scripts directly and look for `FAIL`.
-- `dist/` and `node_modules/` are build output and should not be committed (there is no `.gitignore` yet).
+- `dist/` and `node_modules/` are build output and are git-ignored (`.gitignore`); don't commit them.
 
 ## Conventions
 
