@@ -16,6 +16,7 @@ It adds:
 | Path | Role |
 |---|---|
 | `build.mjs` | esbuild: `src/main.tsx` → `dist/nodeview.js`, `src-logs/main.tsx` → `dist/logs.js` (IIFE, es2020, CSS imported as text). `--min` minifies. |
+| `package.sh` | One step from the original `.vsix` to an installable one: `./package.sh <sonover-code-0.1.1.vsix> [out.vsix]` → build, typecheck, unpack, `patch.py`, all host tests, zip (default `dist/sonover-code-<version>.vsix`; version = newest `src/changelog.ts` entry). Writes nothing if a patch or test fails. |
 | `patch.py` | Applies everything to an unpacked vsix. Every edit uses `replace_once` (must match exactly once, else fails loudly). |
 | `syslogs-host.js` | Host side of System Logs (`SysLogs$`); `patch.py` appends it to `extension/dist/extension.js` so it shares the minified bundle's scope. `open()` = the System Logs panel; `fromWorkflows()` = answers the Logs tab's messages from the Workflows panel; `attach()` receives the instance manager / globalState / extensionUri at command registration; `targetOf()` finds a Workflows panel's instance by shape (no minified field names). |
 | `src/bridge.ts` | **Must be imported first.** Takes the single `acquireVsCodeApi()` handle and hands a wrapped copy to the list-view bundle; tracks the open workflow; stores node-view state under key `__sonoverNodeView`. Exposes `send`, `onSelectionChange`, `loadNodeViewState`, `saveNodeViewState`. |
@@ -59,6 +60,8 @@ When adding a host change: add a numbered `replace_once` block with a comment, a
 
 ## Build and test
 
+To produce an installable package, use `./package.sh path/to/sonover-code-0.1.1.vsix`, then install the result with `code --install-extension dist/sonover-code-<version>.vsix --force` (or Extensions view → ⋯ → Install from VSIX…). The steps it runs:
+
 ```sh
 npm install
 node build.mjs --min                                   # -> dist/nodeview.js, dist/logs.js
@@ -83,5 +86,5 @@ Caveats:
 - The node view never calls `acquireVsCodeApi()` itself — use `send()` from `bridge.ts`. Don't write to the list view's saved state keys.
 - System Logs and the Logs tab are read-only: host side only uses the record-reading helpers (GET requests). Keep it that way.
 - The real System Logs record schema is unknown, so log handling is shape-based (key names like `workflow*`, `action`, `operator`, date/level/message key guessing). Don't hard-code one schema.
-- Release checklist: bump the version in the `patch.py` command line / README, add a `README.md` "New in x.y.z" section, add a `CHANGELOG` entry in `src/changelog.ts`, add a `testN.mjs` for the release, and update this file.
+- Release checklist: the newest `src/changelog.ts` entry sets the packaged version (`package.sh` reads it); bump the version in the README's `patch.py` command line, add a `README.md` "New in x.y.z" section, add a `CHANGELOG` entry in `src/changelog.ts`, add a `testN.mjs` for the release, and update this file.
 - UI copy: plain, short, sentence case; British spelling is used in places ("colour").

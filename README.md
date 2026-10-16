@@ -40,6 +40,7 @@ New in 0.3.2:
 Unchanged: getHtml script tag, `mock` in the view model, `setStepMock`, the move fix in `on()`, the Disabled badge in the list view, and the `sonover:openWorkflow` hook.
 
 ## Build and test
+One step: `./package.sh path/to/sonover-code-0.1.1.vsix` builds, patches, runs the host tests and writes `dist/sonover-code-<version>.vsix`; install it with `code --install-extension dist/sonover-code-<version>.vsix --force` or Extensions → ⋯ → Install from VSIX…. By hand:
 ```
 npm install
 node build.mjs --min
