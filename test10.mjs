@@ -109,6 +109,11 @@ await p.locator("select[aria-label='Resource']").selectOption("Workflow");
 await p.waitForTimeout(400);
 ok((await p.locator(".lg-error").innerText()).includes("No record route"), "a resource that can't be read says so");
 
+// v0.3.5: opened again from a workflow's Logs tab, searched for that workflow
+await p.evaluate(() => window.dispatchEvent(new MessageEvent("message", { data: { type: "search", payload: { text: "Order fulfilment" } } })));
+await p.waitForTimeout(100);
+ok((await p.getByLabel("Search", { exact: true }).inputValue()) === "Order fulfilment", "a search sent by the Logs tab fills the search box");
+
 // read-only: nothing that writes was ever sent
 types = await posted();
 ok(types.every((t) => ["init", "fields", "fetch", "fetchRange", "openJson", "copy", "chooseResource"].includes(t)), "only reads were asked for: " + [...new Set(types)].join(", "));

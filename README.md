@@ -1,6 +1,14 @@
-# Workflows node view (v0.3.4)
+# Workflows node view (v0.3.5)
 
 A Blender-style node editor layered onto the Workflows webview. It does everything the list view does.
+
+## New in 0.3.5 — Logs tab
+- **Where**: a **Logs** tab in the node view's side panel (Design · Inspect · Logs · Changes), `src/logs.tsx`.
+- **What**: the System Logs records about the open workflow, newest first. A record belongs to the workflow when a field whose key mentions "workflow" (at any depth, e.g. `workflow`, `workflow_id`, `context.workflow.name`) holds the workflow's id or name, or when the workflow's id (8+ characters) appears anywhere in it. Scope chips narrow it to the open action/command (`action`/`command`/`task` keys) or the selected step (`operator`/`step` keys). Level chips, search, Live (every 10 s, new rows flash), a JSON detail with Copy / Open as JSON, **Go to <action>**, and **Open in System Logs** (the full screen, searched for the workflow).
+- **Reading**: the host reads the newest records in windows of 200 (oldest-first lists are read from the end); the tab keeps going back until 25 match or 1,000 more records have been read, then offers **Search older**. Matching helpers are shared with the System Logs screen (`src-logs/records.ts`).
+- **Read-only**, like the System Logs screen: only the record-reading helper (`Sc`) is called.
+
+Extension changes (`patch.py`, #12): the Workflows panel answers `fetchWorkflowLogs` `{reqId, workflowId, offset, window}` → `workflowLogs` `{reqId, workflowId, resource, instanceName, records, total, scanned, done}` (or `workflowLogsFailed`), plus `openSystemLogs` `{search?}`, `openLogJson` and `copyLogJson` `{record}` — all handled by `SysLogs$.fromWorkflows` in `syslogs-host.js`, which finds the panel's instance by shape. The `saturn.openSystemLogs` registration now also hands the instance manager and global state to `SysLogs$.attach`. The System Logs screen takes an optional `search` (in `init`, or a `search` message when it is already open).
 
 ## New in 0.3.4 — System Logs
 - **Where**: a "System Logs" item on each instance card in the Sonover sidebar (beside Workflows, Menus, Pages, Components), "Saturn: Open System Logs" on the instance's context menu in the Components tree, and in the command palette.
@@ -35,7 +43,8 @@ Unchanged: getHtml script tag, `mock` in the view model, `setStepMock`, the move
 ```
 npm install
 node build.mjs --min
-python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.4
+python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.5
 node hosttest.cjs | hosttest-move.cjs | hosttest-reorder.cjs | hosttest-command.cjs | hosttest-field.cjs | hosttest-bulk.cjs | hosttest-logs.cjs  <unpacked>/extension/dist/extension.js
+node hosttest-wflogs.cjs        # the Logs tab's host side, on syslogs-host.js alone (no .vsix needed)
 ```
-`test2`–`test10.mjs`: 292 Playwright checks running the real list view and the node view together against `mockhost.js` under the webview's CSP. `test10.mjs` covers this release (System Logs screen and sidebar entry, with `harness/logs.html` / `harness/sidebar.html`).
+`test2`–`test10.mjs`: 292 Playwright checks running the real list view and the node view together against `mockhost.js` under the webview's CSP. `test10.mjs` covers the System Logs screen and sidebar entry (`harness/logs.html` / `harness/sidebar.html`); `test11.mjs` covers the Logs tab. Without the .vsix, serve `harness/wf-stub.js` as `wf.js` (and an empty `wf.css`) to stand in for the list view. `test11.mjs` takes `SHOTS` (screenshot dir) and `CHROME` (browser path) from the environment.

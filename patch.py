@@ -126,7 +126,7 @@ s = replace_once(
 s = replace_once(
     s,
     'h&&bn.open(n.extensionUri,e,h)}));let kt=',
-    'h&&bn.open(n.extensionUri,e,h)}),y.commands.registerCommand("saturn.openSystemLogs",async w=>{let h=w?.instance;if(!h){let b=e.list();if(b.length===0){y.window.showInformationMessage("Connect a Saturn instance first.");return}h=b.length===1?b[0]:await y.window.showQuickPick(b.map(P=>({label:I(P),description:P.url,instance:P})),{placeHolder:"Show system logs for which Saturn instance?"}).then(P=>P?.instance)}h&&SysLogs$.open(n.extensionUri,e,h,n.globalState)}));let kt=',
+    'h&&bn.open(n.extensionUri,e,h)}),(SysLogs$.attach({manager:e,globalState:n.globalState,extensionUri:n.extensionUri}),y.commands.registerCommand("saturn.openSystemLogs",async w=>{let h=w?.instance;if(!h){let b=e.list();if(b.length===0){y.window.showInformationMessage("Connect a Saturn instance first.");return}h=b.length===1?b[0]:await y.window.showQuickPick(b.map(P=>({label:I(P),description:P.url,instance:P})),{placeHolder:"Show system logs for which Saturn instance?"}).then(P=>P?.instance)}h&&SysLogs$.open(n.extensionUri,e,h,n.globalState)})));let kt=',
     "system logs command",
 )
 s = replace_once(
@@ -140,6 +140,16 @@ s = replace_once(
     "0&&(module.exports={activate,deactivate});",
     (pathlib.Path(__file__).parent / "syslogs-host.js").read_text() + "\n0&&(module.exports={activate,deactivate});",
     "system logs panel",
+)
+# 12. The node view's Logs tab: the Workflows panel answers the tab's
+#     read-only log messages through the System Logs module (which finds the
+#     panel's instance by shape, so no minified field names are needed).
+s = replace_once(
+    s,
+    'case"undoLastEdit":{',
+    "".join(f'case"{m}":{{await SysLogs$.fromWorkflows(this,t,"{m}",e.payload);break}}' for m in ["fetchWorkflowLogs", "openSystemLogs", "openLogJson", "copyLogJson"])
+    + 'case"undoLastEdit":{',
+    "workflow logs messages",
 )
 p.write_text(s)
 
@@ -247,6 +257,7 @@ t = replace_once(
     "- **Node view first, multi-select** -- The Workflows screen opens in the node view (List view is a click away), and flows run top to bottom by default (the Vertical/Horizontal button switches). Shift+click several steps to disable/enable, duplicate, copy or delete them together from the right-click menu, the side panel or the keys -- each as one change that a single Ctrl+Z undoes. Stages in the layers panel have guide lines and dividers, and the side panel's Changes tab lists the workflow's unsaved edits and the node view's release notes.\n"
     "- **Smarter inputs** -- Every text box in the node view's side panel is syntax highlighted (`{{ templates }}`, JSON, JavaScript, HTML, CSS and cron). Number and time fields scrub like Figma: hold the label and drag sideways (Shift for ×10, Alt for fine steps), or use the arrow keys; millisecond delays show as seconds/minutes. Date and time parameters get a calendar picker with **Now** / **Today**, and colours get a full colour picker (with an eyedropper where available).\n"
     "- **Every form-field setting** -- Edit a form field (or command parameter) in the node view to reach all of its settings: validation (unique, searchable, email, IP), visibility (table, form, view, drawer, own tab), layout (column width, columns, span), read/write defaults, input type and template, lookup and map (reference, value/label fields, label function), rendering, meta tags, required columns, default view — or the whole field as JSON.\n"
+    "- **Logs tab** -- The node view's side panel has a **Logs** tab with the System Logs records about the open workflow (matched by its id or name), newest first. Narrow it to the open action or the selected step, filter by level or search, turn on Live, open a record's JSON, jump to the action it's about, or open the full System Logs screen. Read-only.\n"
     "- **AI agents**",
     "readme",
 )

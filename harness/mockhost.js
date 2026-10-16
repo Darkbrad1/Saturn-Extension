@@ -247,6 +247,24 @@
   const fieldsAt = (d, ownerPath, formKey) => { const o = get(d, ownerPath); o[formKey] = o[formKey] && !Array.isArray(o[formKey]) ? o[formKey] : { fields: Array.isArray(o[formKey]) ? o[formKey] : [] }; o[formKey].fields ||= []; return o[formKey].fields; };
   const moveIn = (arr, from, to) => { const [x] = arr.splice(from, 1); let t = to; if (t > from) t -= 1; arr.splice(Math.min(t, arr.length), 0, x); };
 
+  // System Logs records for the Logs tab, oldest first like a plain list
+  // endpoint. They name their workflow in different ways (name, id, nested).
+  const sysLogs = [];
+  window.__addSysLog = (r) => sysLogs.push({ id: 5000 + sysLogs.length + 1, created_at: new Date(Date.UTC(2026, 9, 16, 12, 0, 0) + sysLogs.length * 60000).toISOString(), ...r });
+  for (let i = 0; i < 450; i++) {
+    const kind = i % 9;
+    const lvl = i % 11 === 0 ? "error" : i % 5 === 0 ? "warn" : "info";
+    if (kind === 0) window.__addSysLog({ level: lvl, message: `Approve order: Update Record ran (#${i})`, workflow: "Order fulfilment", action: "approve", operator: "update_record" });
+    else if (kind === 1) window.__addSysLog({ level: lvl, message: `Sent email for order #${i}`, workflow_id: "wf_orders", action: "approve", operator: "send_email" });
+    else if (kind === 2) window.__addSysLog({ level: lvl, message: `Delivered #${i}`, context: { workflow: { id: "wf_orders", name: "Order fulfilment" }, action: "deliver" }, operator: "http_request" });
+    else if (kind === 3) window.__addSysLog({ level: lvl, message: `Ticket triaged #${i}`, workflow: "Support tickets", action: "triage", operator: "assign_owner" });
+    else if (kind === 4) window.__addSysLog({ level: lvl, message: `Command notify_customer ran #${i}`, workflow: "wf_orders", command: "notify_customer", operator: "send_email" });
+    else window.__addSysLog({ level: "debug", message: `Unrelated job ${i}`, source: "scheduler" });
+  }
+  // the Debug lab's only log is far back in time (tests searching older records)
+  sysLogs[3].workflow = "Debug lab"; sysLogs[3].message = "Debug lab: audit start"; sysLogs[3].action = "audit";
+  window.__sysLogs = sysLogs;
+
   window.__mockLog = [];
   window.__getDef = (id) => defs[id ?? cur];
   window.__defs = defs;
@@ -429,6 +447,17 @@
       }
       case "deleteWorkflow": delete defs[p.workflowId]; post("workflowDeleted", { workflowId: p.workflowId, name: "" }); break;
       case "openParamEditor": case "openHtmlParam": case "openAccessFunction": case "openWorkflow": case "viewRawWorkflow": case "revealOfflineFiles":
+        (window.__opened = window.__opened || []).push({ type: msg.type, ...p });
+        break;
+      case "fetchWorkflowLogs": {
+        if (window.__logsFail) { post("workflowLogsFailed", { reqId: p.reqId, workflowId: p.workflowId, message: window.__logsFail }); break; }
+        const size = p.window || 200, off = p.offset || 0, end = Math.max(0, sysLogs.length - off);
+        const records = sysLogs.slice(Math.max(0, end - size), end).reverse();
+        const scanned = off + records.length;
+        post("workflowLogs", { reqId: p.reqId, workflowId: p.workflowId, instanceName: "Demo instance", resource: "SystemLog", records, total: sysLogs.length, scanned, done: records.length < size || scanned >= sysLogs.length });
+        break;
+      }
+      case "openSystemLogs": case "openLogJson": case "copyLogJson":
         (window.__opened = window.__opened || []).push({ type: msg.type, ...p });
         break;
       case "undoLastEdit":

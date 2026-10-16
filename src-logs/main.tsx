@@ -5,83 +5,15 @@ import "prismjs/components/prism-json";
 import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import css from "./logs.css";
+import { abs, ascending, dateOf, levelClass, rel, shape, str, type Field, type Rec } from "./records";
 
 declare function acquireVsCodeApi(): { postMessage: (m: unknown) => void; getState: () => unknown; setState: (s: unknown) => void };
 const vscode = acquireVsCodeApi();
 const send = (type: string, payload: Record<string, unknown> = {}) => vscode.postMessage({ type, payload });
 
-type Rec = Record<string, unknown>;
-interface Field { key: string; label: string | null; type: string | null }
-interface Init { instanceName: string; instanceUrl: string; resource: string | null; logResources: string[]; allResources: string[] }
+interface Init { instanceName: string; instanceUrl: string; resource: string | null; logResources: string[]; allResources: string[]; search?: string }
 interface Saved { resource?: string; limit?: number; columns?: Record<string, string[]>; live?: boolean }
 
-// ---- reading the records ------------------------------------------------------
-const DATE_KEYS = ["created_at", "createdAt", "timestamp", "logged_at", "time", "date", "datetime", "updated_at", "updatedAt"];
-const LEVEL_KEYS = ["level", "log_level", "severity", "type", "log_type", "status", "category"];
-const MSG_KEYS = ["message", "msg", "log", "text", "description", "content", "details", "detail", "body", "data", "payload"];
-const CONTEXT = /workflow|resource|action|operator|source|step|user|stage|command|origin|module/i;
-
-const str = (v: unknown) => (v === null || v === undefined ? "" : typeof v === "string" ? v : JSON.stringify(v));
-const dateOf = (v: unknown): number | null => {
-  if (typeof v === "number") return v > 1e12 ? v : v > 1e9 ? v * 1000 : null;
-  if (typeof v !== "string" || !v.trim()) return null;
-  const t = Date.parse(v);
-  return Number.isFinite(t) ? t : null;
-};
-
-export function shape(records: Rec[], fields: Field[]) {
-  const keys: string[] = [];
-  for (const f of fields) if (!keys.includes(f.key)) keys.push(f.key);
-  for (const r of records) for (const k of Object.keys(r)) if (!keys.includes(k)) keys.push(k);
-  const present = (k: string) => records.some((r) => r[k] !== undefined && r[k] !== null && r[k] !== "");
-  const dateKey =
-    DATE_KEYS.find((k) => keys.includes(k) && present(k) && records.some((r) => dateOf(r[k]) !== null)) ??
-    keys.find((k) => /(_at|At|date|time)$/.test(k) && records.some((r) => dateOf(r[k]) !== null)) ??
-    null;
-  const levelKey =
-    LEVEL_KEYS.find(
-      (k) => keys.includes(k) && present(k) && records.every((r) => r[k] === undefined || r[k] === null || (typeof r[k] === "string" && (r[k] as string).length <= 24)),
-    ) ?? null;
-  const messageKey = MSG_KEYS.find((k) => keys.includes(k) && present(k)) ?? keys.find((k) => k !== "id" && records.some((r) => typeof r[k] === "string" && (r[k] as string).length > 24)) ?? null;
-  const context = keys.filter((k) => CONTEXT.test(k) && k !== levelKey && k !== messageKey && present(k)).slice(0, 3);
-  const defaults = [dateKey, levelKey, messageKey, ...context].filter((k): k is string => !!k);
-  return { keys, dateKey, levelKey, messageKey, defaults: defaults.length ? defaults : keys.slice(0, 5) };
-}
-
-/** Do the records come oldest first? (compare the page's first and last dates, else ids) */
-function ascending(records: Rec[], dateKey: string | null): boolean | null {
-  if (records.length < 2) return null;
-  const a = records[0], b = records[records.length - 1];
-  if (dateKey) {
-    const x = dateOf(a[dateKey]), y = dateOf(b[dateKey]);
-    if (x !== null && y !== null && x !== y) return x < y;
-  }
-  const xi = Number(a.id), yi = Number(b.id);
-  if (Number.isFinite(xi) && Number.isFinite(yi) && xi !== yi) return xi < yi;
-  return null;
-}
-
-function rel(t: number, now: number) {
-  const s = Math.round((now - t) / 1000);
-  if (s < 5) return "just now";
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
-  if (s < 86400 * 7) return `${Math.floor(s / 86400)} d ago`;
-  return new Date(t).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-function abs(t: number) {
-  const d = new Date(t);
-  return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-function levelClass(v: string) {
-  const l = v.toLowerCase();
-  if (/err|fail|fatal|crit|exception/.test(l)) return "is-error";
-  if (/warn/.test(l)) return "is-warn";
-  if (/debug|trace|verbose/.test(l)) return "is-debug";
-  if (/info|ok|success|done|notice/.test(l)) return "is-info";
-  return "";
-}
 const json = (v: unknown) => {
   const t = JSON.stringify(v, null, 2) ?? "";
   try {
@@ -143,6 +75,10 @@ function App() {
         setInit(p);
         setResource(p.resource ?? saved.resource ?? null);
         if (!p.resource && !saved.resource) setError(null);
+        if (p.search) setQuery(p.search);
+      } else if (m.type === "search") {
+        // opened again from a workflow's Logs tab
+        setQuery(typeof p.text === "string" ? p.text : "");
       } else if (m.type === "fields") {
         setFields(p.fields ?? []);
       } else if (m.type === "page") {

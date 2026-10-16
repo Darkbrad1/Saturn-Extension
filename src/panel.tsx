@@ -4,6 +4,7 @@ import { ActionPanel, CommandPanel, StagePanel, WorkflowPanel, type SettingsOps 
 import { codeParams, isEmailSummary, operatorName, type NvEdge, type NvNode, type RowAction } from "./layout";
 import type { Catalog, CommandView, DraftState, Flow, Path, WorkflowView } from "./types";
 import { CHANGELOG } from "./changelog";
+import { LogsTab } from "./logs";
 
 export interface Tree {
   key: string;
@@ -87,7 +88,7 @@ export function SidePanel(props: {
   onSave: () => void;
   onDiscard: () => void;
 }) {
-  const [tab, setTab] = useState<"design" | "inspect" | "changes">("design");
+  const [tab, setTab] = useState<"design" | "inspect" | "logs" | "changes">("design");
   const f = props.node?.data.flow;
   const pending = props.draft?.pending ?? 0;
 
@@ -95,7 +96,7 @@ export function SidePanel(props: {
     <aside className="fg-panel" style={{ width: props.width }}>
       <ResizeHandle width={props.width} onResize={props.onResize} />
       <div className="fg-tabs" role="tablist">
-        {(["design", "inspect", "changes"] as const).map((t) => (
+        {(["design", "inspect", "logs", "changes"] as const).map((t) => (
           <button
             key={t}
             role="tab"
@@ -103,13 +104,15 @@ export function SidePanel(props: {
             className={`fg-tab ${tab === t ? "is-active" : ""}`}
             onClick={() => setTab(t)}
           >
-            {t === "design" ? "Design" : t === "inspect" ? "Inspect" : "Changes"}
+            {t === "design" ? "Design" : t === "inspect" ? "Inspect" : t === "logs" ? "Logs" : "Changes"}
             {t === "changes" && pending > 0 && <span className="fg-tab-badge">{pending}</span>}
           </button>
         ))}
       </div>
       <div className="fg-scroll">
-        {tab === "changes" ? (
+        {tab === "logs" ? (
+          <LogsTab wf={props.wf} tree={props.tree} flow={f} catalog={props.catalog} onOpenTree={props.onOpenTree} />
+        ) : tab === "changes" ? (
           <ChangesTab draft={props.draft} wf={props.wf} onUndo={props.onUndo} onSave={props.onSave} onDiscard={props.onDiscard} />
         ) : props.multi.length > 1 ? (
           <MultiPanel flows={props.multi} catalog={props.catalog} bulk={props.bulk} />

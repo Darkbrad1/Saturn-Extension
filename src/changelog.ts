@@ -1,6 +1,16 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.5",
+    title: "Logs tab",
+    items: [
+      "New Logs tab in the side panel: the System Logs records about the open workflow, newest first, matched by the workflow's id or name.",
+      "Narrow it to the open action or command, or to the selected step; filter by level or search; Live checks for new logs every 10 s.",
+      "Open a log to see its JSON (Copy / Open as JSON), jump to the action it's about, or open the full System Logs screen searched for this workflow.",
+      "Quiet workflows: it keeps reading further back until it finds their logs; Search older goes back more.",
+    ],
+  },
+  {
     version: "0.3.4",
     title: "System Logs",
     items: [
