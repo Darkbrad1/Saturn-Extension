@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Compiled output
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Packaged extensions
+*.vsix
+
+# Test downloads and coverage
+.vscode-test/
+.vscode-test-web/
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Local editor history
+.history/
