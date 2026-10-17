@@ -6,7 +6,7 @@
 //   - the version, from the newest src/changelog.ts entry, stamped into package.json and the manifest
 // `node build.mjs --min` minifies the two webviews. package.sh zips out/vsix into a .vsix.
 import { build } from "esbuild";
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
 const common = {
   bundle: true,
@@ -23,6 +23,13 @@ await build({ ...common, entryPoints: ["src-logs/main.tsx"], outfile: "dist/logs
 
 const version = /version:\s*"(\d+\.\d+\.\d+)"/.exec(readFileSync("src/changelog.ts", "utf8"))?.[1];
 if (!version) throw new Error("no version in src/changelog.ts");
+
+// the shipped files build.mjs doesn't make: a clone missing any of them would package a broken
+// extension (0.3.10/0.3.11 went out with a blank sidebar when git ignored vsix/extension/dist)
+const shipped = ["dist/mcp/saturn-mcp.js", "dist/webview/preview/index.js",
+  ...["workflows", "sidebar", "menus", "pages", "agent", "kanban"].flatMap((w) => [`dist/webview/${w}/index.js`, `dist/webview/${w}/index.css`])];
+const missing = shipped.filter((f) => !existsSync(`vsix/extension/${f}`));
+if (missing.length) throw new Error(`missing from vsix/extension: ${missing.join(", ")}`);
 
 const out = "out/vsix";
 rmSync(out, { recursive: true, force: true });

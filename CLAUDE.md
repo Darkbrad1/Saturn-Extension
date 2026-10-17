@@ -4,7 +4,7 @@ Guidance for working in this repo. **Keep this file current:** whenever a change
 
 ## What this is
 
-The **sonover-code** VS Code extension (Saturn / Sonover platform) — the whole extension, built from this repo. Current version: **0.3.11** (see `README.md` and `src/changelog.ts`).
+The **sonover-code** VS Code extension (Saturn / Sonover platform) — the whole extension, built from this repo. Current version: **0.3.12** (see `README.md` and `src/changelog.ts`).
 
 The original 0.1.1 was built elsewhere and its source was lost. Its extension host was **recovered** into `host/extension.js` (formatted, key names made readable, this project's changes built in) and is maintained here; its other built files (the list view, sidebar, menus, pages, agent chat, tickets and preview webviews, the MCP server, `package.json`, manifest, icon) are kept as they shipped, under `vsix/`, with this project's edits applied. The owner has Sonover's permission to maintain it; `LICENSE.txt` is Sonover's proprietary licence — keep the repo private.
 
@@ -22,7 +22,7 @@ This project's own parts:
 
 | Path | Role |
 |---|---|
-| `build.mjs` | Builds the whole extension into `out/vsix/` (the unpacked .vsix): esbuild `src/main.tsx` → `dist/nodeview.js` and `src-logs/main.tsx` → `dist/logs.js` (IIFE, es2020, CSS imported as text; `--min` minifies), copied to `extension/dist/webview/{nodeview,logs}/index.js`; `host/extension.js` + `host/syslogs.js` → `extension/dist/extension.js`; everything else from `vsix/`; version from the newest `src/changelog.ts` entry stamped into `package.json` and the manifest. |
+| `build.mjs` | Builds the whole extension into `out/vsix/` (the unpacked .vsix): esbuild `src/main.tsx` → `dist/nodeview.js` and `src-logs/main.tsx` → `dist/logs.js` (IIFE, es2020, CSS imported as text; `--min` minifies), copied to `extension/dist/webview/{nodeview,logs}/index.js`; `host/extension.js` + `host/syslogs.js` → `extension/dist/extension.js`; everything else from `vsix/` (it stops if a shipped webview or the MCP server is missing there); version from the newest `src/changelog.ts` entry stamped into `package.json` and the manifest. |
 | `package.sh` | `./package.sh [out.vsix]` → build, typecheck, all host tests on the built `extension.js`, zip `out/vsix` (default `dist/sonover-code-<version>.vsix`). Writes nothing if a test fails. No input needed. |
 | `host/extension.js` | **The extension host's source** (Node.js; ~16,600 lines). Recovered from the 0.1.1 build: formatted, ~200 key names readable, each with a note naming its minified original (`saturnRequest (minified: _) — …`); this project's changes built in (see "Changes to the original" below). Other names are still minified — rename them (scope-aware, e.g. with Babel or the editor's rename) as you work on them. |
 | `host/syslogs.js` | Host side of System Logs (`SystemLogsHost`); appended after `host/extension.js` in the built file, so it shares its scope and uses its helpers (`listRecords`, `saturnRequest`, `recordRoutes`, …). `newest()` = the only record read: the newest `NEWEST` (10), sorted by the instance if it will (`?sort=created_at DESC`, checked and remembered), else the list as it comes, with `ordered`; `open()` = the System Logs panel (its `fetch` → `newest`); `fromWorkflows()` = answers the Logs tab's messages from the Workflows panel; `attach()` receives the instance manager / globalState / extensionUri at command registration; `targetOf()` finds a Workflows panel's instance: its `manager` / `instance` fields, else by shape. |
@@ -107,7 +107,7 @@ node test9.mjs                                            # any of test2–test1
 
 Caveats:
 - The Playwright tests print `PASS` / `FAIL` lines; `npm test` is a placeholder. They read `SHOTS` (screenshot folder, default `shots/`) and `CHROME` (browser path, default the cloud container's) from the environment.
-- `dist/`, `out/`, `node_modules/`, `reference/` and `shots/` are generated and git-ignored; don't commit them.
+- `dist/`, `out/`, `node_modules/`, `reference/` and `shots/` are generated and git-ignored; don't commit them. The `dist/` and `out/` rules are root-only (`/dist/`, `/out/`): `vsix/extension/dist/` holds shipped files and must stay committed.
 
 ## Conventions
 

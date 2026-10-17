@@ -1,12 +1,19 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.12",
+    title: "The sidebar is back",
+    items: [
+      "The Sonover sidebar, Workflows list view, Menus, Pages, Agent Chat, Tickets and preview screens were missing from 0.3.10 and 0.3.11 when built from a fresh copy of the project, which left the sidebar blank. They're included again.",
+      "Building now stops with a clear message if any of those files are missing.",
+    ],
+  },
+  {
     version: "0.3.11",
     title: "Built from its own source",
     items: [
       "The whole extension is now built from this project: the original extension's lost code was recovered, so it no longer needs the 0.1.1 package to build.",
       "If Sonover Code can't start, it says why in an error message instead of leaving its sidebar blank.",
-      "A new version number, so it installs cleanly over 0.3.10.",
     ],
   },
   {
