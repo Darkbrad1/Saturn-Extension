@@ -60,6 +60,54 @@ await p.waitForTimeout(500);
 s = await step();
 ok(s.data.properties.received_at === "{{ _resource.date_uploaded }}", "adding to an empty map works");
 
+// v0.3.10: what you typed is applied when you're done, without Enter / ＋
+const section = (name) => panel.locator(".fg-section-title", { hasText: name });
+await panel.getByPlaceholder("Resource Property").fill("owner");
+await panel.getByPlaceholder("Property Value").fill("{{ _user.id }}");
+await section("Parameters").click(); // collapse it: the editor goes away
+await p.waitForTimeout(500);
+s = await step();
+ok(s.data.properties.owner === "{{ _user.id }}", "a property typed in but not added with Enter / ＋ is added when the section is collapsed");
+await section("Parameters").click();
+await p.waitForTimeout(500);
+ok(await panel.locator(".nv-kv-item", { hasText: "owner" }).count() === 1, "and is still there when it's opened again");
+await panel.getByPlaceholder("Resource Property").fill("queue");
+await panel.getByPlaceholder("Property Value").fill("tier2");
+await panel.locator(".fg-head-title").click(); // click elsewhere in the panel
+await p.waitForTimeout(500);
+ok((await step()).data.properties.queue === "tier2", "or when you click away from the editor");
+await panel.getByPlaceholder("Property Value").fill("orphan");
+await p.waitForTimeout(100);
+ok((await panel.locator(".nv-field-caption.is-warn", { hasText: "Give the property a name" }).count()) === 1, "a value without a name says it needs one");
+await panel.getByPlaceholder("Property Value").fill("");
+
+// any field: an edit not yet applied is applied when the editor goes away (no blur first)
+const rid = panel.locator(".nv-field", { hasText: "Record id" }).locator("input").first();
+await rid.fill("rec-42");
+await p.evaluate(() => [...document.querySelectorAll(".fg-panel .fg-section-title")].find((b) => b.textContent.includes("Parameters")).click());
+await p.waitForTimeout(500);
+ok((await step()).data.resource_id === "rec-42", "a typed value is applied when the editor closes while it still has focus");
+await section("Parameters").click();
+await p.waitForTimeout(400);
+
+// a change the host refuses is reported even when the editor has gone
+await p.locator(".nv-wf-switch").click();
+await p.waitForTimeout(300);
+await p.locator(".nv-picker-item, .nv-wf-item, [role=option]", { hasText: "Order fulfilment" }).first().click();
+await p.waitForTimeout(1200);
+await p.locator(".nv-ol-item", { hasText: "Approve order" }).click();
+await p.waitForTimeout(600);
+await p.locator(".react-flow__node", { hasText: "Send Email" }).first().click();
+await p.waitForTimeout(500);
+await panel.getByRole("tab", { name: "Design", exact: true }).click();
+await p.waitForTimeout(300);
+const to = panel.locator(".nv-field", { hasText: "To" }).locator("input").first();
+await to.fill("");
+await section("Parameters").click();
+await p.waitForTimeout(500);
+ok((await p.locator(".nv-toast.is-error").allInnerTexts()).some((t) => /Not applied: To is required/.test(t)), "a refused change shows a toast, not only next to the (now closed) fields");
+await section("Parameters").click();
+
 // back online after working offline: the node view says so (it used to stay silent)
 await p.evaluate(() => window.__post("connectionRestored", { synced: "Offline work applied to the instance: 1 workflow." }));
 await p.waitForTimeout(200);

@@ -1,6 +1,16 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.10",
+    title: "Readable log messages, nothing lost",
+    items: [
+      "Log messages are formatted: JSON inside them (like a Debug step's flow, store and resource) is pretty-printed and highlighted, one block per value, each with Copy. Rows sum a message up by its values.",
+      "The message comes first in a log's detail; the whole record is folded away below it.",
+      "A property typed into a property map is added when you're done with it — leaving the editor, collapsing the section or picking another step — not only on Enter or ＋.",
+      "Any setting still being edited is applied when its editor closes, and a change that's refused is shown as a toast as well as next to the field.",
+    ],
+  },
+  {
     version: "0.3.9",
     title: "Only the newest 10 logs",
     items: [

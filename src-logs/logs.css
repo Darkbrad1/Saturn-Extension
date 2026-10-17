@@ -97,3 +97,20 @@ html, body { margin: 0; height: 100%; background: var(--lg-bg); color: var(--lg-
 .lg-empty b { color: var(--lg-fg); }
 .lg-checked { color: var(--lg-muted); font-size: 11px; white-space: nowrap; }
 .lg-warn { color: #e3b341; }
+/* a formatted message (src-logs/message.tsx) */
+.lg-message { padding: 10px 10px 4px; border-bottom: 1px solid var(--lg-border); }
+.lgm { display: flex; flex-direction: column; gap: 6px; }
+.lgm-bar { display: flex; justify-content: flex-end; }
+.lgm-text { white-space: pre-wrap; word-break: break-word; line-height: 1.5; font-size: 12px; }
+.lgm-value { border: 1px solid var(--lg-border); border-radius: 5px; background: color-mix(in srgb, var(--lg-input) 60%, transparent); }
+.lgm-value summary { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; font-size: 12px; }
+.lgm-name { font-family: var(--lg-mono); font-weight: 600; color: #9cdcfe; }
+.lgm-size { color: var(--lg-muted); font-size: 11px; }
+.lgm-value summary .lgm-link { margin-left: auto; }
+.lgm-link { background: none; border: 0; padding: 0 2px; color: var(--vscode-textLink-foreground, #3794ff); cursor: pointer; font-size: 11px; }
+.lgm-json { margin: 0; padding: 6px 10px 8px; font-family: var(--lg-mono); font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 420px; overflow: auto; border-top: 1px solid var(--lg-border); }
+.lgm-json .token.property { color: #9cdcfe; }
+.lgm-json .token.string { color: #ce9178; }
+.lgm-json .token.number { color: #b5cea8; }
+.lgm-json .token.boolean, .lgm-json .token.null { color: #569cd6; }
+.lgm-json .token.punctuation, .lgm-json .token.operator { color: #a8a8a8; }

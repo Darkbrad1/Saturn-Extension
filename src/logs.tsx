@@ -29,6 +29,7 @@ import {
   type LogTarget,
   type Rec,
 } from "../src-logs/records";
+import { MessageView, summarize } from "../src-logs/message";
 
 const LIVE_MS = 10000;
 
@@ -47,6 +48,7 @@ interface Reply {
   ordered?: boolean;
 }
 
+const jsonHtml = (v: unknown) => highlight(JSON.stringify(v, null, 2) ?? "", "json");
 const keyOf = (r: Rec) => (r.id !== undefined && r.id !== null ? `id:${String(r.id)}` : JSON.stringify(r));
 export const workflowFilter = (id: string) => `workflow.id = ${JSON.stringify(id)}`;
 
@@ -363,7 +365,7 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
                     </span>
                   )}
                 </span>
-                <span className="lgt-msg">{msg}</span>
+                <span className="lgt-msg">{summarize(msg)}</span>
               </button>
               {isOpen && (
                 <div className="lgt-detail">
@@ -381,7 +383,11 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
                     )}
                   </div>
                   {typeof r.trace === "string" && r.trace.trim() && <pre className="lgt-json lgt-trace">{r.trace}</pre>}
-                  <pre className="lgt-json" dangerouslySetInnerHTML={{ __html: highlight(JSON.stringify(r, null, 2), "json") }} />
+                  <MessageView text={msg} json={jsonHtml} onCopy={(v) => send("copyLogJson", { record: v })} />
+                  <details className="lgt-whole">
+                    <summary>Whole record</summary>
+                    <pre className="lgt-json" dangerouslySetInnerHTML={{ __html: jsonHtml(r) }} />
+                  </details>
                 </div>
               )}
             </li>

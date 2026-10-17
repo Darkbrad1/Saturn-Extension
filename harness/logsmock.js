@@ -20,6 +20,9 @@
   };
   window.__posted = [];
   window.__addLog = () => data.SystemLog.push(mk(data.SystemLog.length + 1));
+  // a Debug step's output, like the real ones: JSON values inside the message
+  window.__addDebugLog = () => data.SystemLog.push({ ...mk(data.SystemLog.length + 1), level: "debug",
+    message: `const flow = ${JSON.stringify({ id: "documentrequest-1", status: "pending review", belongs_to: { name: "INTAKE TEST" } })}; const store = ${JSON.stringify({ documentRequest: null })};` });
   const reply = (type, payload) => setTimeout(() => window.dispatchEvent(new MessageEvent("message", { data: { type, payload } })), 15);
   let state;
   window.acquireVsCodeApi = () => ({

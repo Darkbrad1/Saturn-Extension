@@ -354,7 +354,11 @@ export function App() {
               if (!p?.cancelled) setOutlinerError(errs[0]?.message ? `${errs[0].label ?? ""} ${errs[0].message}`.trim() : p?.reason ?? null);
             } else if (sourceRef.current === "settings") {
               if (!p?.cancelled) setSettingsError(errs[0]?.message ? `${errs[0].label ?? ""} ${errs[0].message}`.trim() : p?.reason ?? null);
-            } else if (errs.length && sourceRef.current === "panel") setPanelErrors(errs);
+            } else if (errs.length && sourceRef.current === "panel") {
+              // shown next to the fields, and as a toast: the editor may be closed by now
+              setPanelErrors(errs);
+              toast(`Not applied: ${errs.map((e) => `${e.label ?? e.param} ${e.message}`).join("; ")}`, "error");
+            }
             else if (p?.reason) toast(p.reason, "error");
             else if (errs.length) toast(errs.map((e) => `${e.label ?? e.param} ${e.message}`).join("; "), "error");
           }

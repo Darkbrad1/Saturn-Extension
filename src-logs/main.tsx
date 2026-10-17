@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import css from "./logs.css";
 import { abs, cellText, dateOf, levelClass, rel, shape, str, type Field, type Rec } from "./records";
+import { MessageView, summarize } from "./message";
 
 declare function acquireVsCodeApi(): { postMessage: (m: unknown) => void; getState: () => unknown; setState: (s: unknown) => void };
 const vscode = acquireVsCodeApi();
@@ -341,7 +342,7 @@ function App() {
                                 {str(v) && <span className={`lg-level ${levelClass(str(v))}`}>{str(v)}</span>}
                               </td>
                             );
-                          const s = cellText(k, v);
+                          const s = k === sh.messageKey && typeof v === "string" ? summarize(v) : cellText(k, v);
                           return (
                             <td key={k} className={k === sh.messageKey ? "is-msg" : typeof v === "object" && v ? "is-mono" : ""} title={s.length > 120 ? s.slice(0, 1000) : undefined}>
                               {s.length > 300 ? s.slice(0, 300) + "…" : s}
@@ -370,8 +371,13 @@ function App() {
                   <button type="button" className="lg-btn" onClick={() => send("openJson", { record: picked })}>Open as JSON</button>
                   <button type="button" className="lg-x" aria-label="Close" onClick={() => setPicked(null)}>×</button>
                 </div>
+                {sh.messageKey && typeof picked[sh.messageKey] === "string" && (
+                  <section className="lg-message" aria-label="Message">
+                    <MessageView text={picked[sh.messageKey] as string} json={json} onCopy={(v) => send("copy", { text: JSON.stringify(v, null, 2) })} />
+                  </section>
+                )}
                 <dl className="lg-kv">
-                  {Object.entries(picked).map(([k, v]) => (
+                  {Object.entries(picked).filter(([k]) => k !== sh.messageKey).map(([k, v]) => (
                     <div key={k} className="lg-kv-row">
                       <dt title={k}>{labelOf(k)}</dt>
                       <dd>

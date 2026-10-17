@@ -552,9 +552,21 @@ function KeyValueEditor(props: { value: string; onChange: (v: string) => void })
     setK("");
     setV("");
   };
+  // A property typed into the empty row is added when you're done with it — leaving the
+  // editor, collapsing the section or picking another step — not only on Enter / ＋.
+  const latest = useRef({ add, k });
+  latest.current = { add, k };
+  useEffect(() => () => {
+    if (latest.current.k.trim()) latest.current.add();
+  }, []);
   if (raw) return <RawJson value={props.value} onChange={props.onChange} />;
   return (
-    <div className="nv-kv-editor">
+    <div
+      className="nv-kv-editor"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null) && k.trim()) add();
+      }}
+    >
       {rows.map(([a, b]) => (
         <div key={a} className="nv-kv-item">
           <span className="nv-kv-k" title={a}>
@@ -595,6 +607,7 @@ function KeyValueEditor(props: { value: string; onChange: (v: string) => void })
           ＋
         </button>
       </div>
+      {!k.trim() && v.trim() !== "" && <span className="nv-field-caption is-warn">Give the property a name to add it.</span>}
     </div>
   );
 }
@@ -771,6 +784,13 @@ export function PanelEditor(props: {
     if (props.focusToken > 0) box.current?.querySelector<HTMLElement>("input,textarea,select")?.focus();
   }, [props.focusToken, loaded !== null]);
 
+  // Going away (section collapsed, another step picked, panel closed) with edits not yet
+  // applied: apply them, as leaving the field would have.
+  const commitRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => {
+    if (dirty.current.size > 0) commitRef.current?.();
+  }, []);
+
   if (!loaded) return <div className="nv-panel-loading">Loading settings…</div>;
 
   const fields = fieldsFor(props.operator, props.catalog, props.commands, values);
@@ -791,6 +811,7 @@ export function PanelEditor(props: {
     for (const k of loaded.htmlParams) delete send[k];
     props.onCommit(send, d);
   };
+  commitRef.current = () => commit();
 
   return (
     <div className="nv-panel-form" ref={box}>

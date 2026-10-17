@@ -3,6 +3,7 @@
 // that wrote it in `task`), the workflow.id server filter with a fallback, steps matched by id.
 // v0.3.9: only ever the newest 10 logs; Live checks at once and says when it last checked;
 // a list that isn't in date order is flagged.
+// v0.3.10: messages formatted (JSON values in them pretty-printed, one block each).
 import { chromium } from "playwright";
 const out = process.env.SHOTS ?? "/tmp/claude-0/-home-claude/a083e21d-6637-5cac-92a5-bbf1f2d008b9/scratchpad/shots";
 const b = await chromium.launch({ executablePath: process.env.CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
@@ -65,7 +66,7 @@ await p.screenshot({ path: out + "/l1-logs-tab.png" });
 // ===== detail =====
 await rows().first().locator(".lgt-row-main").click();
 await p.waitForTimeout(150);
-const json = await panel.locator(".lgt-json").last().innerText();
+const json = await panel.locator(".lgt-whole .lgt-json").evaluate((e) => e.textContent);
 ok((await panel.locator(".lgt-json .token.property").count()) > 0, "a row opens to its highlighted JSON");
 ok(json.includes("the full workflow definition is left out here") && !json.includes('"stages"') && !json.includes("_permissions_"), "the record's copy of the workflow and its permission lists are trimmed");
 await panel.getByRole("button", { name: "Copy JSON" }).click();
@@ -73,6 +74,27 @@ await panel.getByRole("button", { name: "Open as JSON" }).click();
 await p.waitForTimeout(100);
 let o = await opened();
 ok(o.some((x) => x.type === "copyLogJson" && x.record) && o.some((x) => x.type === "openLogJson" && x.record), "Copy JSON and Open as JSON go to the extension with the record");
+await rows().first().locator(".lgt-row-main").click();
+
+// ===== the message, formatted (v0.3.10) =====
+const flowObj = { belongs_to: { name: "INTAKE TEST", party: { id: "party-1", kind: "PERSON" } }, id: "documentrequest-1", status: "pending review", note: "a } and a [ inside a string" };
+const debugMsg = `const flow = ${JSON.stringify(flowObj)}; const store = ${JSON.stringify({ documentRequest: { id: "documentrequest-1" } })}; const resource = ${JSON.stringify({ type: "upload", tags: [], url: "https://x.example/a?b=c" })};`;
+await logFrom("wf_orders", "Approve order", "update_record", debugMsg, { log_type: "debug", name: "Debug" });
+await refresh();
+t = await texts();
+ok(t[0] === "flow {4 keys} · store {1 key} · resource {3 keys}", "a debug message is summed up in its row by the values in it: " + t[0]);
+await rows().first().locator(".lgt-row-main").click();
+await p.waitForTimeout(150);
+const parts = await panel.locator(".lgm-value summary .lgm-name").allInnerTexts();
+ok(parts.join(",") === "flow,store,resource", "opened, each value gets its own block, named after it: " + parts.join(", "));
+const flowJson = await panel.locator(".lgm-value").first().locator(".lgm-json").innerText();
+ok(flowJson.split("\n").length > 8 && flowJson.includes('"note": "a } and a [ inside a string"') && (await panel.locator(".lgm-value").first().locator(".token.property").count()) > 0, "pretty-printed and highlighted (brackets inside strings don't confuse it)");
+await panel.locator(".lgm-value").first().locator(".lgm-link", { hasText: "Copy" }).click();
+await p.waitForTimeout(100);
+o = await opened();
+ok(o.at(-1).type === "copyLogJson" && o.at(-1).record.id === "documentrequest-1", "each value can be copied on its own");
+ok((await panel.locator(".lgt-whole").count()) === 1 && !(await panel.locator(".lgt-whole").evaluate((d) => d.open)), "the whole record is still there, folded away under the message");
+await p.screenshot({ path: out + "/l4-message.png" });
 await rows().first().locator(".lgt-row-main").click();
 
 // ===== level chips, trace and search =====
@@ -148,7 +170,7 @@ ok((await panel.locator(".fg-hint.is-warn").count()) === 0, "and not otherwise")
 await setMock("__filterRejected", true);
 await refresh();
 t = await texts();
-ok(t.length <= 10 && t.every((x) => /^(Approve order|Reject order|Mark delivered|Resend invoice|Notify customer): |^Brand new/.test(x)) && /of the newest 10 logs on the instance$/.test(await foot()),
+ok(t.length <= 10 && t.every((x) => /^(Approve order|Reject order|Mark delivered|Resend invoice|Notify customer): |^Brand new|^flow \{/.test(x)) && /of the newest 10 logs on the instance$/.test(await foot()),
   "refused: it keeps this workflow's among the instance's newest 10: " + (await foot()));
 ok((await panel.locator(".lgt-error").count()) === 0, "without showing an error for the refused filter");
 await panel.getByRole("button", { name: /Open in System Logs/ }).click();

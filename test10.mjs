@@ -88,6 +88,21 @@ await p.waitForTimeout(5600);
 ok((await p.locator(".lg-table tbody tr").first().innerText()).includes("record 1140"), "then every 5 s");
 await p.getByRole("button", { name: "Live" }).click();
 
+// v0.3.10: a message with JSON in it, formatted
+await p.evaluate(() => window.__addDebugLog());
+await p.getByRole("button", { name: "Refresh" }).click();
+await p.waitForTimeout(400);
+const cell = await p.locator(".lg-table tbody tr").first().locator("td.is-msg").innerText();
+ok(cell === "flow {3 keys} · store {1 key}", "the table sums a debug message up by its values: " + cell);
+await p.locator(".lg-table tbody tr").first().click();
+await p.waitForTimeout(150);
+ok((await p.locator(".lg-message .lgm-name").allInnerTexts()).join(",") === "flow,store" && (await p.locator(".lg-message .lgm-json").first().innerText()).includes('"status": "pending review"'), "the detail shows the message first, each value pretty-printed in its own block");
+ok((await p.locator(".lg-kv dt").allInnerTexts()).every((x) => x !== "Message"), "and the message isn't repeated in the field list");
+await p.locator(".lg-message .lgm-link", { hasText: "Copy" }).first().click();
+ok((await p.evaluate(() => window.__posted.at(-1))).type === "copy", "a value can be copied");
+await p.screenshot({ path: out + "/a3-message.png" });
+await p.getByRole("button", { name: "Close" }).click();
+
 // another resource (already newest first)
 await p.locator("select[aria-label='Resource']").selectOption("AuditLog");
 await p.waitForTimeout(400);

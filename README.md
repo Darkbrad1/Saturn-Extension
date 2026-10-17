@@ -1,6 +1,11 @@
-# Workflows node view (v0.3.9)
+# Workflows node view (v0.3.10)
 
 A Blender-style node editor layered onto the Workflows webview. It does everything the list view does.
+
+## New in 0.3.10 — readable log messages, nothing lost
+- **Messages** (`src-logs/message.tsx`, shared by both screens): `parseMessage` splits a message into text and the JSON objects/arrays inside it (brackets in strings respected; each named after a `const x =` / `x:` before it), `summarize` gives a row's one-liner (`flow {36 keys} · store {1 key} · resource {33 keys}`), and `MessageView` shows each value pretty-printed and highlighted in its own collapsible block with Copy (more than three values start collapsed; Expand / Collapse all). The Logs tab's detail shows the message first and folds the whole record under "Whole record"; the System Logs screen's detail pane shows it above the other fields, and its table's message column uses the summary.
+- **Edits are applied when you're done** (`src/forms.tsx`): the property map's empty name/value row is added when focus leaves the editor or the editor goes away (it used to need Enter or ＋, so collapsing Parameters lost it); a value without a name says it needs one. `PanelEditor` applies any field still being edited when it unmounts (section collapsed, another step picked, panel closed) — the same draft edit leaving the field makes.
+- **Refused changes** from the side panel are also toasted ("Not applied: To is required"), since the fields they belong to may be closed by then. `test12.mjs` covers all of this (each check fails on 0.3.9).
 
 ## New in 0.3.9 — only the newest 10 logs
 - **Every read is the newest 10** (`NEWEST` in `syslogs-host.js`): the System Logs screen's `fetch` and the Logs tab's `fetchWorkflowLogs` both go through `SysLogs$.newest(manager, instance, resource, filter)`. The screen has no paging or page size any more (`fetchRange` is gone); the tab has no Load older / Search older, and in its fallback (filter refused) it keeps this workflow's among the instance's newest 10.
@@ -66,7 +71,7 @@ One step: `./package.sh path/to/sonover-code-0.1.1.vsix` builds, patches, runs t
 ```
 npm install
 node build.mjs --min
-python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.9
+python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.10
 node hosttest.cjs | hosttest-move.cjs | hosttest-reorder.cjs | hosttest-command.cjs | hosttest-field.cjs | hosttest-bulk.cjs | hosttest-logs.cjs  <unpacked>/extension/dist/extension.js
 node hosttest-wflogs.cjs        # the Logs tab's host side, on syslogs-host.js alone (no .vsix needed)
 ```
