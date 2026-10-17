@@ -1,8 +1,8 @@
-// The Logs tab's host side (SysLogs$.fromWorkflows in syslogs-host.js), run on
+// The Logs tab's host side (SystemLogsHost.fromWorkflows in host/syslogs.js), run on
 // its own with the extension's record helpers stubbed — no .vsix needed:
-//   node hosttest-wflogs.cjs [syslogs-host.js]
+//   node hosttest-wflogs.cjs [host/syslogs.js]
 const fs = require("fs"), path = require("path"), Module = require("module");
-const file = process.argv[2] ?? path.join(__dirname, "syslogs-host.js");
+const file = process.argv[2] ?? path.join(__dirname, "host", "syslogs.js");
 const calls = [];
 const vscode = {
   workspace: { getConfiguration: () => ({ get: () => "" }), openTextDocument: async (d) => (calls.push(["openTextDocument", d]), d) },
@@ -32,25 +32,25 @@ function serve(route, q) {
 }
 global.__serve = serve;
 const stubs = `
-  const I = (i) => i.name;
-  const xe = () => "nonce";
-  const Re = () => {};
-  const dn = async () => ["Application", "SystemLog"];
-  const xc = async () => new Set(["SystemLog"]);
-  const Ln = async () => ({ fields: [] });
-  const Ur = (r) => ["/" + r.toLowerCase() + "s"];
-  const Ro = (st, b) => st === 404;
-  const lc = (b) => ({ records: b.data, total: b.count });
-  const Ze = () => {};
-  const _ = async (m, inst, path) => { const [route, qs] = path.split("?"); __calls.push(["GET", inst.id, path]); const r = __serve(route, new URLSearchParams(qs));
+  const instanceLabel = (i) => i.name;
+  const nonce = () => "nonce";
+  const setPanelIcon = () => {};
+  const listResourceNames = async () => ["Application", "SystemLog"];
+  const coreResourceNames = async () => new Set(["SystemLog"]);
+  const getResourceFields = async () => ({ fields: [] });
+  const recordRoutes = (r) => ["/" + r.toLowerCase() + "s"];
+  const isMissingRoute = (st, b) => st === 404;
+  const recordsFromBody = (b) => ({ records: b.data, total: b.count });
+  const throwIfFailure = () => {};
+  const saturnRequest = async (m, inst, path) => { const [route, qs] = path.split("?"); __calls.push(["GET", inst.id, path]); const r = __serve(route, new URLSearchParams(qs));
     return { status: r.status, ok: r.status < 300, json: async () => r.body }; };
-  const Sc = async (m, inst, res, o) => { __calls.push(["Sc", inst.id, res, o]); const r = __serve(Ur(res)[0], new URLSearchParams({ limit: o.limit, page: o.page }));
+  const listRecords = async (m, inst, res, o) => { __calls.push(["Sc", inst.id, res, o]); const r = __serve(recordRoutes(res)[0], new URLSearchParams({ limit: o.limit, page: o.page }));
     return { records: r.body.data, total: r.body.count }; };
 `;
 const m = new Module("syslogs"); m.filename = "/x/syslogs-host.js";
 const orig = Module._load; Module._load = (r, p, i) => (r === "vscode" ? vscode : orig(r, p, i));
 global.__calls = calls; global.__all = all;
-m._compile(stubs + fs.readFileSync(file, "utf8") + "\n;module.exports=SysLogs$;", m.filename);
+m._compile(stubs + fs.readFileSync(file, "utf8") + "\n;module.exports=SystemLogsHost;", m.filename);
 const S = m.exports;
 
 let fails = 0;
@@ -87,7 +87,7 @@ const manager = { list: () => [inst, other], get: () => undefined };
   ok(reads().length === 1, "the sort that worked is remembered (one read per check)");
 
   // an instance that refuses the sort, listing oldest first: read from the end
-  const S2 = () => { const m2 = new Module("s2"); m2._compile(stubs + fs.readFileSync(file, "utf8") + "\n;module.exports=SysLogs$;", "/x/s2.js"); return m2.exports; };
+  const S2 = () => { const m2 = new Module("s2"); m2._compile(stubs + fs.readFileSync(file, "utf8") + "\n;module.exports=SystemLogsHost;", "/x/s2.js"); return m2.exports; };
   fake.sort = "reject";
   let T = S2(); calls.length = 0;
   await T.fromWorkflows(panel, webview, "fetchWorkflowLogs", { reqId: 9 });

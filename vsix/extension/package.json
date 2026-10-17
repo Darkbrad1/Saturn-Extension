@@ -1,0 +1,566 @@
+{
+	"name": "sonover-code",
+	"displayName": "Sonover Code",
+	"publisher": "Sonover",
+	"description": "Make Development Easier",
+	"version": "0.3.10",
+	"license": "SEE LICENSE IN LICENSE",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/dontexit/tempdontexist"
+	},
+	"engines": {
+		"vscode": "^1.67.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onView:sonover-sidebar-view",
+		"onView:saturn-explorer",
+		"onCommand:saturn.connect",
+		"onCommand:saturn.disconnect",
+		"onCommand:saturn.flushQueue",
+		"onCommand:saturn.openWorkflows"
+	],
+	"main": "./dist/extension.js",
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "sonover-sidebar",
+					"title": "Sonover Code",
+					"icon": "media/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"sonover-sidebar": [
+				{
+					"id": "sonover-sidebar-view",
+					"name": "Sonover Code",
+					"type": "webview",
+					"icon": "media/icon.svg"
+				},
+				{
+					"id": "saturn-explorer",
+					"name": "Components",
+					"icon": "media/icon.svg"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "sonover-code.helloWorld",
+				"title": "Hello World"
+			},
+			{
+				"command": "sonover-code.openKanban",
+				"title": "Sonover: Open Tickets"
+			},
+			{
+				"command": "saturn.revealFiles",
+				"title": "Saturn: Show Files in File Browser",
+				"icon": "$(folder-opened)"
+			},
+			{
+				"command": "saturn.retryConnection",
+				"title": "Saturn: Retry Connection",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "saturn.openWorkflows",
+				"title": "Saturn: Open Workflows",
+				"icon": "$(git-merge)"
+			},
+			{
+				"command": "saturn.refreshTree",
+				"title": "Saturn: Refresh",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "saturn.removeInstance",
+				"title": "Saturn: Remove Instance",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "saturn.openResource",
+				"title": "Saturn: Open Resource"
+			},
+			{
+				"command": "saturn.connect",
+				"title": "Saturn: Connect Instance",
+				"icon": "$(plug)"
+			},
+			{
+				"command": "saturn.disconnect",
+				"title": "Saturn: Disconnect Instance"
+			},
+			{
+				"command": "saturn.renameInstance",
+				"title": "Saturn: Edit Display Name"
+			},
+			{
+				"command": "saturn.flushQueue",
+				"title": "Saturn: Sync Pending Saves Now",
+				"icon": "$(sync)"
+			},
+			{
+				"command": "saturn.previewComponent",
+				"title": "Saturn: Open Preview to the Side",
+				"icon": "$(open-preview)"
+			},
+			{
+				"command": "saturn.previewComponentInTab",
+				"title": "Saturn: Open Preview in New Tab",
+				"icon": "$(preview)"
+			},
+			{
+				"command": "saturn.createResource",
+				"title": "Saturn: New Component / Composable",
+				"icon": "$(add)"
+			},
+			{
+				"command": "saturn.openPages",
+				"title": "Saturn: Open Pages",
+				"icon": "$(browser)"
+			},
+			{
+				"command": "saturn.openMenus",
+				"title": "Saturn: Open Menus",
+				"icon": "$(list-tree)"
+			},
+			{
+				"command": "saturn.reviewSkillUpdates",
+				"title": "Saturn: Review Skill Updates"
+			},
+			{
+				"command": "saturn.linkDefaultSkills",
+				"title": "Saturn: Link Default Skills",
+				"icon": "$(sparkle)"
+			},
+			{
+				"command": "saturn.syncResourcesToDisk",
+				"title": "Saturn: Sync Resources To Disk",
+				"icon": "$(cloud-download)"
+			},
+			{
+				"command": "saturn.clearResourceFiles",
+				"title": "Saturn: Clear Resource Files",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "saturn.deleteResource",
+				"title": "Saturn: Delete",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "saturn.selectAgentCli",
+				"title": "Saturn: Select AI CLI",
+				"category": "Saturn"
+			},
+			{
+				"command": "saturn.editAgentInstructions",
+				"title": "Saturn: Edit Agent Instructions",
+				"category": "Saturn"
+			},
+			{
+				"command": "saturn.showMemoryUsage",
+				"title": "Saturn: Show Memory Usage",
+				"category": "Saturn"
+			},
+			{
+				"command": "saturn.showAgentSystemPrompt",
+				"title": "Saturn: Show Agent System Prompt",
+				"category": "Saturn"
+			},
+			{
+				"command": "saturn.openAgentChat",
+				"title": "Saturn: Open Agent Chat",
+				"category": "Saturn",
+				"icon": "$(comment-discussion)"
+			},
+			{
+				"command": "saturn.openChatHistory",
+				"title": "Saturn: Open Chat History Folder",
+				"category": "Saturn"
+			},
+			{
+				"command": "saturn.openSystemLogs",
+				"title": "Saturn: Open System Logs",
+				"icon": "$(output)"
+			}
+		],
+		"viewsWelcome": [
+			{
+				"view": "saturn-explorer",
+				"contents": "No Saturn instances connected.\n[Connect Instance](command:saturn.connect)"
+			}
+		],
+		"menus": {
+			"view/title": [
+				{
+					"command": "saturn.connect",
+					"when": "view == saturn-explorer",
+					"group": "navigation@1"
+				},
+				{
+					"command": "saturn.createResource",
+					"when": "view == saturn-explorer",
+					"group": "navigation@2"
+				},
+				{
+					"command": "saturn.refreshTree",
+					"when": "view == saturn-explorer",
+					"group": "navigation@3"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "saturn.renameInstance",
+					"when": "view == saturn-explorer && viewItem == saturn.instance",
+					"group": "1_modification"
+				},
+				{
+					"command": "saturn.revealFiles",
+					"when": "view == saturn-explorer && viewItem == saturn.instance",
+					"group": "1_modification"
+				},
+				{
+					"command": "saturn.revealFiles",
+					"when": "view == saturn-explorer && viewItem == saturn.instance",
+					"group": "inline@3"
+				},
+				{
+					"command": "saturn.openWorkflows",
+					"when": "view == saturn-explorer && viewItem == saturn.instance",
+					"group": "1_modification"
+				},
+				{
+					"command": "saturn.openMenus",
+					"when": "view == saturn-explorer && viewItem == saturn.instance",
+					"group": "1_modification"
+				},
+				{
+					"command": "saturn.openPages",
+					"when": "view == saturn-explorer && viewItem == saturn.instance",
+					"group": "1_modification"
+				},
+				{
+					"command": "saturn.openSystemLogs",
+					"when": "view == saturn-explorer && viewItem == saturn.instance",
+					"group": "1_modification"
+				},
+				{
+					"command": "saturn.syncResourcesToDisk",
+					"when": "view == saturn-explorer && viewItem == saturn.instance",
+					"group": "1_modification"
+				},
+				{
+					"command": "saturn.removeInstance",
+					"when": "view == saturn-explorer && viewItem == saturn.instance",
+					"group": "inline@2"
+				},
+				{
+					"command": "saturn.previewComponent",
+					"when": "view == saturn-explorer && viewItem =~ /^saturn\\.item\\./",
+					"group": "navigation"
+				},
+				{
+					"command": "saturn.createResource",
+					"when": "view == saturn-explorer && viewItem =~ /^saturn\\.folder\\./",
+					"group": "inline"
+				},
+				{
+					"command": "saturn.deleteResource",
+					"when": "view == saturn-explorer && viewItem =~ /^saturn\\.item\\./",
+					"group": "inline@2"
+				},
+				{
+					"command": "saturn.deleteResource",
+					"when": "view == saturn-explorer && viewItem =~ /^saturn\\.item\\./",
+					"group": "9_modification"
+				},
+				{
+					"command": "saturn.openAgentChat",
+					"when": "view == saturn-explorer && viewItem == saturn.instance",
+					"group": "1_modification"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "saturn.previewComponent",
+					"when": "saturn.canPreview",
+					"group": "navigation@1"
+				},
+				{
+					"command": "saturn.previewComponentInTab",
+					"when": "saturn.canPreview",
+					"group": "navigation@2"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "saturn.openResource",
+					"when": "false"
+				},
+				{
+					"command": "saturn.renameInstance",
+					"when": "false"
+				},
+				{
+					"command": "saturn.removeInstance",
+					"when": "false"
+				},
+				{
+					"command": "saturn.refreshTree",
+					"when": "false"
+				},
+				{
+					"command": "saturn.deleteResource",
+					"when": "false"
+				}
+			]
+		},
+		"configuration": {
+			"title": "Sonover Code",
+			"properties": {
+				"sonoverCode.agent.clis": {
+					"scope": "machine",
+					"type": "object",
+					"default": {},
+					"markdownDescription": "Per-CLI overrides for the AI CLIs the extension drives, keyed by `claude`, `codex`, `antigravity`, or `ollama`. These CLIs move fast and this extension does not pin their flags, so a wrong flag or an unusual install location is fixable here without waiting on a release.",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"path": {
+								"type": "string",
+								"markdownDescription": "Absolute path to the binary, skipping detection. `~` is expanded."
+							},
+							"args": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"markdownDescription": "Replaces the whole command line. `${prompt}` and `${model}` are substituted."
+							},
+							"extraArgs": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"markdownDescription": "Flags prepended to every turn, without restating the whole command."
+							},
+							"model": {
+								"type": "string",
+								"markdownDescription": "Model to offer for a CLI that cannot list its own."
+							},
+							"enabled": {
+								"type": "boolean",
+								"default": true,
+								"markdownDescription": "Set to `false` to hide this CLI from the picker."
+							}
+						}
+					}
+				},
+				"sonoverCode.agent.systemPrompt": {
+					"type": "string",
+					"default": "",
+					"editPresentation": "multilineText",
+					"markdownDescription": "Your own instructions, appended to the system prompt the extension gives the AI CLI and taking precedence over its general guidance. Ignored when the instructions file exists — see `#sonoverCode.agent.instructionsFile#`, which is the better home for rules a team shares. Sent to the provider for a hosted CLI, so keep credentials out of it."
+				},
+				"sonoverCode.agent.instructionsFile": {
+					"scope": "machine",
+					"type": "string",
+					"default": ".saturn/agent-instructions.md",
+					"markdownDescription": "Workspace-relative path to the agent instructions file. When it exists and is non-empty it overrides `#sonoverCode.agent.systemPrompt#`, so a repo can carry one shared set of rules — it is deliberately not gitignored. Create it with **Saturn: Edit Agent Instructions**. Keep credentials out of it: it is committable, and for a hosted CLI its contents are sent to that provider."
+				},
+				"sonoverCode.environment": {
+					"scope": "machine",
+					"type": "string",
+					"enum": [
+						"auto",
+						"dev",
+						"prod"
+					],
+					"default": "auto",
+					"markdownEnumDescriptions": [
+						"`dev` when the extension is running from source (F5 or `--extensionDevelopmentPath`), `prod` otherwise. `SONOVER_ENV=dev` in the launching terminal also selects it.",
+						"Always development: chats, tasks, attachments, the resource mirror, and skill checkouts go to `~/saturn-dev`.",
+						"Always production: everything goes to `~/saturn`, even when running from source."
+					],
+					"markdownDescription": "Which data tree this window uses. A development run writes to `~/saturn-dev` so debugging cannot append to real chat history, rewrite real task logs, or leave half-cloned skill checkouts among the ones you depend on. An explicit `#sonoverCode.agent.historyDir#` or `#sonoverCode.skills.directory#` is used verbatim in either environment."
+				},
+				"sonoverCode.agent.workingDirectory": {
+					"scope": "machine",
+					"type": "string",
+					"enum": [
+						"workspace",
+						"instance"
+					],
+					"default": "workspace",
+					"markdownEnumDescriptions": [
+						"The open workspace. Relative paths resolve where you are working, and the CLI also reads that project's agent memory (`CLAUDE.md`, `AGENTS.md`). A project's `.claude/` settings and `.mcp.json` are only loaded with `sonoverCode.agent.loadProjectSettings` on.",
+						"The instance's own folder under `#sonoverCode.agent.historyDir#`. No repository's agent memory is loaded, so the only instructions in play are this extension's prompt, your agent instructions, and the skills you switched on."
+					],
+					"markdownDescription": "Where the AI CLI is started. Agent CLIs load project memory from their working directory, so this decides whether the open repository's instructions join the conversation. Switch to `instance` if a repository's `CLAUDE.md` is competing with your linked skills."
+				},
+				"sonoverCode.agent.historyDir": {
+					"scope": "machine",
+					"type": "string",
+					"default": "~/saturn",
+					"markdownDescription": "Where agent chat transcripts are kept, one JSONL file per thread under `<dir>/<instance>/chats`. Outside the workspace by design: a conversation belongs to the instance, not to a checkout, and a transcript of your production workflows should not be committable by accident. `~` is expanded."
+				},
+				"sonoverCode.agent.passEnvironment": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"scope": "machine",
+					"markdownDescription": "Extra environment variables an agent CLI is started with. By default it gets only what it needs: `PATH`, `HOME`, locale, proxies and certificates, and its own sign-in variables (`ANTHROPIC_*`, `OPENAI_API_KEY`, `CLAUDE_*`, …). Everything else in the editor's environment is withheld, because every command the agent runs inherits it. List exact names, or prefixes ending in `*` (for example `MY_TOOL_*`)."
+				},
+				"sonoverCode.performanceMode": {
+					"type": "string",
+					"enum": [
+						"auto",
+						"standard",
+						"low"
+					],
+					"enumDescriptions": [
+						"Low-memory mode on machines with 4 GB of memory or less.",
+						"Keep every open Saturn tab ready in the background.",
+						"Use as little memory as possible: background tabs reload when you return to them, previews follow changes less eagerly."
+					],
+					"default": "auto",
+					"markdownDescription": "How much memory the extension may use. In low-memory mode, Workflows, Menus, Pages, Tickets and previews free their page while in a background tab and rebuild it when you come back to it. The chat always keeps its page, so a reply is never lost. Reopen the tabs for a change to apply."
+				},
+				"sonoverCode.agent.autoAllowInstanceEdits": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Let an agent edit the instance's own files — components, composables, custom pages, workflow code in its folder under `~/saturn` — without asking each time, when its profile may edit files. Edits anywhere else still ask. Note these files sync to the live instance."
+				},
+				"sonoverCode.agent.previewEdits": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "While an agent is working, open a live preview beside the chat of any component, composable, custom page, or workflow HTML it changes in the instance — including the HTML a workflow step renders (an email's message, the HTML Generator's content, a PDF template) when it changes the step. The preview follows each further change."
+				},
+				"sonoverCode.agent.loadProjectSettings": {
+					"type": "boolean",
+					"default": false,
+					"scope": "machine",
+					"markdownDescription": "Let Claude Code load the open folder's own `.claude/settings.json`, `.claude/settings.local.json` and `.mcp.json`. Off by default: the chat runs Claude non-interactively, which skips its workspace-trust prompt, so a cloned repository's hooks and permission rules would run on your first message. Turn on only for folders you trust. With it off, only your user settings and Saturn's own MCP server are loaded. `CLAUDE.md` is still read either way."
+				},
+				"sonoverCode.agent.permissionPromptTool": {
+					"scope": "machine",
+					"type": "string",
+					"default": "mcp__saturn__approve",
+					"markdownDescription": "Name the CLI uses for the tool that asks you to approve a tool call. The naming convention for MCP tools has moved between CLI versions (`mcp__server__tool` vs `mcp_tool`), so if approval prompts never appear, this is the setting to correct."
+				},
+				"sonoverCode.skills.refreshHours": {
+					"type": "number",
+					"default": 24,
+					"minimum": 0,
+					"markdownDescription": "How stale a linked skill repository may get before it is re-fetched when the AI view opens. A shallow `git fetch` per stale repo, so it is cheap; set to `0` to only ever refresh by hand. A repo that has never fetched successfully has no timestamp, so it is always retried; one that fetched before and later failed keeps its old timestamp and is retried once that is stale."
+				},
+				"sonoverCode.skills.defaultRepository": {
+					"scope": "machine",
+					"type": "string",
+					"default": "https://github.com/GuiTheDevv/Saturn-Agent-Pro",
+					"markdownDescription": "Linked automatically the first time the extension runs, because these skills are what make an agent useful against a Saturn instance. It is linked **once** — unlinking it keeps it unlinked, and an install that already has repositories is left alone. Set it to another repository to seed that instead, or to an empty string for no default. **Saturn: Link Default Skills** links it again on request."
+				},
+				"sonoverCode.skills.directory": {
+					"scope": "machine",
+					"type": "string",
+					"default": "~/saturn/skills",
+					"markdownDescription": "Where linked skill repositories are checked out, one folder per repository. Outside the workspace by design: a skill is a capability you brought with you rather than part of one checkout. `~` is expanded."
+				},
+				"saturn.systemLogResource": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Resource that **Saturn: Open System Logs** lists. Leave empty to use the instance's System Logs core resource (found by name). The screen only reads records; it never changes them."
+				}
+			}
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "bun run package",
+		"compile": "bun run check-types && bun run lint && bun run esbuild.ts",
+		"dev": "SONOVER_ENV=dev bun run watch",
+		"watch": "npm-run-all -p watch:*",
+		"watch:esbuild": "bun run esbuild.ts --watch",
+		"watch:tsc": "npm-run-all -p watch:tsc:*",
+		"package": "bun run check-types && bun run lint && bun run esbuild.ts --production",
+		"release": "bun run scripts/release.ts",
+		"compile-tests": "tsc -p . --outDir out",
+		"watch-tests": "tsc -p . -w --outDir out",
+		"pretest": "bun run compile-tests && bun run compile && bun run lint",
+		"check-types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json && tsc --noEmit -p tsconfig.test.json",
+		"lint": "eslint src",
+		"test": "bun run src/test/run.ts",
+		"vsix": "bun run package && bunx vsce package",
+		"watch:tsc:host": "tsc --noEmit --watch --project tsconfig.json",
+		"watch:tsc:webview": "tsc --noEmit --watch --project tsconfig.webview.json",
+		"test:vscode": "vscode-test",
+		"fixtures": "bun run src/test/fixtures/build-fixtures.ts"
+	},
+	"devDependencies": {
+		"bun": "^1.3.14",
+		"@fortawesome/free-solid-svg-icons": "^7.3.1",
+		"@tailwindcss/postcss": "^4.3.3",
+		"@types/bun": "^1.3.14",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "^26.6.4",
+		"@types/react": "^19.2.18",
+		"@types/react-dom": "^19.2.4",
+		"@types/vscode": "1.67.0",
+		"@vscode/test-cli": "^0.0.12",
+		"@vscode/test-electron": "^2.5.2",
+		"@vscode/vsce": "^3.9.2",
+		"esbuild": "^0.28.2",
+		"esbuild-postcss": "^0.0.4",
+		"eslint": "^9.39.5",
+		"npm-run-all": "^4.1.5",
+		"postcss": "^8.5.26",
+		"tailwindcss": "^4.3.3",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.67.0"
+	},
+	"dependencies": {
+		"@tailwindcss/browser": "^4.3.3",
+		"class-variance-authority": "^0.7.1",
+		"clsx": "^2.1.1",
+		"lucide-react": "^1.31.0",
+		"react": "^19.2.8",
+		"react-dom": "^19.2.8",
+		"react-markdown": "^10.1.0",
+		"remark-gfm": "^4.0.1",
+		"tailwind-merge": "^3.6.0",
+		"vue": "^3.5.41"
+	},
+	"overrides": {
+		"undici": "^7.29.1",
+		"shell-quote": "^1.9.0",
+		"tmp": "^0.2.6",
+		"form-data": "^4.0.6",
+		"markdown-it": "^14.3.1",
+		"linkify-it": "^5.0.2",
+		"nanoid": "^3.3.18",
+		"fast-uri": "^3.1.8",
+		"js-yaml": "^4.3.2",
+		"serialize-javascript": "^7.0.5",
+		"diff": "^8.0.3",
+		"minimatch@^3": {
+			"brace-expansion": "^1.1.21"
+		},
+		"minimatch@>=10": {
+			"brace-expansion": "^5.0.12"
+		},
+		"brace-expansion@^2": "^2.1.7",
+		"minimatch@^9": {
+			"brace-expansion": "^2.1.7"
+		},
+		"qs": "^6.16.0"
+	}
+}

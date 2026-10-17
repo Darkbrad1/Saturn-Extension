@@ -159,6 +159,12 @@ const NAMES = {
   wn: ["workflowsDataDir", "<instance data folder>/workflows (drafts.json, offline edits)."],
   Vl: ["offlineSyncSummary", "\"Offline work applied to the instance: …\""],
 
+  // ---- helpers added by this project (in a build that has them)
+  "yr$base": ["stepViewBase", "stepView without the additions: stepView adds the disabled flag (mock) and the step's id (stepId)."],
+  "on$after": ["movedTargetPath", "Where a move's target path points once the moved step is out of the list (fixes moves into a later container)."],
+  "ff$set": ["setFieldProps", "A copy of a form field with settings set / removed by path (setFormFieldProps)."],
+  "bk$cmp": ["comparePaths", "Orders step paths in document order (bulk edits go last-first)."],
+
   // ---- Sonover's own server (Tickets), not an instance
   gr: ["sonoverRequest", "A request to https://sonoverapi.saturn.gd/api with the user's Sonover login."],
   Gu: ["sonoverToken", "The Sonover login token from secrets."],

@@ -5,7 +5,7 @@
 // a list that isn't in date order is flagged.
 // v0.3.10: messages formatted (JSON values in them pretty-printed, one block each).
 import { chromium } from "playwright";
-const out = process.env.SHOTS ?? "/tmp/claude-0/-home-claude/a083e21d-6637-5cac-92a5-bbf1f2d008b9/scratchpad/shots";
+const out = process.env.SHOTS ?? "shots";
 const b = await chromium.launch({ executablePath: process.env.CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
 const errs = [];

@@ -1,5 +1,5 @@
 const fs = require("fs"), path = require("path"), Module = require("module");
-const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={Ke,N,ue,Tr,yr};";
+const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={Ke:workflowView,N:getAt,ue:setAt,Tr:stepSummary,yr:stepView};";
 const stub = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => "" : stub), apply: () => stub, construct: () => stub });
 const m = new Module("ext"); m.filename = "/x/extension.js"; m.paths = Module._nodeModulePaths(path.dirname(process.argv[2]));
 const origLoad = Module._load;

@@ -1,7 +1,7 @@
 // v0.3.2 host patches: the form field view model carries the stored field, and
 // setFormFieldProps changes settings by path without touching the rest.
 const fs = require("fs"), Module = require("module");
-const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={go,Rr,ff$set,$a};";
+const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={go:formFieldView,Rr:updateFields,ff$set:setFieldProps,$a:actionView};";
 const stub = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => "" : stub), apply: () => stub, construct: () => stub });
 const m = new Module("ext"); m.filename = "/x/extension.js";
 const orig = Module._load; Module._load = (r, p, i) => (r === "vscode" ? stub : orig(r, p, i));
@@ -32,6 +32,6 @@ ok(staff.hideInTable === false && staff.rendering._variances.view.span === 2 && 
 ok(out.actions[0].form.fields[1].key === "other" && out.actions[0].form.sections.length === 0, "other fields and sections untouched");
 ok(def.actions[0].form.fields[0] === staff, "the original workflow is not mutated");
 // the message handler refuses key/label/type and prototype paths
-const i = src.indexOf('case"setFormFieldProps"');
-const body = src.slice(i, src.indexOf('case"deleteFormField"', i));
-ok(i > 0 && /\["key","label","type"\]\.includes/.test(body) && /__proto__/.test(body), "handler guards key/label/type and prototype paths");
+const i = src.indexOf('case "setFormFieldProps"');
+const body = src.slice(i, src.indexOf('case "deleteFormField"', i));
+ok(i > 0 && /\["key", "label", "type"\]\.includes/.test(body) && /__proto__/.test(body), "handler guards key/label/type and prototype paths");

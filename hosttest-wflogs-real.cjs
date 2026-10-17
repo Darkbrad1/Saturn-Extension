@@ -1,7 +1,7 @@
 // The Logs tab host side inside the REAL patched extension.js, against a fake
 // Saturn server (global fetch stubbed): node hosttest-wflogs-real.cjs <unpacked>/extension/dist/extension.js
 const fs = require("fs"), Module = require("module");
-const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={SysLogs$};";
+const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={SysLogs$:SystemLogsHost};";
 const stub = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => "" : stub), apply: () => stub, construct: () => stub });
 const vs = new Proxy({}, { get: (t, k) => k === "workspace" ? { getConfiguration: () => ({ get: () => "" }) } : stub });
 const m = new Module("ext"); m.filename = "/x/extension.js";

@@ -1,6 +1,11 @@
-# Workflows node view (v0.3.10)
+# sonover-code (v0.3.10)
 
-A Blender-style node editor layered onto the Workflows webview. It does everything the list view does.
+The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
+
+- `host/` — the extension host. `extension.js` is the original 0.1.1 host, recovered from its build (its source was lost): formatted, key names readable, this project's changes built in. `syslogs.js` is System Logs / the Logs tab.
+- `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
+- `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
+- Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
 
 ## New in 0.3.10 — readable log messages, nothing lost
 - **Messages** (`src-logs/message.tsx`, shared by both screens): `parseMessage` splits a message into text and the JSON objects/arrays inside it (brackets in strings respected; each named after a `const x =` / `x:` before it), `summarize` gives a row's one-liner (`flow {36 keys} · store {1 key} · resource {33 keys}`), and `MessageView` shows each value pretty-printed and highlighted in its own collapsible block with Copy (more than three values start collapsed; Expand / Collapse all). The Logs tab's detail shows the message first and folds the whole record under "Whole record"; the System Logs screen's detail pane shows it above the other fields, and its table's message column uses the summary.
@@ -59,23 +64,19 @@ Extension changes (`patch.py`): `bulkSteps` `{op: "delete"|"duplicate"|"mock", p
 - **Colour pickers**: colour params (type/input type `color`, or a colour-ish name) and stage colours get a picker — saturation/brightness area, hue, hex, swatches, and the browser eyedropper where available.
 - **Every form-field setting** (`src/fieldmore.tsx`): editing a form field or command parameter shows all its other settings, each applied as its own draft edit — validation (unique, searchable, email, IP), visibility (hide everywhere / table / form / view / drawer, own tab), layout (table column width, view/form columns and full width, view span), read/write defaults, input type and template, lookup & map (source, lookup type, map type/reference/value/label fields, label type, label function in a JS editor), rendering (component, size, shape, opacity), meta tags, required columns, default view — plus the whole field as JSON (Apply JSON sets and removes settings; key/label/type stay with the checked editor above).
 
-## Changes to the extension (`patch.py`)
+## Changes to the extension in 0.3.2 (then applied by `patch.py`; now in `host/extension.js`)
 New in 0.3.2:
 - the form-field view model (`go`) carries the stored field as `raw`
 - a `setFormFieldProps` message `{ownerPath, formKey, key, changes:[{path, value?, remove?}]}` that copies along each path (nothing is mutated) and refuses `key`/`label`/`type` and prototype paths
 
 Unchanged: getHtml script tag, `mock` in the view model, `setStepMock`, the move fix in `on()`, the Disabled badge in the list view, and the `sonover:openWorkflow` hook.
 
-## Reading the original extension.js
-`npm run readable -- ~/Downloads/sonover-code-0.1.1-production.vsix` (or a path to `extension.js`) writes `reference/extension.readable.js`: the original formatted, with ~120 key functions and classes renamed to what they do (`saturnRequest`, `WorkflowsPanel`, `saveWorkflow`, `listRecords`, `workflowView`, …) and every module import named after its module. Each renamed item has a note naming its minified original. It is a reading copy (git-ignored): `patch.py` keeps matching the minified file. The rename is scope-aware (Babel), and the copy was checked to behave the same as the original (view model, step moves, parameter parsing, record routes, path edits, requests).
-
 ## Build and test
-One step: `./package.sh path/to/sonover-code-0.1.1.vsix` builds, patches, runs the host tests and writes `dist/sonover-code-<version>.vsix`; install it with `code --install-extension dist/sonover-code-<version>.vsix --force` or Extensions → ⋯ → Install from VSIX…. By hand:
 ```
 npm install
-node build.mjs --min
-python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.10
-node hosttest.cjs | hosttest-move.cjs | hosttest-reorder.cjs | hosttest-command.cjs | hosttest-field.cjs | hosttest-bulk.cjs | hosttest-logs.cjs  <unpacked>/extension/dist/extension.js
-node hosttest-wflogs.cjs        # the Logs tab's host side, on syslogs-host.js alone (no .vsix needed)
+./package.sh                      # -> dist/sonover-code-<version>.vsix
+codium --install-extension dist/sonover-code-<version>.vsix --force
 ```
-`test2`–`test10.mjs`: 292 Playwright checks running the real list view and the node view together against `mockhost.js` under the webview's CSP. `test10.mjs` covers the System Logs screen and sidebar entry (`harness/logs.html` / `harness/sidebar.html`); `test11.mjs` covers the Logs tab; `test12.mjs` the property map editor. Without the .vsix, serve `harness/wf-stub.js` as `wf.js` (and an empty `wf.css`) to stand in for the list view. `test11.mjs` takes `SHOTS` (screenshot dir) and `CHROME` (browser path) from the environment.
+Browser tests: `node tools/serve.mjs` (serves `harness/` with the real list view and sidebar), then `node testN.mjs`. Host tests run inside `package.sh`. Details in `CLAUDE.md`.
+
+Up to 0.3.10 the extension was produced by patching the original `.vsix` with `patch.py`; from the recovery on, everything is source in this repo (see git history for the old patch kit).

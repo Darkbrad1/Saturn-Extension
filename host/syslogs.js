@@ -1,17 +1,17 @@
-
-/* ---- Sonover node view patch: System Logs (read-only) ----------------------
- * Appended to dist/extension.js by patch.py, so it shares the bundle's scope
- * and reads records exactly the way the rest of the extension does:
- *   Sc(manager, instance, resource, {limit, page, filter}) -> {records, total}
- *   Ln(manager, instance, resource)                        -> {fields}
- *   dn(manager, instance)                                  -> resource names
- *   xc(manager, instance)                                  -> core resource names
- *   _(manager, instance, path) / Ur(resource) / Ro / lc / Ze -> the GET Sc itself makes,
- *     used once with a sort so the instance returns the newest records first
+/* System Logs (read-only): the System Logs screen and the node view's Logs tab.
+ * build.mjs appends this to dist/extension.js after extension.js, so it shares
+ * its scope and reads records exactly the way the rest of the extension does:
+ *   listRecords(manager, instance, resource, {limit, page, filter}) -> {records, total}
+ *   getResourceFields(manager, instance, resource)                  -> {fields}
+ *   listResourceNames(manager, instance)                            -> resource names
+ *   coreResourceNames(manager, instance)                            -> core resource names
+ *   saturnRequest / recordRoutes / isMissingRoute / recordsFromBody / throwIfFailure
+ *     -> the GET listRecords itself makes, used once with a sort so the instance
+ *        returns the newest records first
  * Nothing here creates, updates or deletes a record. Every read is the newest
  * NEWEST (10) records: these records are big (a SystemLog carries its whole workflow).
  */
-var SysLogs$ = (() => {
+var SystemLogsHost = (() => {
   const vs = require("vscode");
   const panels = new Map(); // instance id -> panel state
   const norm = (s) => String(s).toLowerCase().replace(/[^a-z]/g, "");
@@ -21,8 +21,8 @@ var SysLogs$ = (() => {
   async function resourceNames(manager, instance) {
     let all = [];
     let core = null;
-    try { all = await dn(manager, instance); } catch {}
-    try { core = await xc(manager, instance); } catch {}
+    try { all = await listResourceNames(manager, instance); } catch {}
+    try { core = await coreResourceNames(manager, instance); } catch {}
     const names = [...new Set([...(core ? [...core] : []), ...all])].sort((a, b) => a.localeCompare(b));
     return { names, core: core ? [...core] : [] };
   }
@@ -45,7 +45,7 @@ var SysLogs$ = (() => {
     const lastPage = Math.max(firstPage, Math.floor(Math.max(start, end - 1) / limit) + 1);
     let records = [], total = null;
     for (let pg = firstPage; pg <= lastPage && pg < firstPage + maxPages; pg++) {
-      const r = await Sc(manager, instance, resource, { limit, page: pg, filter });
+      const r = await listRecords(manager, instance, resource, { limit, page: pg, filter });
       total = r.total;
       records = records.concat(r.records);
       if (r.records.length < limit) break;
@@ -57,18 +57,18 @@ var SysLogs$ = (() => {
   function html(panel, extensionUri) {
     const w = panel.webview;
     const js = w.asWebviewUri(vs.Uri.joinPath(extensionUri, "dist", "webview", "logs", "index.js"));
-    const nonce = xe();
+    const cspNonce = nonce();
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; script-src 'nonce-${nonce}'; style-src ${w.cspSource} 'unsafe-inline';">
+        content="default-src 'none'; script-src 'nonce-${cspNonce}'; style-src ${w.cspSource} 'unsafe-inline';">
 </head>
 <body>
     <div id="logs-root"></div>
-    <script type="module" nonce="${nonce}" src="${js}"></script>
+    <script type="module" nonce="${cspNonce}" src="${js}"></script>
 </body>
 </html>`;
   }
@@ -85,11 +85,11 @@ var SysLogs$ = (() => {
     }
     const panel = vs.window.createWebviewPanel(
       "saturn.systemLogs",
-      `System Logs — ${I(instance)}`,
+      `System Logs — ${instanceLabel(instance)}`,
       vs.ViewColumn.One,
       { enableScripts: true, localResourceRoots: [vs.Uri.joinPath(extensionUri, "dist")], retainContextWhenHidden: true },
     );
-    try { Re(panel, "output"); } catch {}
+    try { setPanelIcon(panel, "output"); } catch {}
     const state = { panel, instance, manager };
     panels.set(instance.id, state);
     panel.onDidDispose(() => panels.delete(instance.id));
@@ -104,7 +104,7 @@ var SysLogs$ = (() => {
             const { names, core } = await resourceNames(manager, instance);
             const resource = pickLogResource(names, globalState && globalState.get(memKey));
             post("init", {
-              instanceName: I(instance),
+              instanceName: instanceLabel(instance),
               instanceUrl: instance.url,
               resource,
               logResources: names.filter(isLogName),
@@ -120,7 +120,7 @@ var SysLogs$ = (() => {
             break;
           }
           case "fields": {
-            const r = await Ln(manager, instance, String(p.resource));
+            const r = await getResourceFields(manager, instance, String(p.resource));
             post("fields", { resource: p.resource, fields: r.fields || [] });
             break;
           }
@@ -217,13 +217,13 @@ var SysLogs$ = (() => {
   async function sortedPage(manager, instance, resource, sort, filter) {
     const q = new URLSearchParams({ limit: String(NEWEST), page: "1", sort });
     if (filter) q.set("filter", filter);
-    for (const route of Ur(resource)) {
-      const res = await _(manager, instance, `${route}?${q.toString()}`);
+    for (const route of recordRoutes(resource)) {
+      const res = await saturnRequest(manager, instance, `${route}?${q.toString()}`);
       const body = await res.json().catch(() => null);
-      if (Ro(res.status, body)) continue;
+      if (isMissingRoute(res.status, body)) continue;
       if (!res.ok) return null;
-      try { Ze(body, `Read ${resource} records`); } catch { return null; }
-      return lc(body);
+      try { throwIfFailure(body, `Read ${resource} records`); } catch { return null; }
+      return recordsFromBody(body);
     }
     return null;
   }
@@ -248,7 +248,7 @@ var SysLogs$ = (() => {
       if (r && r.records.length <= 1) return { records: r.records, total: r.total, ordered: true };
     }
     if (!sortFor.has(key)) sortFor.set(key, "");
-    const first = await Sc(manager, instance, resource, { limit: NEWEST, page: 1, filter });
+    const first = await listRecords(manager, instance, resource, { limit: NEWEST, page: 1, filter });
     const total = typeof first.total === "number" ? first.total : null;
     let records = first.records;
     if (oldestFirst(records)) {
@@ -292,7 +292,7 @@ var SysLogs$ = (() => {
           const { manager, instance } = targetOf(owner);
           const { names } = await resourceNames(manager, instance);
           const resource = pickLogResource(names, ctx && ctx.globalState && ctx.globalState.get(`sonover.systemLogs.resource.${instance.id}`));
-          const base = { reqId: p.reqId, workflowId: p.workflowId, instanceName: I(instance), resource };
+          const base = { reqId: p.reqId, workflowId: p.workflowId, instanceName: instanceLabel(instance), resource };
           if (!resource) { post("workflowLogs", { ...base, records: [], total: 0, ordered: true }); break; }
           const filter = typeof p.filter === "string" && p.filter.trim() ? p.filter.trim().slice(0, 2000) : null;
           const r = await newest(manager, instance, resource, filter);

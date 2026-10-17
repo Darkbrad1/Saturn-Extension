@@ -1,7 +1,7 @@
 // v0.3.6: the property map editor (e.g. Resource Property Updater) with no properties.
 // v0.3.7: the node view says when the instance is back online.
 import { chromium } from "playwright";
-const out = process.env.SHOTS ?? "/tmp/claude-0/-home-claude/a083e21d-6637-5cac-92a5-bbf1f2d008b9/scratchpad/shots";
+const out = process.env.SHOTS ?? "shots";
 const b = await chromium.launch({ executablePath: process.env.CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
 const errs = [];

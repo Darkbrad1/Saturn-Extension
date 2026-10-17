@@ -1,7 +1,7 @@
 // Parity tests, part 1: step editors, clipboard, context menu, workflow switching.
 import { chromium } from "playwright";
-const out = "/tmp/claude-0/-home-claude/a083e21d-6637-5cac-92a5-bbf1f2d008b9/scratchpad/shots";
-const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+const out = process.env.SHOTS ?? "shots";
+const b = await chromium.launch({ executablePath: process.env.CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
 const errs = [];
 p.on("pageerror", (e) => errs.push("pageerror: " + e.message));

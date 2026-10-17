@@ -1,17 +1,12 @@
-// v0.3.3 host patch: bulkSteps (delete / duplicate / mock several steps as one edit) and copyNodes ordering.
+// v0.3.3: bulkSteps (delete / duplicate / mock several steps as one edit) and copyNodes ordering.
 const fs = require("fs"), Module = require("module");
-const raw = fs.readFileSync(process.argv[2], "utf8");
-const i = raw.indexOf('case"bulkSteps"');
-const j = raw.indexOf("a=>{let d=a;", i);
-const k = raw.indexOf("return d})", j);
-const body = raw.slice(j, k + "return d}".length);
-const src = raw + `\n;module.exports.__t={bk$cmp};module.exports.__bulk=(a,s$,o$,m$)=>(${body})(a);`;
+const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={comparePaths,bulkStepEdit};";
 const stub = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => "" : stub), apply: () => stub, construct: () => stub });
 const m = new Module("ext"); m.filename = "/x/extension.js";
 const orig = Module._load; Module._load = (r, p, i) => (r === "vscode" ? stub : orig(r, p, i));
 m._compile(src, m.filename);
-const { bk$cmp } = m.exports.__t;
-const bulk = (d, paths, op, mock) => m.exports.__bulk(d, [...paths].sort(bk$cmp).reverse(), op, mock);
+const { comparePaths: bk$cmp, bulkStepEdit } = m.exports.__t;
+const bulk = (d, paths, op, mock) => bulkStepEdit(d, paths, op, mock);
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 const op = (o) => ({ type: "command", operator: o, data: {} });
 const mk = () => ({ actions: [{ task: { type: "series", commands: [op("A"), { type: "if", true: { type: "series", commands: [op("T1"), op("T2")] }, false: { type: "series", commands: [] } }, op("B"), op("C")] } }] });
@@ -31,4 +26,5 @@ ok(c[0].mock === true && c[1].true.commands[1].mock === true && c[3].mock === tr
 let threw = false;
 try { bulk(mk(), [P(9)], "delete"); } catch (e) { threw = /no longer where it was/.test(e.message); }
 ok(threw, "a stale path refuses the whole change");
-ok(raw.includes('case"copyNodes"') && /sort\(bk\$cmp\)\.map/.test(raw.slice(raw.indexOf('case"copyNodes"'), raw.indexOf('case"copyNodes"') + 600)), "copyNodes copies in document order");
+const raw = fs.readFileSync(process.argv[2], "utf8"), at = raw.indexOf('case "copyNodes"');
+ok(at > 0 && /\.sort\(comparePaths\)\.map/.test(raw.slice(at, at + 800)), "copyNodes copies in document order");

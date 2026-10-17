@@ -1,6 +1,6 @@
 // v0.3.4: the System Logs panel host code, driven end to end against a fake instance API.
 const fs = require("fs"), Module = require("module");
-const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={SysLogs$};";
+const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={SysLogs$:SystemLogsHost};";
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 const posted = [], calls = [];
 let handler = null, html = "", setting = "";
