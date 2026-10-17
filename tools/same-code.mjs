@@ -6,7 +6,7 @@
 // declared, comments are dropped, and the two are printed and compared. Renaming (with
 // tools/rename.mjs) and commenting change nothing else, so they print the same; any other
 // difference — a renamed property, a variable captured by another, an edited string — shows
-// up as the first differing line (blank lines aside). Exits 1 if they differ.
+// up as the first differing line (blank lines and how literals are spelled aside). Exits 1 if they differ.
 import { parse } from "@babel/parser";
 import _traverse from "@babel/traverse";
 import _generate from "@babel/generator";
@@ -15,10 +15,37 @@ import { readFileSync } from "node:fs";
 const traverse = _traverse.default, generate = _generate.default;
 
 function canonical(file) {
-  const ast = parse(readFileSync(file, "utf8"), { sourceType: "script", allowReturnOutsideFunction: true });
-  const seen = new Set();
-  let n = 0;
+  const ast = parse(readFileSync(file, "utf8"), { sourceType: process.env.SAME_CODE_MODULE ? "module" : "script", allowReturnOutsideFunction: true });
+  const seen = new Set(), labels = {};
+  let n = 0, nl = 0;
   traverse(ast, {
+    // a literal is compared by its value, not its spelling (0.5 / .5, 'a' / "a")
+    "StringLiteral|NumericLiteral|BigIntLiteral|DirectiveLiteral"(p) {
+      delete p.node.extra;
+    },
+    // statement labels (`a: for (…) { … break a; }`) are numbered like variables
+    LabeledStatement: {
+      enter(p) {
+        const name = p.node.label.name;
+        (labels[name] ??= []).push(`$L${nl++}`);
+        p.node.label.name = labels[name].at(-1);
+        p.node.label.__orig = name;
+      },
+      exit(p) {
+        labels[p.node.label.__orig].pop();
+      },
+    },
+    "BreakStatement|ContinueStatement"(p) {
+      const l = p.node.label;
+      if (l && labels[l.name]?.length) l.name = labels[l.name].at(-1);
+    },
+    // and minifiers' spellings of true / false (!0 / !1) are the same values
+    UnaryExpression: {
+      exit(p) {
+        const a = p.node.argument;
+        if (p.node.operator === "!" && a.type === "NumericLiteral" && (a.value === 0 || a.value === 1)) p.replaceWith({ type: "BooleanLiteral", value: a.value === 0 });
+      },
+    },
     Scopable(p) {
       if (seen.has(p.scope)) return;
       seen.add(p.scope);
