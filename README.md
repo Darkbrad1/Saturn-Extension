@@ -66,6 +66,9 @@ New in 0.3.2:
 
 Unchanged: getHtml script tag, `mock` in the view model, `setStepMock`, the move fix in `on()`, the Disabled badge in the list view, and the `sonover:openWorkflow` hook.
 
+## Reading the original extension.js
+`npm run readable -- ~/Downloads/sonover-code-0.1.1-production.vsix` (or a path to `extension.js`) writes `reference/extension.readable.js`: the original formatted, with ~120 key functions and classes renamed to what they do (`saturnRequest`, `WorkflowsPanel`, `saveWorkflow`, `listRecords`, `workflowView`, …) and every module import named after its module. Each renamed item has a note naming its minified original. It is a reading copy (git-ignored): `patch.py` keeps matching the minified file. The rename is scope-aware (Babel), and the copy was checked to behave the same as the original (view model, step moves, parameter parsing, record routes, path edits, requests).
+
 ## Build and test
 One step: `./package.sh path/to/sonover-code-0.1.1.vsix` builds, patches, runs the host tests and writes `dist/sonover-code-<version>.vsix`; install it with `code --install-extension dist/sonover-code-<version>.vsix --force` or Extensions → ⋯ → Install from VSIX…. By hand:
 ```

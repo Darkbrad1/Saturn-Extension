@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "readable": "node tools/readable.mjs"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +18,9 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@babel/generator": "^7.29.8",
+    "@babel/parser": "^7.29.9",
+    "@babel/traverse": "^7.29.10",
     "@types/prismjs": "^1.26.4",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",

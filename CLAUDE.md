@@ -22,6 +22,7 @@ It adds:
 |---|---|
 | `build.mjs` | esbuild: `src/main.tsx` → `dist/nodeview.js`, `src-logs/main.tsx` → `dist/logs.js` (IIFE, es2020, CSS imported as text). `--min` minifies. |
 | `package.sh` | One step from the original `.vsix` to an installable one: `./package.sh <sonover-code-0.1.1.vsix> [out.vsix]` → build, typecheck, unpack, `patch.py`, all host tests, zip (default `dist/sonover-code-<version>.vsix`; version = newest `src/changelog.ts` entry). Writes nothing if a patch or test fails. |
+| `tools/readable.mjs` | `node tools/readable.mjs <extension.js \| .vsix> [out]` (or `npm run readable -- …`): a **readable reference copy** of the original `extension.js` → `reference/extension.readable.js` (git-ignored). Formats it and renames, with Babel's scope-aware rename, the ~120 names in its `NAMES` table (each checked against its code) plus every module import (`vscode`, `vscode2`, `fs`, …), with a note above each: `saturnRequest (minified: _) — …`. For reading only — never patch it. |
 | `patch.py` | Applies everything to an unpacked vsix. Every edit uses `replace_once` (must match exactly once, else fails loudly). |
 | `syslogs-host.js` | Host side of System Logs (`SysLogs$`); `patch.py` appends it to `extension/dist/extension.js` so it shares the minified bundle's scope. `newest()` = the only record read: the newest `NEWEST` (10), sorted by the instance if it will (`?sort=created_at DESC`, checked and remembered), else the list as it comes, with `ordered`; `open()` = the System Logs panel (its `fetch` → `newest`); `fromWorkflows()` = answers the Logs tab's messages from the Workflows panel; `attach()` receives the instance manager / globalState / extensionUri at command registration; `targetOf()` finds a Workflows panel's instance: its `manager` / `instance` fields (0.1.1), else by shape. |
 | `src/bridge.ts` | **Must be imported first.** Takes the single `acquireVsCodeApi()` handle and hands a wrapped copy to the list-view bundle; tracks the open workflow; stores node-view state under key `__sonoverNodeView`. Exposes `send`, `onSelectionChange`, `loadNodeViewState`, `saveNodeViewState`. |
@@ -60,6 +61,8 @@ Only the extension host talks to Saturn; webviews can't reach the network (CSP) 
 - **Parameter values** (`rn()`): an empty value keeps the stored one, which is why `KeyValueEditor` sends `{}` to clear a map. For `property_updater` the host also writes `_properties` from `properties`.
 - **Not Saturn**: the Tickets/kanban screen talks to `https://sonoverapi.saturn.gd/api` with the user's Sonover login (`gr()`), not to an instance.
 
+To read the original, generate the readable copy (`tools/readable.mjs`): the names below appear there as e.g. `saturnRequest (minified: _)`, `WorkflowsPanel (minified: It)`, `listRecords (minified: Sc)`. Patches must still be written against the **minified** text.
+
 ## How the host is patched (`patch.py`)
 
 The host code is minified, so patches refer to minified names (`Ke`, `yr`, `N`, `ue`, `on`, `Rr`, `Sc`, `Ln`, `dn`, `xc`, …). New helpers use a `$` suffix (`yr$base`, `on$after`, `ff$set`, `bk$cmp`, `SysLogs$`, `SL$`) to avoid clashing with minified names. Changes:
@@ -96,7 +99,7 @@ Caveats:
 - The Playwright tests expect a static server on `http://localhost:8765` serving `harness/` plus `nodeview.js`, `logs.js` (from `dist/`) and the original list-view bundle as `wf.js` / `wf.css` (from the vsix). `test.mjs` also expects an `index.html` that isn't in the repo. Without the vsix: copy `harness/*` and `dist/*.js` into a folder, copy `harness/wf-stub.js` there as `wf.js`, add an empty `wf.css`, and run `python3 -m http.server 8765` in it. That is enough for `test11.mjs`, `test12.mjs` and the logs part of `test10.mjs`; older tests (and test10's sidebar part, which needs `sidebar.js`) need the real bundles.
 - Tests hard-code a screenshot directory (`out = "/tmp/claude-0/-home-claude/.../shots"`) and `executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"`; adjust locally if they differ.
 - `npm test` is a placeholder; there is no test runner — run the scripts directly and look for `FAIL`.
-- `dist/` and `node_modules/` are build output and are git-ignored (`.gitignore`); don't commit them.
+- `dist/`, `node_modules/` and `reference/` are generated and git-ignored (`.gitignore`); don't commit them.
 
 ## Conventions
 
