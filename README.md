@@ -1,6 +1,10 @@
-# Workflows node view (v0.3.5)
+# Workflows node view (v0.3.6)
 
 A Blender-style node editor layered onto the Workflows webview. It does everything the list view does.
+
+## New in 0.3.6 — property map fixes
+- The key/value editor for object parameters (`KeyValueEditor` in `src/forms.tsx`, e.g. Resource Property Updater's properties) shows its inputs for an empty map (`{}`) instead of falling back to the raw JSON box; only values that aren't a plain object use the JSON box.
+- Removing the last row saves `{}`. It used to send an empty value, which the host skips, so the old map stayed. `harness/mockhost.js` now mirrors that host behaviour; `test12.mjs` covers both.
 
 ## New in 0.3.5 — Logs tab
 - **Where**: a **Logs** tab in the node view's side panel (Design · Inspect · Logs · Changes), `src/logs.tsx`.
@@ -44,8 +48,8 @@ One step: `./package.sh path/to/sonover-code-0.1.1.vsix` builds, patches, runs t
 ```
 npm install
 node build.mjs --min
-python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.5
+python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.6
 node hosttest.cjs | hosttest-move.cjs | hosttest-reorder.cjs | hosttest-command.cjs | hosttest-field.cjs | hosttest-bulk.cjs | hosttest-logs.cjs  <unpacked>/extension/dist/extension.js
 node hosttest-wflogs.cjs        # the Logs tab's host side, on syslogs-host.js alone (no .vsix needed)
 ```
-`test2`–`test10.mjs`: 292 Playwright checks running the real list view and the node view together against `mockhost.js` under the webview's CSP. `test10.mjs` covers the System Logs screen and sidebar entry (`harness/logs.html` / `harness/sidebar.html`); `test11.mjs` covers the Logs tab. Without the .vsix, serve `harness/wf-stub.js` as `wf.js` (and an empty `wf.css`) to stand in for the list view. `test11.mjs` takes `SHOTS` (screenshot dir) and `CHROME` (browser path) from the environment.
+`test2`–`test10.mjs`: 292 Playwright checks running the real list view and the node view together against `mockhost.js` under the webview's CSP. `test10.mjs` covers the System Logs screen and sidebar entry (`harness/logs.html` / `harness/sidebar.html`); `test11.mjs` covers the Logs tab; `test12.mjs` the property map editor. Without the .vsix, serve `harness/wf-stub.js` as `wf.js` (and an empty `wf.css`) to stand in for the list view. `test11.mjs` takes `SHOTS` (screenshot dir) and `CHROME` (browser path) from the environment.

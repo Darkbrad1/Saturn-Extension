@@ -325,7 +325,9 @@
           else if (p.operator === "parallel") n.concurrency = Number(p.values.concurrency || 1);
           else if (p.operator === "reference") { const { command, ...rest } = p.values; n.reference = command; n.parameters = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== "")); }
           else { const data = {}; for (const [k, v] of Object.entries(n.data || {})) if (isHtml(v) && !(k in p.values)) data[k] = v;
-            for (const [k, v] of Object.entries(p.values)) { if (v === "") continue; const prm = c?.params.find((x) => x.param === k);
+            for (const [k, v] of Object.entries(p.values)) { const prm = c?.params.find((x) => x.param === k);
+              // like the real host: an empty object param keeps the stored map (so the editor must send "{}" to clear it)
+              if (v === "") { if (prm?.type === "object" && n.data && k in n.data) data[k] = n.data[k]; continue; }
               if (prm && (prm.type === "object" || prm.type === "array")) { try { data[k] = JSON.parse(v); } catch { data[k] = v; } }
               else if (prm?.type === "boolean") data[k] = v === "true"; else data[k] = v; }
             if (p.operator === "property_updater" && data.properties) data._properties = Object.entries(data.properties).map(([key, value]) => ({ editing: false, key, value }));

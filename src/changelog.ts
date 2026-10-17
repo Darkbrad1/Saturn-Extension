@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.6",
+    title: "Property map fixes",
+    items: [
+      "A Resource Property Updater with no properties shows the Resource Property / Property Value inputs instead of a raw {} box.",
+      "Removing the last property now empties the map (it used to stay).",
+    ],
+  },
+  {
     version: "0.3.5",
     title: "Logs tab",
     items: [

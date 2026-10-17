@@ -529,20 +529,22 @@ function LookupPicker(props: { f: FieldSpec; value: string; onPick: (v: string) 
 function KeyValueEditor(props: { value: string; onChange: (v: string) => void }) {
   const [k, setK] = useState("");
   const [v, setV] = useState("");
-  const rows = useMemo<[string, string][]>(() => {
+  // null = not a plain object (shown as raw JSON); {} is just an empty map
+  const parsed = useMemo<[string, string][] | null>(() => {
     if (!props.value.trim()) return [];
     try {
       const d = JSON.parse(props.value);
       return !d || typeof d !== "object" || Array.isArray(d)
-        ? []
+        ? null
         : Object.entries(d).map(([a, b]) => [a, typeof b === "string" ? b : JSON.stringify(b)]);
     } catch {
-      return [];
+      return null;
     }
   }, [props.value]);
-  const raw = props.value.trim() !== "" && rows.length === 0;
-  const write = (r: [string, string][]) =>
-    props.onChange(r.length === 0 ? "" : JSON.stringify(Object.fromEntries(r), null, 2));
+  const rows = parsed ?? [];
+  const raw = parsed === null;
+  // removing the last row saves an empty object: an empty value would be skipped and keep the old map
+  const write = (r: [string, string][]) => props.onChange(r.length === 0 ? "{}" : JSON.stringify(Object.fromEntries(r), null, 2));
   const add = () => {
     const key = k.trim();
     if (!key) return;
