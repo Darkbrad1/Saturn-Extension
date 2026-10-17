@@ -6,13 +6,17 @@
  *   Ln(manager, instance, resource)                        -> {fields}
  *   dn(manager, instance)                                  -> resource names
  *   xc(manager, instance)                                  -> core resource names
- * Nothing here creates, updates or deletes a record.
+ *   _(manager, instance, path) / Ur(resource) / Ro / lc / Ze -> the GET Sc itself makes,
+ *     used once with a sort so the instance returns the newest records first
+ * Nothing here creates, updates or deletes a record. Every read is the newest
+ * NEWEST (10) records: these records are big (a SystemLog carries its whole workflow).
  */
 var SysLogs$ = (() => {
   const vs = require("vscode");
   const panels = new Map(); // instance id -> panel state
   const norm = (s) => String(s).toLowerCase().replace(/[^a-z]/g, "");
   const isLogName = (s) => /log/i.test(s);
+  const NEWEST = 10; // every read: the newest 10 records, nothing more
 
   async function resourceNames(manager, instance) {
     let all = [];
@@ -121,21 +125,10 @@ var SysLogs$ = (() => {
             break;
           }
           case "fetch": {
-            const limit = Math.min(100, Math.max(1, Number(p.limit) || 50));
-            const page = Math.max(1, Number(p.page) || 1);
+            // the newest NEWEST records (newest first), with the server filter if any
             const filter = typeof p.filter === "string" && p.filter.trim() ? p.filter.trim().slice(0, 2000) : null;
-            const r = await Sc(manager, instance, String(p.resource), { limit, page, filter });
-            post("page", { reqId: p.reqId, resource: p.resource, page, limit, records: r.records, total: r.total });
-            break;
-          }
-          case "fetchRange": {
-            // records [start, end) of the whole list (lets an oldest-first list be shown newest first in full pages)
-            const limit = Math.min(100, Math.max(1, Number(p.limit) || 50));
-            const start = Math.max(0, Number(p.start) || 0);
-            const end = Math.max(start, Number(p.end) || 0);
-            const filter = typeof p.filter === "string" && p.filter.trim() ? p.filter.trim().slice(0, 2000) : null;
-            const r = await readRange(manager, instance, String(p.resource), start, end, limit, filter, 3);
-            post("page", { reqId: p.reqId, resource: p.resource, records: r.records, total: r.total });
+            const r = await newest(manager, instance, String(p.resource), filter);
+            post("page", { reqId: p.reqId, resource: p.resource, records: r.records, total: r.total, ordered: r.ordered });
             break;
           }
           case "openJson": {
@@ -190,22 +183,81 @@ var SysLogs$ = (() => {
     return { manager, instance };
   }
 
+  /** A record's time (created_at or the like), or NaN. */
+  function timeOf(r) {
+    for (const k of ["created_at", "createdAt", "timestamp", "logged_at", "time", "date", "updated_at"]) {
+      const v = r && r[k];
+      const n = typeof v === "number" ? (v > 1e12 ? v : v * 1000) : typeof v === "string" ? Date.parse(v) : NaN;
+      if (Number.isFinite(n)) return n;
+    }
+    return NaN;
+  }
+
   /** Is the first page oldest first? (first vs last record's date, else id) */
   function oldestFirst(records) {
     if (records.length < 2) return false;
     const a = records[0], b = records[records.length - 1];
-    const t = (r) => {
-      for (const k of ["created_at", "createdAt", "timestamp", "logged_at", "time", "date", "updated_at"]) {
-        const v = r && r[k];
-        const n = typeof v === "number" ? (v > 1e12 ? v : v * 1000) : typeof v === "string" ? Date.parse(v) : NaN;
-        if (Number.isFinite(n)) return n;
-      }
-      return NaN;
-    };
-    const x = t(a), y = t(b);
+    const x = timeOf(a), y = timeOf(b);
     if (Number.isFinite(x) && Number.isFinite(y) && x !== y) return x < y;
     const xi = Number(a && a.id), yi = Number(b && b.id);
     return Number.isFinite(xi) && Number.isFinite(yi) && xi < yi;
+  }
+
+  /** Newest first by date, every record dated (so a list in id order doesn't pass). */
+  function newestFirst(records) {
+    const t = records.map(timeOf);
+    return t.every(Number.isFinite) && t.every((x, i) => i === 0 || t[i - 1] >= x);
+  }
+
+  // the sort that worked per instance + resource ("" = none did), so it's tried once
+  const sortFor = new Map();
+  const SORTS = ["created_at DESC", "-created_at"];
+
+  /** One page of `limit` records with ?sort=; null when the instance refuses it. Same GET as Sc. */
+  async function sortedPage(manager, instance, resource, sort, filter) {
+    const q = new URLSearchParams({ limit: String(NEWEST), page: "1", sort });
+    if (filter) q.set("filter", filter);
+    for (const route of Ur(resource)) {
+      const res = await _(manager, instance, `${route}?${q.toString()}`);
+      const body = await res.json().catch(() => null);
+      if (Ro(res.status, body)) continue;
+      if (!res.ok) return null;
+      try { Ze(body, `Read ${resource} records`); } catch { return null; }
+      return lc(body);
+    }
+    return null;
+  }
+
+  /**
+   * The newest NEWEST records, newest first: {records, total, ordered}.
+   * Asks the instance to sort by created_at; if it won't, reads the list the
+   * way it comes (an oldest-first list from its end). ordered = the dates
+   * really run newest first (otherwise the list isn't in date order, and
+   * these may not be the newest).
+   */
+  async function newest(manager, instance, resource, filter) {
+    const key = `${instance.id}|${resource}`;
+    const tries = sortFor.has(key) ? (sortFor.get(key) ? [sortFor.get(key)] : []) : SORTS;
+    for (const sort of tries) {
+      let r = null;
+      try { r = await sortedPage(manager, instance, resource, sort, filter); } catch { r = null; }
+      if (r && r.records.length > 1 && newestFirst(r.records)) {
+        sortFor.set(key, sort);
+        return { records: r.records.slice(0, NEWEST), total: r.total, ordered: true };
+      }
+      if (r && r.records.length <= 1) return { records: r.records, total: r.total, ordered: true };
+    }
+    if (!sortFor.has(key)) sortFor.set(key, "");
+    const first = await Sc(manager, instance, resource, { limit: NEWEST, page: 1, filter });
+    const total = typeof first.total === "number" ? first.total : null;
+    let records = first.records;
+    if (oldestFirst(records)) {
+      if (total !== null && total > records.length)
+        records = (await readRange(manager, instance, resource, Math.max(0, total - NEWEST), total, NEWEST, filter, 2)).records;
+      records = [...records].reverse();
+    }
+    records = records.slice(0, NEWEST);
+    return { records, total, ordered: records.length < 2 || newestFirst(records) };
   }
 
   /**
@@ -224,8 +276,8 @@ var SysLogs$ = (() => {
 
   /**
    * Messages from the Workflows webview (all read-only):
-   *   fetchWorkflowLogs {reqId, workflowId, offset, window, filter?} -> workflowLogs {reqId, workflowId,
-   *     resource, instanceName, records (newest first, trimmed), total, scanned, done, filter} | workflowLogsFailed
+   *   fetchWorkflowLogs {reqId, workflowId, filter?} -> workflowLogs {reqId, workflowId, resource,
+   *     instanceName, records (the newest NEWEST, newest first, trimmed), total, ordered, filter} | workflowLogsFailed
    *     (filter: a server filter in Saturn's filter language, e.g. workflow.id = "workflow-…")
    *   openSystemLogs {search?, filter?}   opens the System Logs screen for the panel's instance
    *   openLogJson {record}       the record in an untitled JSON editor
@@ -241,24 +293,10 @@ var SysLogs$ = (() => {
           const { names } = await resourceNames(manager, instance);
           const resource = pickLogResource(names, ctx && ctx.globalState && ctx.globalState.get(`sonover.systemLogs.resource.${instance.id}`));
           const base = { reqId: p.reqId, workflowId: p.workflowId, instanceName: I(instance), resource };
-          if (!resource) { post("workflowLogs", { ...base, records: [], total: 0, scanned: 0, done: true }); break; }
-          const limit = 100;
-          const size = Math.min(500, Math.max(1, Number(p.window) || 200));
-          const offset = Math.max(0, Number(p.offset) || 0);
+          if (!resource) { post("workflowLogs", { ...base, records: [], total: 0, ordered: true }); break; }
           const filter = typeof p.filter === "string" && p.filter.trim() ? p.filter.trim().slice(0, 2000) : null;
-          const first = await Sc(manager, instance, resource, { limit, page: 1, filter });
-          const total = typeof first.total === "number" ? first.total : null;
-          let records;
-          if (oldestFirst(first.records) && total !== null) {
-            const end = Math.max(0, total - offset);
-            const r = await readRange(manager, instance, resource, Math.max(0, end - size), end, limit, filter, 6);
-            records = r.records.reverse();
-          } else {
-            const r = offset === 0 && size <= limit ? { records: first.records.slice(0, size) } : await readRange(manager, instance, resource, offset, offset + size, limit, filter, 6);
-            records = r.records;
-          }
-          const scanned = offset + records.length;
-          post("workflowLogs", { ...base, filter, records: records.map(trim), total, scanned, done: records.length < size || (total !== null && scanned >= total) });
+          const r = await newest(manager, instance, resource, filter);
+          post("workflowLogs", { ...base, filter, records: r.records.map(trim), total: r.total, ordered: r.ordered });
           break;
         }
         case "openSystemLogs": {
@@ -283,5 +321,5 @@ var SysLogs$ = (() => {
     }
   }
 
-  return { open, pickLogResource, panels, attach, fromWorkflows, targetOf, oldestFirst, trim };
+  return { open, pickLogResource, panels, attach, fromWorkflows, targetOf, oldestFirst, newestFirst, newest, trim, NEWEST };
 })();

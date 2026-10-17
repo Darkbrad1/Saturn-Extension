@@ -39,8 +39,10 @@ global.fetch = async (url, init) => {
   if (u.pathname === "/api/Resources") return j({ data: [{ name: "Application" }, { name: "AuditLog" }] });
   if (u.pathname === "/api/Resources/SystemLog") return j({ data: { level: { label: "Level", type: "string" }, message: { label: "Message", type: "string" } } });
   if (u.pathname === "/api/systemlogs") {
-    const limit = +u.searchParams.get("limit"), page = +u.searchParams.get("page");
-    return j({ data: logs.slice((page - 1) * limit, page * limit), count: logs.length });
+    // this instance ignores ?sort= and lists oldest first; ?filter=level=error is understood
+    const limit = +u.searchParams.get("limit"), page = +u.searchParams.get("page"), f = u.searchParams.get("filter");
+    const list = f === "level=error" ? logs.filter((x) => x.level === "error") : logs;
+    return j({ data: list.slice((page - 1) * limit, page * limit), count: list.length });
   }
   return j({ message: "Route not found" }, 404);
 };
@@ -61,15 +63,18 @@ const last = (type) => [...posted].reverse().find((x) => x.type === type)?.paylo
   ok(JSON.stringify(p.logResources) === '["AuditLog","SystemLog"]', "and offers the other log-like resources");
   await handler({ type: "fields", payload: { resource: "SystemLog" } });
   ok(last("fields").fields.some((f) => f.key === "message" && f.label === "Message"), "reads the resource's fields for column names");
-  await handler({ type: "fetch", payload: { reqId: 1, resource: "SystemLog", page: 3, limit: 50, filter: "level=error" } });
+  seen.length = 0;
+  await handler({ type: "fetch", payload: { reqId: 1, resource: "SystemLog" } });
   p = last("page");
-  ok(p.reqId === 1 && p.records.length === 37 && p.records[0].id === 101 && p.total === 137, "fetches a page of records with the total");
-  ok(seen.includes("GET /api/systemlogs?limit=50&page=3&filter=level%3Derror"), "passes limit, page and filter to the instance");
-  await handler({ type: "fetchRange", payload: { reqId: 9, resource: "SystemLog", start: 87, end: 137, limit: 50 } });
+  ok(p.reqId === 1 && p.records.length === 10 && p.records[0].id === 137 && p.records[9].id === 128 && p.total === 137 && p.ordered === true, "reads the newest 10, newest first: " + p.records.map((x) => x.id).join(","));
+  ok(seen.filter((x) => x.includes("/api/systemlogs")).every((x) => /limit=10&/.test(x)), "never more than 10 records a request: " + seen.filter((x) => x.includes("systemlogs")).join("  "));
+  ok(seen.some((x) => /sort=created_at\+DESC/.test(x)), "asks the instance to sort by date first");
+  await handler({ type: "fetch", payload: { reqId: 2, resource: "SystemLog", page: 3, limit: 5000, filter: "level=error" } });
   p = last("page");
-  ok(p.reqId === 9 && p.records.length === 50 && p.records[0].id === 88 && p.records[49].id === 137, "fetchRange stitches two pages into the newest 50");
-  await handler({ type: "fetch", payload: { reqId: 2, resource: "SystemLog", page: 1, limit: 5000 } });
-  ok(seen.some((s) => s.startsWith("GET /api/systemlogs?limit=100&page=1")), "caps the page size at 100");
+  ok(p.reqId === 2 && p.records.length === 10 && p.records[0].id === 131 && p.records.every((x) => x.level === "error") && p.total === 14, "with a server filter: the newest 10 matching records (paging and page size are ignored)");
+  ok(seen.some((x) => x.endsWith("filter=level%3Derror")), "the filter is passed to the instance");
+  await handler({ type: "fetchRange", payload: { reqId: 9, resource: "SystemLog", start: 0, end: 137, limit: 100 } });
+  ok(last("page").reqId !== 9, "there is no ranged read any more");
   ok(seen.every((s) => s.startsWith("GET ")), "every request is a read (GET)");
   await handler({ type: "fetch", payload: { reqId: 3, resource: "Nope", page: 1, limit: 10 } });
   ok(/No record route/.test(last("error").message) && last("error").reqId === 3, "a missing resource comes back as an error for that request");

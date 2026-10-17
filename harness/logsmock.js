@@ -35,17 +35,14 @@
         case "fields":
           reply("fields", { resource: p.resource, fields: p.resource === "SystemLog" ? [{ key: "level", label: "Level", type: "string" }, { key: "message", label: "Message", type: "string" }, { key: "workflow", label: "Workflow", type: "string" }] : [] });
           break;
-        case "fetchRange": {
-          const all = data[p.resource] || [];
-          reply("page", { reqId: p.reqId, resource: p.resource, records: all.slice(p.start, p.end), total: all.length });
-          break;
-        }
         case "fetch": {
+          // like the real host: only ever the newest 10, newest first
           const all = data[p.resource];
           if (!all) { reply("error", { reqId: p.reqId, message: `No record route for ${p.resource} on this instance.` }); break; }
           let rows = all;
           if (p.filter) { const [k, v] = p.filter.split("="); rows = rows.filter((r) => String(r[k]) === v); }
-          reply("page", { reqId: p.reqId, resource: p.resource, page: p.page, limit: p.limit, records: rows.slice((p.page - 1) * p.limit, p.page * p.limit), total: rows.length });
+          const newestFirst = [...rows].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+          reply("page", { reqId: p.reqId, resource: p.resource, records: newestFirst.slice(0, 10), total: rows.length, ordered: true });
           break;
         }
       }

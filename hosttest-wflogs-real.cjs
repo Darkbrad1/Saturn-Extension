@@ -22,18 +22,19 @@ const manager = { list: () => [instance], get: (id) => (id === "i1" ? instance :
 const panelObj = { panel: {}, extensionUri: {}, storageUri: {}, manager, instance, drafts: new Map() };
 const sent = [];
 (async () => {
-  await SysLogs$.fromWorkflows(panelObj, { postMessage: (x) => sent.push(x) }, "fetchWorkflowLogs", { reqId: 1, workflowId: "w", offset: 0, window: 200 });
+  await SysLogs$.fromWorkflows(panelObj, { postMessage: (x) => sent.push(x) }, "fetchWorkflowLogs", { reqId: 1, workflowId: "w" });
   const r = sent[0];
   const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
   ok(r.type === "workflowLogs", "real extension answers fetchWorkflowLogs: " + r.type + (r.payload.message ? " " + r.payload.message : ""));
   ok(r.payload.resource === "SystemLog" && r.payload.instanceName === "demo", "found the instance on the panel and the SystemLog resource");
-  ok(r.payload.records.length === 200 && r.payload.records[0].id === 230 && r.payload.total === 230, "newest 200 of 230, newest first (oldest-first list read from the end)");
+  ok(r.payload.records.length === 10 && r.payload.records[0].id === 230 && r.payload.records[9].id === 221 && r.payload.total === 230, "the newest 10 of 230, newest first (oldest-first list read from the end)");
+  ok(urls.filter(([u]) => new URL(u).pathname === "/api/systemlogs").every(([u]) => new URL(u).searchParams.get("limit") === "10"), "10 records a request, never more");
   ok(urls.every(([, meth, auth]) => meth === "GET" && auth === "Bearer TOKEN"), "only GETs, with the instance's token");
   ok(r.payload.records.every((x) => !("_permissions_" in x) && !("stages" in x.workflow)), "records come back trimmed");
   sent.length = 0; urls.length = 0;
-  await SysLogs$.fromWorkflows(panelObj, { postMessage: (x) => sent.push(x) }, "fetchWorkflowLogs", { reqId: 2, workflowId: "workflow-w", offset: 0, window: 200, filter: 'workflow.id = "workflow-w"' });
+  await SysLogs$.fromWorkflows(panelObj, { postMessage: (x) => sent.push(x) }, "fetchWorkflowLogs", { reqId: 2, workflowId: "workflow-w", filter: 'workflow.id = "workflow-w"' });
   const f = sent[0].payload;
-  ok(f.total === 115 && f.records.length === 115 && f.records.every((x) => x.workflow.id === "workflow-w") && f.done, "with workflow.id = \"…\" the instance's filter is sent (?filter=) and only that workflow's records come back");
+  ok(f.total === 115 && f.records.length === 10 && f.records[0].id === 230 && f.records.every((x) => x.workflow.id === "workflow-w"), "with workflow.id = \"…\" the instance's filter is sent (?filter=): that workflow's newest 10");
   ok(urls.filter(([u]) => new URL(u).pathname === "/api/systemlogs").every(([u]) => new URL(u).searchParams.get("filter") === 'workflow.id = "workflow-w"'), "on every page read");
   console.log([...new Set(urls.map(([u]) => new URL(u).pathname + (new URL(u).search ? "?…" : "")))].join("  "));
 })();

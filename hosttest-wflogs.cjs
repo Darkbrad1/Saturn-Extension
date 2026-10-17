@@ -11,8 +11,26 @@ const vscode = {
   ViewColumn: { One: 1, Beside: 2 },
   Uri: { joinPath: () => ({}) },
 };
-// 250 records, oldest first, like a plain list endpoint
+// A fake instance: 250 records, listed oldest first (like a plain list endpoint),
+// or in id order (__order = "id", ids shuffled so they don't follow time).
+// __sort: "honour" sorts by ?sort=created_at DESC, "reject" answers 400 to a sort,
+// "ignore" pays it no attention.
 const all = Array.from({ length: 250 }, (_, i) => ({ id: i + 1, created_at: new Date(Date.UTC(2026, 0, 1) + i * 60000).toISOString(), message: `m${i + 1}` }));
+const fake = { sort: "honour", order: "time" };
+function serve(route, q) {
+  if (route !== "/systemlogs") return { status: 404, body: { message: "route not found" } };
+  // "id" order: by a hash of the id, the way random UUID ids would sort
+  const h = (x) => (Math.imul(x.id ^ 0x5bd1e995, 0x9e3779b1) >>> 0) % 100003;
+  let list = fake.order === "id" ? [...all].sort((a, b) => h(a) - h(b)) : all;
+  const sort = q.get("sort");
+  if (sort) {
+    if (fake.sort === "reject") return { status: 400, body: { message: "bad sort" } };
+    if (fake.sort === "honour" && sort === "created_at DESC") list = [...list].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  }
+  const l = +q.get("limit"), pg = +q.get("page");
+  return { status: 200, body: { data: list.slice((pg - 1) * l, pg * l), count: list.length } };
+}
+global.__serve = serve;
 const stubs = `
   const I = (i) => i.name;
   const xe = () => "nonce";
@@ -20,7 +38,14 @@ const stubs = `
   const dn = async () => ["Application", "SystemLog"];
   const xc = async () => new Set(["SystemLog"]);
   const Ln = async () => ({ fields: [] });
-  const Sc = async (m, inst, res, o) => { __calls.push(["Sc", inst.id, res, o]); return { records: __all.slice((o.page - 1) * o.limit, o.page * o.limit), total: __all.length }; };
+  const Ur = (r) => ["/" + r.toLowerCase() + "s"];
+  const Ro = (st, b) => st === 404;
+  const lc = (b) => ({ records: b.data, total: b.count });
+  const Ze = () => {};
+  const _ = async (m, inst, path) => { const [route, qs] = path.split("?"); __calls.push(["GET", inst.id, path]); const r = __serve(route, new URLSearchParams(qs));
+    return { status: r.status, ok: r.status < 300, json: async () => r.body }; };
+  const Sc = async (m, inst, res, o) => { __calls.push(["Sc", inst.id, res, o]); const r = __serve(Ur(res)[0], new URLSearchParams({ limit: o.limit, page: o.page }));
+    return { records: r.body.data, total: r.body.count }; };
 `;
 const m = new Module("syslogs"); m.filename = "/x/syslogs-host.js";
 const orig = Module._load; Module._load = (r, p, i) => (r === "vscode" ? vscode : orig(r, p, i));
@@ -46,38 +71,55 @@ const manager = { list: () => [inst, other], get: () => undefined };
   ok(threw, "and refuses to guess between several instances");
 
   ok(S.oldestFirst(all.slice(0, 100)) === true && S.oldestFirst(all.slice(0, 100).reverse()) === false, "tells oldest-first lists from newest-first");
+  const reads = () => calls.filter((c) => c[0] === "GET" || c[0] === "Sc");
 
-  await S.fromWorkflows(panel, webview, "fetchWorkflowLogs", { reqId: 7, workflowId: "w", offset: 0, window: 200 });
+  // an instance that sorts: one read of 10, sorted by created_at
+  calls.length = 0;
+  await S.fromWorkflows(panel, webview, "fetchWorkflowLogs", { reqId: 7, workflowId: "w" });
   let r = sent.pop().payload;
   ok(r.reqId === 7 && r.resource === "SystemLog" && r.instanceName === "B", "replies to the request with the resource and instance");
-  ok(r.records.length === 200 && r.records[0].id === 250 && r.records[199].id === 51, "the newest 200 records, newest first, from an oldest-first list");
-  ok(r.total === 250 && r.scanned === 200 && r.done === false, "with how far it read");
-  await S.fromWorkflows(panel, webview, "fetchWorkflowLogs", { reqId: 8, workflowId: "w", offset: 200, window: 200 });
-  r = sent.pop().payload;
-  ok(r.records.length === 50 && r.records[0].id === 50 && r.records[49].id === 1 && r.done === true && r.scanned === 250, "then the older rest, and done");
-  ok(calls.filter((c) => c[0] === "Sc").every((c) => c[1] === "i2" && c[2] === "SystemLog" && c[3].filter === null && c[3].limit === 100), "it only reads records (Sc) on the panel's instance");
+  ok(r.records.length === 10 && r.records[0].id === 250 && r.records[9].id === 241 && r.ordered === true && r.total === 250, "the newest 10, newest first: " + r.records.map((x) => x.id).join(","));
+  ok(reads().length === 1 && /limit=10&page=1&sort=created_at\+DESC/.test(reads()[0][2]), "in a single read of 10 records, sorted by the instance: " + reads().map((c) => c[2] ?? "Sc").join(" "));
+  ok(calls.every((c) => c[0] !== "GET" || c[1] === "i2"), "on the panel's instance");
+  calls.length = 0;
+  await S.fromWorkflows(panel, webview, "fetchWorkflowLogs", { reqId: 8, workflowId: "w" });
+  sent.pop();
+  ok(reads().length === 1, "the sort that worked is remembered (one read per check)");
 
-  // newest-first list
-  global.__all.reverse();
-  await S.fromWorkflows(panel, webview, "fetchWorkflowLogs", { reqId: 9, offset: 100, window: 120 });
+  // an instance that refuses the sort, listing oldest first: read from the end
+  const S2 = () => { const m2 = new Module("s2"); m2._compile(stubs + fs.readFileSync(file, "utf8") + "\n;module.exports=SysLogs$;", "/x/s2.js"); return m2.exports; };
+  fake.sort = "reject";
+  let T = S2(); calls.length = 0;
+  await T.fromWorkflows(panel, webview, "fetchWorkflowLogs", { reqId: 9 });
   r = sent.pop().payload;
-  ok(r.records.length === 120 && r.records[0].id === 150 && r.records[119].id === 31, "a newest-first list is read straight from the offset");
-  global.__all.reverse();
+  ok(r.records.length === 10 && r.records[0].id === 250 && r.records[9].id === 241 && r.ordered === true, "sort refused: still the newest 10, read from the end of the oldest-first list");
+  ok(calls.filter((c) => c[0] === "Sc").every((c) => c[3].limit === 10) && reads().filter((c) => c[0] === "GET").length === 2, "with pages of 10 (after trying each sort once)");
+
+  // an instance that ignores the sort and lists records in id order: says they may not be the newest
+  fake.sort = "ignore"; fake.order = "id";
+  T = S2();
+  await T.fromWorkflows(panel, webview, "fetchWorkflowLogs", { reqId: 10 });
+  r = sent.pop().payload;
+  ok(r.records.length === 10 && r.ordered === false, "records not in date order are flagged (ordered: false), not passed off as the newest");
+  fake.sort = "honour"; fake.order = "time";
+
+  // the System Logs screen's fetch reads the same newest 10
+  ok(typeof S.newest === "function" && S.NEWEST === 10, "one reader (newest) and one limit (10) for every screen");
 
   // a server filter is passed to every read
   calls.length = 0;
-  await S.fromWorkflows(panel, webview, "fetchWorkflowLogs", { reqId: 11, offset: 0, window: 200, filter: 'workflow.id = "w-1"' });
+  await S.fromWorkflows(panel, webview, "fetchWorkflowLogs", { reqId: 11, filter: 'workflow.id = "w-1"' });
   r = sent.pop().payload;
-  ok(r.filter === 'workflow.id = "w-1"' && calls.filter((c) => c[0] === "Sc").every((c) => c[3].filter === 'workflow.id = "w-1"'), "a server filter goes with every read (and comes back in the reply)");
+  ok(r.filter === 'workflow.id = "w-1"' && reads().every((c) => (c[0] === "GET" ? new URLSearchParams(c[2].split("?")[1]).get("filter") : c[3].filter) === 'workflow.id = "w-1"'), "a server filter goes with every read (and comes back in the reply)");
 
   // records are trimmed: the workflow copy to its id and name, no permission lists
   const big = { id: "systemlog-1", message: "m", workflow: { id: "w-1", name: "Upload", stages: [], commands: [{ id: "X" }] }, _permissions_: [1], field_restrictions: [2], task: "{}" };
   const tr = S.trim(big);
   ok(tr.workflow.id === "w-1" && tr.workflow.name === "Upload" && !("commands" in tr.workflow) && !("_permissions_" in tr) && !("field_restrictions" in tr) && tr.message === "m" && big.workflow.commands, "trim keeps the workflow's id and name only, drops permission lists, leaves the original alone");
 
-  await S.fromWorkflows({}, webview, "fetchWorkflowLogs", { reqId: 10 });
+  await S.fromWorkflows({}, webview, "fetchWorkflowLogs", { reqId: 12 });
   r = sent.pop();
-  ok(r.type === "workflowLogsFailed" && r.payload.reqId === 10 && /instance/.test(r.payload.message), "failures come back as workflowLogsFailed");
+  ok(r.type === "workflowLogsFailed" && r.payload.reqId === 12 && /instance/.test(r.payload.message), "failures come back as workflowLogsFailed");
 
   await S.fromWorkflows(panel, webview, "copyLogJson", { record: { id: 1 } });
   await S.fromWorkflows(panel, webview, "openLogJson", { record: { id: 2 } });

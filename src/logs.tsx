@@ -2,10 +2,11 @@
 // (or just the open action, or the selected step). Read-only.
 //
 // A SystemLog record carries its workflow (`workflow.id` / `.name`) and the
-// step that wrote it (`task`, with the step's id). The tab first asks the
-// instance for `workflow.id = "<id>"` (Saturn's filter language); if the
-// instance refuses that or finds nothing, it reads the newest records in
-// windows and picks out the ones about the workflow itself.
+// step that wrote it (`task`, with the step's id). The host only ever reads
+// the newest 10 records. The tab asks for the newest 10 with
+// `workflow.id = "<id>"` (Saturn's filter language); if the instance refuses
+// that or finds nothing, it reads the newest 10 of all and keeps this
+// workflow's.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { send } from "./bridge";
 import { highlight } from "./controls";
@@ -29,9 +30,6 @@ import {
   type Rec,
 } from "../src-logs/records";
 
-const WINDOW = 200; // records per request
-const ENOUGH = 25; // stop searching older records once this many match
-const PER_SEARCH = 1000; // …or after this many more records
 const LIVE_MS = 10000;
 
 type Scope = "workflow" | "action" | "step";
@@ -45,8 +43,8 @@ interface Reply {
   instanceName: string;
   records: Rec[];
   total: number | null;
-  scanned: number;
-  done: boolean;
+  /** false: the instance doesn't return logs in date order, so these may not be the newest */
+  ordered?: boolean;
 }
 
 const keyOf = (r: Rec) => (r.id !== undefined && r.id !== null ? `id:${String(r.id)}` : JSON.stringify(r));
@@ -114,7 +112,8 @@ function stepsRunBy(tree: TreeInfo, trees: TreeInfo[]) {
 export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow: Flow | undefined; catalog: Catalog; onOpenTree: (key: string) => void }) {
   const { wf, tree, flow, catalog } = props;
   const [records, setRecords] = useState<Rec[]>([]);
-  const [meta, setMeta] = useState<{ resource: string | null; instanceName: string; total: number | null; scanned: number; done: boolean } | null>(null);
+  const [meta, setMeta] = useState<{ resource: string | null; instanceName: string; total: number | null; ordered: boolean } | null>(null);
+  const [checked, setChecked] = useState<number | null>(null);
   const [mode, setMode] = useState<Mode | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,9 +126,8 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
   const [now, setNow] = useState(Date.now());
   const reqId = useRef(0);
   // what the request in flight is for (probe = the first, filtered try)
-  const pending = useRef<{ id: number; kind: "probe" | "search" | "live"; budget: number } | null>(null);
+  const pending = useRef<{ id: number; kind: "probe" | "read" | "live" } | null>(null);
   const seen = useRef<Set<string>>(new Set());
-  const found = useRef(0); // records.length, readable from the message handler
   const mode$ = useRef<Mode | null>(null);
 
   const trees = useMemo(() => treesOfWf(wf), [wf]);
@@ -147,24 +145,24 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
   const latest = useRef({ isWf });
   latest.current = { isWf };
 
-  const request = (kind: "probe" | "search" | "live", offset: number, budget: number) => {
+  /** Read the newest 10 (the host never reads more): this workflow's, or of all in scan mode. */
+  const request = (kind: "probe" | "read" | "live") => {
     const id = ++reqId.current;
-    pending.current = { id, kind, budget };
+    pending.current = { id, kind };
     setLoading(true);
     const filter = kind === "probe" || mode$.current === "server" ? workflowFilter(wf.id) : undefined;
-    send("fetchWorkflowLogs", { reqId: id, workflowId: wf.id, offset, window: WINDOW, filter });
+    send("fetchWorkflowLogs", { reqId: id, workflowId: wf.id, filter });
   };
   const restart = () => {
     setRecords([]);
     setOpen(null);
     setFresh(new Set());
     seen.current = new Set();
-    found.current = 0;
   };
   const scan = () => {
     mode$.current = "scan";
     setMode("scan");
-    request("search", 0, PER_SEARCH);
+    request("read");
   };
 
   // a different workflow: start again from the newest record, trying the server filter first
@@ -174,7 +172,7 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
     setError(null);
     mode$.current = null;
     setMode(null);
-    request("probe", 0, PER_SEARCH);
+    request("probe");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wf.id]);
 
@@ -210,44 +208,36 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
         else mode$.current = "server";
         setMode(mode$.current);
       }
-      const added = got.filter((x) => !seen.current.has(keyOf(x)));
-      added.forEach((x) => seen.current.add(keyOf(x)));
-      found.current += added.length;
+      // the newest 10 as they are now; flash the ones that weren't there at the last check
+      const arrived = cur.kind === "live" ? got.filter((x) => !seen.current.has(keyOf(x))) : [];
+      got.forEach((x) => seen.current.add(keyOf(x)));
+      setFresh(new Set(arrived.map(keyOf)));
+      setRecords(got);
       setError(null);
       setNow(Date.now());
-      if (cur.kind === "live") {
-        // newest window again: put what's new on top and flash it
-        setFresh(new Set(added.map(keyOf)));
-        if (added.length) setRecords((rs) => [...added, ...rs]);
-        setMeta((mt) => (mt ? { ...mt, total: r.total, resource: r.resource, instanceName: r.instanceName } : { ...r }));
-        setLoading(false);
-        return;
-      }
-      setRecords((rs) => [...rs, ...added]);
-      const budget = cur.budget - (r.records?.length ?? 0);
-      // keep going back in time until enough match or this search's budget is spent
-      if (!r.done && found.current < ENOUGH && budget > 0) request("search", r.scanned, budget);
-      else setLoading(false);
-      setMeta({ resource: r.resource, instanceName: r.instanceName, total: r.total, scanned: r.scanned, done: r.done });
+      setChecked(Date.now());
+      setLoading(false);
+      setMeta({ resource: r.resource, instanceName: r.instanceName, total: r.total, ordered: r.ordered !== false });
     };
     window.addEventListener("message", on);
     return () => window.removeEventListener("message", on);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wf.id]);
 
-  // live: re-read the newest records every 10 s
+  // live: check for new logs every 10 s, and straight away when it's turned on
   useEffect(() => {
     if (!live) return;
+    if (!pending.current && mode$.current) request("live");
     const t = setInterval(() => {
-      if (!pending.current && mode$.current) request("live", 0, 0);
+      if (!pending.current && mode$.current) request("live");
     }, LIVE_MS);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, wf.id]);
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30000);
+    const t = setInterval(() => setNow(Date.now()), live ? 1000 : 30000);
     return () => clearInterval(t);
-  }, []);
+  }, [live]);
 
   /** Which step (and action) wrote a record: by the step id in its task, else by names outside its workflow copy. */
   const where = (r: Rec) => {
@@ -283,14 +273,11 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
     (r) => (!levels.length || (!!sh.levelKey && levels.includes(str(r[sh.levelKey])))) && (!q || JSON.stringify(r).toLowerCase().includes(q)),
   );
 
-  const searchOlder = () => request("search", meta?.scanned ?? 0, PER_SEARCH);
+  // start over, trying the server filter again (the instance may take it now)
   const refresh = () => {
     restart();
-    if (mode$.current === "scan") request("search", 0, PER_SEARCH);
-    else {
-      mode$.current = null;
-      request("probe", 0, PER_SEARCH);
-    }
+    mode$.current = null;
+    request("probe");
   };
 
   const scopes: { id: Scope; label: string; title: string }[] = [
@@ -304,7 +291,10 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
       <div className="lgt-head">
         <div className="lgt-title">
           <b>System Logs</b>
-          <span className="lgt-sub">{meta ? `${meta.instanceName}${meta.resource ? ` · ${meta.resource}` : ""}` : "Reading…"}</span>
+          <span className="lgt-sub">
+            {meta ? `${meta.instanceName}${meta.resource ? ` · ${meta.resource}` : ""}` : "Reading…"}
+            {live && checked !== null && ` · checked ${Math.max(0, Math.round((now - checked) / 1000))} s ago`}
+          </span>
         </div>
         <button type="button" className={`fg-btn lgt-live ${live ? "is-on" : ""}`} aria-pressed={live} title="Check for new logs every 10 s" onClick={() => setLive((l) => !l)}>
           <span className={`lgt-dot ${live ? "is-on" : ""}`} /> Live
@@ -404,9 +394,9 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
           {records.length === 0
             ? mode === "server"
               ? `No logs about ${wf.name}.`
-              : `No logs about ${wf.name} in the ${meta.scanned.toLocaleString()} newest records.`
+              : `None of the 10 newest logs on the instance are about ${wf.name}.`
             : inScope.length === 0
-              ? `None of ${wf.name}'s ${records.length} logs are from ${scope === "step" ? "this step" : tree?.label ?? "this action"}.`
+              ? `None of ${wf.name}'s ${records.length} newest logs are from ${scope === "step" ? "this step" : tree?.label ?? "this action"}.`
               : "No logs match the search or levels."}
         </p>
       )}
@@ -417,15 +407,10 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
             ? "Reading logs…"
             : meta && meta.resource
               ? mode === "server"
-                ? `${records.length}${meta.total !== null ? ` of ${meta.total.toLocaleString()}` : ""} logs`
-                : `${records.length} found in ${meta.scanned.toLocaleString()}${meta.total !== null ? ` of ${meta.total.toLocaleString()}` : ""} records`
+                ? `The newest ${records.length}${meta.total !== null ? ` of ${meta.total.toLocaleString()}` : ""} logs`
+                : `${records.length} of the newest 10 logs on the instance`
               : ""}
         </span>
-        {meta && meta.resource && !meta.done && !loading && (
-          <button type="button" className="fg-link" onClick={searchOlder}>
-            {mode === "server" ? "Load older" : "Search older"}
-          </button>
-        )}
       </div>
       <button
         type="button"
@@ -434,8 +419,11 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
       >
         Open in System Logs ↗
       </button>
+      {meta && meta.resource && !meta.ordered && (
+        <p className="fg-hint is-warn">This instance doesn't return logs in date order, so these may not be the newest.</p>
+      )}
       <p className="fg-hint">
-        Read-only.{" "}
+        Read-only. Only the newest 10 logs are read.{" "}
         {mode === "server" ? "The instance picks this workflow's logs (by its id)." : "Logs are matched to this workflow by its id or name in the record."}
       </p>
     </div>

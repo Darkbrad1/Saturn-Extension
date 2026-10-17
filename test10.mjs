@@ -29,32 +29,19 @@ await p.waitForTimeout(800);
 ok((await p.locator(".lg-title").innerText()).includes("System Logs") && (await p.locator(".lg-ro").innerText()) === "READ-ONLY" || (await p.locator(".lg-ro").textContent()) === "Read-only", "titled System Logs, marked read-only");
 ok((await p.locator("select[aria-label='Resource']").inputValue()) === "SystemLog", "opens on the System Logs resource");
 let rows = await p.locator(".lg-table tbody tr").count();
-ok(rows === 50, "shows a page of records");
+ok(rows === 10, "shows the newest 10 records, no more (v0.3.9)");
 let first = await p.locator(".lg-table tbody tr").first().innerText();
 ok(first.includes("record 1137"), "newest first, even though the instance lists them oldest first: " + first.split("\n")[0]);
 const heads = await p.locator(".lg-table thead th").allInnerTexts();
 ok(["created_at", "Level", "Message", "Workflow"].every((h) => heads.some((x) => x.toLowerCase() === h.toLowerCase())), "columns: time, level, message and context (" + heads.join(", ") + ")");
-ok((await p.locator(".lg-foot").innerText()).includes("137 records") && (await p.locator(".lg-page").innerText()) === "Page 1 of 3", "total and pages");
+ok((await p.locator(".lg-foot").innerText()).includes("The newest 10 of 137 records") && (await p.getByRole("button", { name: /Older|Newer/ }).count()) === 0 && (await p.locator("select[aria-label='Per page']").count()) === 0, "says it's the newest 10 of the total; no paging or page size");
 await p.screenshot({ path: out + "/a1-logs.png" });
-
-// paging: older pages run back in time
-await p.getByRole("button", { name: "Older ›" }).click();
-await p.waitForTimeout(300);
-first = await p.locator(".lg-table tbody tr").first().innerText();
-ok(first.includes("record 1087"), "Older shows the next 50, still newest first");
-await p.getByRole("button", { name: "Older ›" }).click();
-await p.waitForTimeout(300);
-ok(await p.locator(".lg-table tbody tr").count() === 37 && (await p.locator(".lg-table tbody tr").last().innerText()).includes("record 1001"), "the last page ends with the oldest record");
-ok(await p.getByRole("button", { name: "Older ›" }).isDisabled(), "and Older stops there");
-await p.getByRole("button", { name: "‹ Newer" }).click();
-await p.getByRole("button", { name: "‹ Newer" }).click();
-await p.waitForTimeout(300);
 
 // level chips, search
 await p.locator(".lg-levels .lg-chip", { hasText: "error" }).click();
 await p.waitForTimeout(100);
 const errRows = await ids();
-ok(errRows.length > 0 && errRows.every((t) => t.includes("Step failed")), `level chips filter (${errRows.length} errors on this page)`);
+ok(errRows.length > 0 && errRows.every((t) => t.includes("Step failed")), `level chips filter (${errRows.length} errors among them)`);
 await p.locator(".lg-levels .lg-chip", { hasText: "error" }).click();
 await p.locator("input[aria-label='Search']").fill("http_request triage");
 await p.waitForTimeout(100);
@@ -65,10 +52,10 @@ await p.locator("input[aria-label='Search']").fill("");
 await p.locator("input[aria-label='Server filter']").fill("level=error");
 await p.locator("input[aria-label='Server filter']").press("Enter");
 await p.waitForTimeout(400);
-ok((await p.locator(".lg-foot").innerText()).includes("8 records") && await p.locator(".lg-table tbody tr").count() === 8, "the server filter is sent to the instance");
+ok((await p.locator(".lg-foot").innerText()).includes("of 8 records") && await p.locator(".lg-table tbody tr").count() === 8, "the server filter is sent to the instance");
 await p.locator(".lg-chip", { hasText: "filter on" }).click();
 await p.waitForTimeout(400);
-ok((await p.locator(".lg-foot").innerText()).includes("137 records"), "and cleared");
+ok((await p.locator(".lg-foot").innerText()).includes("of 137 records"), "and cleared");
 
 // detail
 await p.locator(".lg-table tbody tr").first().click();
@@ -92,9 +79,13 @@ ok((await col("operator")) >= 0 && (await col("Workflow")) === -1, "columns can 
 // live
 await p.evaluate(() => { window.__addLog(); window.__addLog(); });
 await p.getByRole("button", { name: "Live" }).click();
-await p.waitForTimeout(5600);
+await p.waitForTimeout(500);
 first = await p.locator(".lg-table tbody tr").first().innerText();
-ok(first.includes("record 1139") && await p.locator(".lg-table tbody tr.is-fresh").count() === 2, "Live re-reads the newest page and flags new rows");
+ok(first.includes("record 1139") && await p.locator(".lg-table tbody tr.is-fresh").count() === 2 && await p.locator(".lg-table tbody tr").count() === 10, "turning Live on checks at once: new rows on top, flagged, still 10");
+ok(/checked \d+ s ago/.test(await p.locator(".lg-checked").innerText()), "and it says when it last checked");
+await p.evaluate(() => window.__addLog());
+await p.waitForTimeout(5600);
+ok((await p.locator(".lg-table tbody tr").first().innerText()).includes("record 1140"), "then every 5 s");
 await p.getByRole("button", { name: "Live" }).click();
 
 // another resource (already newest first)

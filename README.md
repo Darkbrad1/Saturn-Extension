@@ -1,6 +1,12 @@
-# Workflows node view (v0.3.8)
+# Workflows node view (v0.3.9)
 
 A Blender-style node editor layered onto the Workflows webview. It does everything the list view does.
+
+## New in 0.3.9 — only the newest 10 logs
+- **Every read is the newest 10** (`NEWEST` in `syslogs-host.js`): the System Logs screen's `fetch` and the Logs tab's `fetchWorkflowLogs` both go through `SysLogs$.newest(manager, instance, resource, filter)`. The screen has no paging or page size any more (`fetchRange` is gone); the tab has no Load older / Search older, and in its fallback (filter refused) it keeps this workflow's among the instance's newest 10.
+- **Sorted by the instance**: `newest` first asks for `?limit=10&page=1&sort=created_at DESC` (then `sort=-created_at`), the same GET `Sc` makes plus a sort, and keeps the result only if its dates really run newest first; the sort that worked is remembered per instance and resource. Otherwise it reads the list as it comes (an oldest-first list from its end, in pages of 10). Replies carry `ordered`; when it's false (the instance lists logs in some other order, such as by id) both screens say these may not be the newest.
+- **Live** was hard to see working: it waited a full interval before its first check and showed nothing when there was nothing new, and on an instance that doesn't list logs by date the "newest" page never changed. It now checks as soon as it's turned on and shows "checked N s ago"; with the instance sorting by date, new logs appear on top.
+- The Logs tab's Refresh tries the workflow filter again instead of staying in the fallback.
 
 ## New in 0.3.8 — Logs tab, matched exactly
 Built on a real SystemLog record: it has `log_type`, `name` (the step's title), `message`, `trace`, `file`, `created_at`, `task` (the step that wrote it, as JSON text with its `id`) and `workflow` (a copy of the whole workflow definition, with `id` and `name`), plus `_permissions_` / `field_restrictions`.
@@ -60,7 +66,7 @@ One step: `./package.sh path/to/sonover-code-0.1.1.vsix` builds, patches, runs t
 ```
 npm install
 node build.mjs --min
-python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.8
+python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.9
 node hosttest.cjs | hosttest-move.cjs | hosttest-reorder.cjs | hosttest-command.cjs | hosttest-field.cjs | hosttest-bulk.cjs | hosttest-logs.cjs  <unpacked>/extension/dist/extension.js
 node hosttest-wflogs.cjs        # the Logs tab's host side, on syslogs-host.js alone (no .vsix needed)
 ```

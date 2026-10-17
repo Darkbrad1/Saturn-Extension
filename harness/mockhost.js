@@ -472,10 +472,9 @@
           const m = /^workflow\.id = "(.*)"$/.exec(p.filter);
           if (m && !window.__filterIgnored) list = list.filter((r) => r.workflow?.id === m[1]);
         }
-        const size = p.window || 200, off = p.offset || 0, end = Math.max(0, list.length - off);
-        const records = list.slice(Math.max(0, end - size), end).reverse().map(trimLog);
-        const scanned = off + records.length;
-        post("workflowLogs", { reqId: p.reqId, workflowId: p.workflowId, instanceName: "Demo instance", resource: "SystemLog", filter: p.filter ?? null, records, total: list.length, scanned, done: records.length < size || scanned >= list.length });
+        // like the real host: only ever the newest 10 (__unordered: an instance that lists them in id order)
+        const records = (window.__unordered ? [...list].sort((a, b) => (a.id < b.id ? -1 : 1)).slice(0, 10) : list.slice(-10).reverse()).map(trimLog);
+        post("workflowLogs", { reqId: p.reqId, workflowId: p.workflowId, instanceName: "Demo instance", resource: "SystemLog", filter: p.filter ?? null, records, total: list.length, ordered: !window.__unordered });
         break;
       }
       case "openSystemLogs": case "openLogJson": case "copyLogJson":

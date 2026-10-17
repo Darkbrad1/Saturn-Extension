@@ -5,14 +5,14 @@ import "prismjs/components/prism-json";
 import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import css from "./logs.css";
-import { abs, ascending, cellText, dateOf, levelClass, rel, shape, str, type Field, type Rec } from "./records";
+import { abs, cellText, dateOf, levelClass, rel, shape, str, type Field, type Rec } from "./records";
 
 declare function acquireVsCodeApi(): { postMessage: (m: unknown) => void; getState: () => unknown; setState: (s: unknown) => void };
 const vscode = acquireVsCodeApi();
 const send = (type: string, payload: Record<string, unknown> = {}) => vscode.postMessage({ type, payload });
 
 interface Init { instanceName: string; instanceUrl: string; resource: string | null; logResources: string[]; allResources: string[]; search?: string; filter?: string }
-interface Saved { resource?: string; limit?: number; columns?: Record<string, string[]>; live?: boolean }
+interface Saved { resource?: string; columns?: Record<string, string[]>; live?: boolean }
 
 const json = (v: unknown) => {
   const t = JSON.stringify(v, null, 2) ?? "";
@@ -36,11 +36,10 @@ function App() {
   const [init, setInit] = useState<Init | null>(null);
   const [resource, setResource] = useState<string | null>(null);
   const [fields, setFields] = useState<Field[]>([]);
-  const [limit, setLimit] = useState(saved.limit ?? 50);
-  const [page, setPage] = useState(1); // 1 = newest
   const [records, setRecords] = useState<Rec[]>([]);
   const [total, setTotal] = useState<number | null>(null);
-  const [order, setOrder] = useState<"asc" | "desc" | null>(null);
+  // false: the instance doesn't return these in date order, so they may not be the newest
+  const [ordered, setOrdered] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -48,6 +47,7 @@ function App() {
   const [applied, setApplied] = useState("");
   const [levels, setLevels] = useState<string[]>([]);
   const [live, setLive] = useState(saved.live ?? false);
+  const [checked, setChecked] = useState<number | null>(null);
   const [picked, setPicked] = useState<Rec | null>(null);
   const [columns, setColumns] = useState<Record<string, string[]>>(saved.columns ?? {});
   const [colMenu, setColMenu] = useState(false);
@@ -55,15 +55,29 @@ function App() {
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const reqId = useRef(0);
   const seen = useRef<Set<string>>(new Set());
-  const pending = useRef<{ id: number; kind: "probe" | "page"; page: number } | null>(null);
-  // the message handler is registered once; it reads the latest values through this
-  const live$ = useRef({ limit, order, request: (() => {}) as (pg: number, kind: "probe" | "page", ord: "asc" | "desc" | null, tot: number | null) => void, show: (() => {}) as (r: Rec[], o: "asc" | "desc") => void });
+  const pending = useRef<number | null>(null);
 
   useEffect(() => {
     try {
-      vscode.setState({ resource: resource ?? undefined, limit, columns, live } satisfies Saved);
+      vscode.setState({ resource: resource ?? undefined, columns, live } satisfies Saved);
     } catch {}
-  }, [resource, limit, columns, live]);
+  }, [resource, columns, live]);
+
+  const keyOf = (r: Rec, i: number) => (r.id !== undefined ? String(r.id) : `${i}:${JSON.stringify(r).length}`);
+  const show = (list: Rec[]) => {
+    // highlight rows that weren't there before (live mode)
+    const ids = list.map(keyOf);
+    const isNew = seen.current.size > 0 ? new Set(ids.filter((k) => !seen.current.has(k))) : new Set<string>();
+    ids.forEach((k) => seen.current.add(k));
+    setFresh(isNew);
+    setRecords(list);
+    setLoading(false);
+    setError(null);
+    setNow(Date.now());
+    setChecked(Date.now());
+  };
+  const show$ = useRef(show);
+  show$.current = show;
 
   // the host's replies
   useEffect(() => {
@@ -89,29 +103,13 @@ function App() {
       } else if (m.type === "fields") {
         setFields(p.fields ?? []);
       } else if (m.type === "page") {
-        const cur = pending.current;
-        if (!cur || cur.id !== p.reqId) return;
+        if (pending.current !== p.reqId) return;
         pending.current = null;
-        const recs: Rec[] = p.records ?? [];
-        const tot: number | null = typeof p.total === "number" ? p.total : null;
-        setTotal(tot);
-        if (cur.kind === "probe") {
-          // learn the order from the first page; oldest-first lists are read from the end
-          const sh = shape(recs, []);
-          const asc = ascending(recs, sh.dateKey);
-          const ord = asc === true ? "asc" : "desc";
-          setOrder(ord);
-          const last = tot !== null ? Math.max(1, Math.ceil(tot / live$.current.limit)) : 1;
-          if ((ord === "asc" && (last > 1 || cur.page > 1)) || (ord === "desc" && cur.page > 1)) {
-            live$.current.request(cur.page, "page", ord, tot);
-            return;
-          }
-          live$.current.show(recs, ord);
-          return;
-        }
-        live$.current.show(recs, live$.current.order ?? "desc");
+        setTotal(typeof p.total === "number" ? p.total : null);
+        setOrdered(p.ordered !== false);
+        show$.current(p.records ?? []);
       } else if (m.type === "error") {
-        if (pending.current && p.reqId !== undefined && pending.current.id !== p.reqId) return;
+        if (pending.current !== null && p.reqId !== undefined && pending.current !== p.reqId) return;
         pending.current = null;
         setLoading(false);
         setError(p.message ?? "Could not read the logs");
@@ -123,78 +121,38 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const keyOf = (r: Rec, i: number) => (r.id !== undefined ? String(r.id) : `${i}:${JSON.stringify(r).length}`);
-  const show = (recs: Rec[], ord: "asc" | "desc") => {
-    const list = ord === "asc" ? [...recs].reverse() : recs;
-    // highlight rows that weren't there before (live mode)
-    const ids = list.map(keyOf);
-    const isNew = seen.current.size > 0 ? new Set(ids.filter((k) => !seen.current.has(k))) : new Set<string>();
-    ids.forEach((k) => seen.current.add(k));
-    setFresh(isNew);
-    setRecords(list);
-    setLoading(false);
-    setError(null);
-    setNow(Date.now());
-  };
+  /** Read the newest 10 records (the host never reads more). */
+  const request = useCallback(() => {
+    if (!resource) return;
+    const id = ++reqId.current;
+    pending.current = id;
+    setLoading(true);
+    send("fetch", { reqId: id, resource, filter: applied });
+  }, [resource, applied]);
 
-  /** Ask for logical page `pg` (1 = newest). */
-  const request = useCallback(
-    (pg: number, kind: "probe" | "page", ord: "asc" | "desc" | null, tot: number | null) => {
-      if (!resource) return;
-      const id = ++reqId.current;
-      pending.current = { id, kind, page: pg };
-      setLoading(true);
-      if (kind === "page" && ord === "asc" && tot !== null) {
-        // oldest-first list: newest page k is the slice that ends k-1 pages from the end
-        const end = Math.max(0, tot - (pg - 1) * limit);
-        send("fetchRange", { reqId: id, resource, start: Math.max(0, end - limit), end, limit, filter: applied });
-        return;
-      }
-      send("fetch", { reqId: id, resource, page: kind === "probe" ? 1 : pg, limit, filter: applied });
-    },
-    [resource, limit, applied],
-  );
-
-  live$.current = { limit, order, request, show };
-
-  const reload = useCallback(
-    (pg = page) => {
-      setOrder(null);
-      request(pg, "probe", null, null);
-    },
-    [request, page],
-  );
-
-  // a new resource / page size / server filter: start again from the newest
+  // a new resource or server filter: start again
   useEffect(() => {
     if (!resource) return;
     seen.current = new Set();
-    setPage(1);
     setPicked(null);
     send("fields", { resource });
-    request(1, "probe", null, null);
+    request();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resource, limit, applied]);
+  }, [resource, applied]);
 
-  const goto = (pg: number) => {
-    setPage(pg);
-    setPicked(null);
-    if (order) request(pg, "page", order, total);
-    else request(pg, "probe", null, null);
-  };
-
-  // live: re-read the newest page every 5 s
+  // live: check for new logs every 5 s (and straight away when it's turned on)
   useEffect(() => {
-    if (!live || page !== 1 || !resource) return;
+    if (!live || !resource) return;
+    if (pending.current === null) request();
     const t = setInterval(() => {
-      if (!pending.current) request(1, "probe", null, null);
+      if (pending.current === null) request();
     }, 5000);
     return () => clearInterval(t);
-  }, [live, page, resource, request]);
+  }, [live, resource, request]);
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30000);
+    const t = setInterval(() => setNow(Date.now()), live ? 1000 : 30000);
     return () => clearInterval(t);
-  }, []);
+  }, [live]);
 
   const sh = useMemo(() => shape(records, fields), [records, fields]);
   const cols = (resource && columns[resource]) || sh.defaults;
@@ -209,7 +167,6 @@ function App() {
       (!levels.length || (sh.levelKey && levels.includes(str(r[sh.levelKey])))) &&
       (!q || q.split(/\s+/).every((w) => JSON.stringify(r).toLowerCase().includes(w))),
   );
-  const pages = total !== null ? Math.max(1, Math.ceil(total / limit)) : null;
 
   if (!init) return <div className="lg-empty">Connecting…</div>;
 
@@ -248,12 +205,17 @@ function App() {
             type="button"
             className={`lg-btn ${live ? "is-on" : ""}`}
             aria-pressed={live}
-            title="Re-read the newest page every 5 seconds"
+            title="Check for new logs every 5 seconds"
             onClick={() => setLive((v) => !v)}
           >
             <span className={`lg-live-dot ${live ? "is-on" : ""}`} /> Live
           </button>
-          <button type="button" className="lg-btn" onClick={() => reload(page)} disabled={!resource || loading} title="Refresh">
+          {live && checked !== null && (
+            <span className="lg-checked" title="When the newest logs were last read">
+              checked {Math.max(0, Math.round((now - checked) / 1000))} s ago
+            </span>
+          )}
+          <button type="button" className="lg-btn" onClick={() => request()} disabled={!resource || loading} title="Refresh">
             {loading ? "Reading…" : "Refresh"}
           </button>
         </div>
@@ -269,7 +231,7 @@ function App() {
           <div className="lg-filters">
             <input
               className="lg-search"
-              placeholder="Search this page…"
+              placeholder="Search these logs…"
               aria-label="Search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -392,7 +354,7 @@ function App() {
                   {!loading && shown.length === 0 && (
                     <tr>
                       <td colSpan={Math.max(1, cols.length)} className="lg-none">
-                        {records.length ? "Nothing on this page matches." : "No log records."}
+                        {records.length ? "Nothing here matches." : "No log records."}
                       </td>
                     </tr>
                   )}
@@ -430,20 +392,15 @@ function App() {
 
           <footer className="lg-foot">
             <span>
-              {total !== null ? `${total.toLocaleString()} record${total === 1 ? "" : "s"}` : `${records.length} shown`}
-              {shown.length !== records.length ? ` · ${shown.length} match on this page` : ""}
-              {" · newest first"}
+              The newest {records.length}
+              {total !== null ? ` of ${total.toLocaleString()} record${total === 1 ? "" : "s"}` : ""}
+              {shown.length !== records.length ? ` · ${shown.length} match` : ""}
             </span>
-            <span className="lg-spacer" />
-            <label className="lg-select is-small">
-              <span>Per page</span>
-              <select aria-label="Per page" value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
-                {[25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </label>
-            <button type="button" className="lg-btn" disabled={page <= 1 || loading} onClick={() => goto(page - 1)}>‹ Newer</button>
-            <span className="lg-page">Page {page}{pages ? ` of ${pages}` : ""}</span>
-            <button type="button" className="lg-btn" disabled={(pages !== null && page >= pages) || (pages === null && records.length < limit) || loading} onClick={() => goto(page + 1)}>Older ›</button>
+            {!ordered && (
+              <span className="lg-warn" title="Saturn didn't sort these by date, so newer logs may exist">
+                · not in date order on this instance, so these may not be the newest
+              </span>
+            )}
           </footer>
         </>
       )}

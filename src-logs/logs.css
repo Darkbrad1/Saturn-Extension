@@ -95,3 +95,5 @@ html, body { margin: 0; height: 100%; background: var(--lg-bg); color: var(--lg-
 .lg-select.is-small select { height: 24px; }
 .lg-empty { padding: 40px; color: var(--lg-muted); max-width: 640px; }
 .lg-empty b { color: var(--lg-fg); }
+.lg-checked { color: var(--lg-muted); font-size: 11px; white-space: nowrap; }
+.lg-warn { color: #e3b341; }

@@ -1,6 +1,16 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.9",
+    title: "Only the newest 10 logs",
+    items: [
+      "The System Logs screen and the Logs tab only ever read the newest 10 logs: no paging, no page size.",
+      "They ask the instance to sort logs by date; if it doesn't list them in date order, they say these may not be the newest.",
+      "Live checks as soon as it's turned on, and shows when it last checked.",
+      "Refresh in the Logs tab tries the workflow filter again.",
+    ],
+  },
+  {
     version: "0.3.8",
     title: "Logs tab, matched exactly",
     items: [
