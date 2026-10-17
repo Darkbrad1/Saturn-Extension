@@ -148,7 +148,8 @@ await panel.locator(".fg-changes li").first().locator(".fg-link", { hasText: "Un
 await p.waitForTimeout(500);
 cmds = (await def("wf_orders")).stages[0].actions[0].task.commands;
 ok(cmds.length === 6, "Undo on the newest change undoes it");
-ok(await panel.locator(".fg-release").count() >= 4 && (await panel.locator(".fg-release").first().innerText()).includes("0.3.4"), "release notes are listed, newest first");
+const newest = /version:\s*"([\d.]+)"/.exec((await import("node:fs")).readFileSync(new URL("src/changelog.ts", import.meta.url), "utf8"))[1];
+ok(await panel.locator(".fg-release").count() >= 4 && (await panel.locator(".fg-release").first().innerText()).includes(newest), `release notes are listed, newest (${newest}) first`);
 await p.screenshot({ path: out + "/96-changes.png" });
 await panel.locator(".fg-btn", { hasText: "Save to the instance" }).click();
 await p.waitForTimeout(500);
