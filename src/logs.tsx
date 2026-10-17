@@ -1,14 +1,20 @@
 // The side panel's Logs tab: the System Logs records about the open workflow
-// (or just the open action, or the selected step). Read-only; the host reads
-// the newest records in windows and this tab picks out the ones that match.
+// (or just the open action, or the selected step). Read-only.
+//
+// A SystemLog record carries its workflow (`workflow.id` / `.name`) and the
+// step that wrote it (`task`, with the step's id). The tab first asks the
+// instance for `workflow.id = "<id>"` (Saturn's filter language); if the
+// instance refuses that or finds nothing, it reads the newest records in
+// windows and picks out the ones about the workflow itself.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { send } from "./bridge";
 import { highlight } from "./controls";
-import type { Tree } from "./panel";
+import { titleOf, type Tree } from "./panel";
 import type { Catalog, Flow, WorkflowView } from "./types";
 import {
   ACTION_KEYS,
   STEP_KEYS,
+  WORKFLOW_COPY,
   WORKFLOW_KEYS,
   abs,
   dateOf,
@@ -18,6 +24,7 @@ import {
   shape,
   str,
   target,
+  taskOf,
   type LogTarget,
   type Rec,
 } from "../src-logs/records";
@@ -28,6 +35,8 @@ const PER_SEARCH = 1000; // …or after this many more records
 const LIVE_MS = 10000;
 
 type Scope = "workflow" | "action" | "step";
+/** server: the instance filters by workflow.id; scan: read everything and match here */
+type Mode = "server" | "scan";
 
 interface Reply {
   reqId: number;
@@ -41,8 +50,9 @@ interface Reply {
 }
 
 const keyOf = (r: Rec) => (r.id !== undefined && r.id !== null ? `id:${String(r.id)}` : JSON.stringify(r));
+export const workflowFilter = (id: string) => `workflow.id = ${JSON.stringify(id)}`;
 
-/** The action or command a tree stands for, as log records would name it. */
+/** The action or command a tree stands for, as log records would name it (for records without a task id). */
 function treeTarget(wf: WorkflowView, tree: Tree): LogTarget {
   if (tree.kind === "command") {
     const c = wf.commands.find((x) => x.id === tree.commandId);
@@ -53,19 +63,59 @@ function treeTarget(wf: WorkflowView, tree: Tree): LogTarget {
   return target([a?.id], [a?.action, a?.label]);
 }
 
-/** Every action and command of the workflow, to say which one a record is about. */
-function treesOfWf(wf: WorkflowView) {
+interface TreeInfo {
+  key: string;
+  label: string;
+  flow: Flow | null;
+  t: LogTarget;
+}
+/** Every action and command of the workflow. */
+function treesOfWf(wf: WorkflowView): TreeInfo[] {
   return [
-    ...wf.stages.flatMap((s) => s.actions.map((a) => ({ key: `s:${s.stage}:${a.id}`, label: a.label, t: target([a.id], [a.action, a.label]) }))),
-    ...wf.actions.map((a) => ({ key: `g:${a.id}`, label: a.label, t: target([a.id], [a.action, a.label]) })),
-    ...wf.commands.map((c) => ({ key: `c:${c.id}`, label: c.label, t: target([c.id], [c.name, c.label]) })),
+    ...wf.stages.flatMap((s) => s.actions.map((a) => ({ key: `s:${s.stage}:${a.id}`, label: a.label, flow: a.flow, t: target([a.id], [a.action, a.label]) }))),
+    ...wf.actions.map((a) => ({ key: `g:${a.id}`, label: a.label, flow: a.flow, t: target([a.id], [a.action, a.label]) })),
+    ...wf.commands.map((c) => ({ key: `c:${c.id}`, label: c.label, flow: c.flow, t: target([c.id], [c.name, c.label]) })),
   ];
+}
+
+function walk(f: Flow | null, visit: (f: Flow) => void) {
+  if (!f) return;
+  visit(f);
+  if (f.kind === "if") [...f.whenTrue, ...f.whenFalse].forEach((c) => walk(c, visit));
+  else if (f.kind === "series" || f.kind === "parallel" || f.kind === "each") f.children.forEach((c) => walk(c, visit));
+}
+
+/** Step id -> where that step is: which action/command, and its title. */
+function stepIndex(trees: TreeInfo[], catalog: Catalog) {
+  const at = new Map<string, { tree: TreeInfo; title: string }>();
+  for (const t of trees) walk(t.flow, (f) => f.kind === "operator" && f.stepId && !at.has(f.stepId) && at.set(f.stepId, { tree: t, title: titleOf(f, catalog) }));
+  return at;
+}
+
+/** The ids of every step an action runs, including the steps of the commands it calls. */
+function stepsRunBy(tree: TreeInfo, trees: TreeInfo[]) {
+  const ids = new Set<string>();
+  const seen = new Set<string>();
+  const visit = (t: TreeInfo) => {
+    if (seen.has(t.key)) return;
+    seen.add(t.key);
+    walk(t.flow, (f) => {
+      if (f.kind === "operator" && f.stepId) ids.add(f.stepId);
+      if (f.kind === "reference" && f.targetId) {
+        const c = trees.find((x) => x.key === `c:${f.targetId}`);
+        if (c) visit(c);
+      }
+    });
+  };
+  visit(tree);
+  return ids;
 }
 
 export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow: Flow | undefined; catalog: Catalog; onOpenTree: (key: string) => void }) {
   const { wf, tree, flow, catalog } = props;
   const [records, setRecords] = useState<Rec[]>([]);
   const [meta, setMeta] = useState<{ resource: string | null; instanceName: string; total: number | null; scanned: number; done: boolean } | null>(null);
+  const [mode, setMode] = useState<Mode | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<Scope>("workflow");
@@ -76,13 +126,19 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const [now, setNow] = useState(Date.now());
   const reqId = useRef(0);
-  // what the request in flight is for
-  const pending = useRef<{ id: number; kind: "search" | "live"; budget: number } | null>(null);
+  // what the request in flight is for (probe = the first, filtered try)
+  const pending = useRef<{ id: number; kind: "probe" | "search" | "live"; budget: number } | null>(null);
   const seen = useRef<Set<string>>(new Set());
   const found = useRef(0); // records.length, readable from the message handler
+  const mode$ = useRef<Mode | null>(null);
 
+  const trees = useMemo(() => treesOfWf(wf), [wf]);
+  const steps = useMemo(() => stepIndex(trees, catalog), [trees, catalog]);
   const wfTarget = useMemo(() => target([wf.id], [wf.name]), [wf.id, wf.name]);
+  const treeNow = tree ? trees.find((t) => t.key === tree.key) : undefined;
   const actionTarget = useMemo(() => (tree ? treeTarget(wf, tree) : null), [wf, tree]);
+  const actionSteps = useMemo(() => (treeNow ? stepsRunBy(treeNow, trees) : null), [treeNow, trees]);
+  const stepId = flow && flow.kind === "operator" ? flow.stepId ?? null : null;
   const stepTarget = useMemo(
     () => (flow && flow.kind === "operator" && flow.operator ? target([], [flow.operator, flow.label, catalog[flow.operator]?.name]) : null),
     [flow, catalog],
@@ -91,23 +147,34 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
   const latest = useRef({ isWf });
   latest.current = { isWf };
 
-  const request = (kind: "search" | "live", offset: number, budget: number) => {
+  const request = (kind: "probe" | "search" | "live", offset: number, budget: number) => {
     const id = ++reqId.current;
     pending.current = { id, kind, budget };
     setLoading(true);
-    send("fetchWorkflowLogs", { reqId: id, workflowId: wf.id, offset, window: WINDOW });
+    const filter = kind === "probe" || mode$.current === "server" ? workflowFilter(wf.id) : undefined;
+    send("fetchWorkflowLogs", { reqId: id, workflowId: wf.id, offset, window: WINDOW, filter });
   };
-
-  // a different workflow: start again from the newest record
-  useEffect(() => {
+  const restart = () => {
     setRecords([]);
-    setMeta(null);
-    setError(null);
     setOpen(null);
     setFresh(new Set());
     seen.current = new Set();
     found.current = 0;
+  };
+  const scan = () => {
+    mode$.current = "scan";
+    setMode("scan");
     request("search", 0, PER_SEARCH);
+  };
+
+  // a different workflow: start again from the newest record, trying the server filter first
+  useEffect(() => {
+    restart();
+    setMeta(null);
+    setError(null);
+    mode$.current = null;
+    setMode(null);
+    request("probe", 0, PER_SEARCH);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wf.id]);
 
@@ -125,6 +192,8 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
       if (m.type === "workflowLogsFailed") {
         if (!cur || p.reqId !== cur.id) return;
         pending.current = null;
+        // the instance didn't take the filter: read and match here instead
+        if (cur.kind === "probe") return scan();
         setLoading(false);
         setError(p.message ?? "Could not read the logs.");
         return;
@@ -134,6 +203,13 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
       if (!cur || r.reqId !== cur.id) return;
       pending.current = null;
       const got = (r.records ?? []).filter((x) => x && typeof x === "object" && latest.current.isWf(x));
+      if (cur.kind === "probe") {
+        // nothing back for the filter (or records that aren't this workflow's): it wasn't understood
+        if (!r.resource) mode$.current = "scan";
+        else if (got.length === 0) return scan();
+        else mode$.current = "server";
+        setMode(mode$.current);
+      }
       const added = got.filter((x) => !seen.current.has(keyOf(x)));
       added.forEach((x) => seen.current.add(keyOf(x)));
       found.current += added.length;
@@ -163,7 +239,7 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
   useEffect(() => {
     if (!live) return;
     const t = setInterval(() => {
-      if (!pending.current) request("live", 0, 0);
+      if (!pending.current && mode$.current) request("live", 0, 0);
     }, LIVE_MS);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,15 +249,30 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
     return () => clearInterval(t);
   }, []);
 
+  /** Which step (and action) wrote a record: by the step id in its task, else by names outside its workflow copy. */
+  const where = (r: Rec) => {
+    const id = taskOf(r)?.id;
+    const s = id ? steps.get(id) : undefined;
+    if (s) return { key: s.tree.key, label: `${s.tree.label} · ${s.title}`, treeLabel: s.tree.label, stepId: id! };
+    const t = trees.find((x) => mentions(r, ACTION_KEYS, x.t, WORKFLOW_COPY));
+    return t ? { key: t.key, label: t.label, treeLabel: t.label, stepId: id ?? null } : null;
+  };
   const sh = useMemo(() => shape(records, []), [records]);
   const inScope = useMemo(
     () =>
       records.filter((r) => {
         if (scope === "workflow") return true;
-        if (!actionTarget || !mentions(r, ACTION_KEYS, actionTarget)) return false;
-        return scope === "action" || (!!stepTarget && mentions(r, STEP_KEYS, stepTarget));
+        const id = taskOf(r)?.id;
+        if (scope === "step" && stepId && id) return id === stepId;
+        if (actionSteps && id && steps.has(id)) {
+          if (!actionSteps.has(id)) return false;
+          return scope === "action" || (!!stepTarget && !stepId && mentions(r, STEP_KEYS, stepTarget, WORKFLOW_COPY));
+        }
+        // no step id to go by: names, outside the record's copy of the workflow
+        if (!actionTarget || !mentions(r, ACTION_KEYS, actionTarget, WORKFLOW_COPY)) return false;
+        return scope === "action" || (!!stepTarget && mentions(r, STEP_KEYS, stepTarget, WORKFLOW_COPY));
       }),
-    [records, scope, actionTarget, stepTarget],
+    [records, scope, actionTarget, actionSteps, stepId, stepTarget, steps],
   );
   const levelValues = useMemo(
     () => (sh.levelKey ? [...new Set(inScope.map((r) => str(r[sh.levelKey!])).filter(Boolean))].sort() : []),
@@ -191,21 +282,21 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
   const shown = inScope.filter(
     (r) => (!levels.length || (!!sh.levelKey && levels.includes(str(r[sh.levelKey])))) && (!q || JSON.stringify(r).toLowerCase().includes(q)),
   );
-  const trees = useMemo(() => treesOfWf(wf), [wf]);
 
   const searchOlder = () => request("search", meta?.scanned ?? 0, PER_SEARCH);
   const refresh = () => {
-    setRecords([]);
-    setOpen(null);
-    seen.current = new Set();
-    found.current = 0;
-    request("search", 0, PER_SEARCH);
+    restart();
+    if (mode$.current === "scan") request("search", 0, PER_SEARCH);
+    else {
+      mode$.current = null;
+      request("probe", 0, PER_SEARCH);
+    }
   };
 
   const scopes: { id: Scope; label: string; title: string }[] = [
     { id: "workflow", label: "Workflow", title: `Every log about ${wf.name}` },
-    ...(actionTarget && tree ? [{ id: "action" as const, label: tree.kind === "command" ? "This command" : "This action", title: `Only logs about ${tree.label}` }] : []),
-    ...(stepTarget && flow ? [{ id: "step" as const, label: "This step", title: `Only logs from ${flow.label || "the selected step"} in ${tree?.label ?? "this action"}` }] : []),
+    ...(actionTarget && tree ? [{ id: "action" as const, label: tree.kind === "command" ? "This command" : "This action", title: `Only logs from the steps ${tree.label} runs` }] : []),
+    ...(stepTarget && flow ? [{ id: "step" as const, label: "This step", title: `Only logs written by ${flow.label || "the selected step"}` }] : []),
   ];
 
   return (
@@ -264,7 +355,7 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
           const t = sh.dateKey ? dateOf(r[sh.dateKey]) : null;
           const lv = sh.levelKey ? str(r[sh.levelKey]) : "";
           const msg = sh.messageKey ? str(r[sh.messageKey]) : JSON.stringify(r);
-          const about = scope === "workflow" ? trees.find((x) => mentions(r, ACTION_KEYS, x.t)) : undefined;
+          const w = where(r);
           const isOpen = open === k;
           return (
             <li key={k} className={`lgt-row ${isOpen ? "is-open" : ""} ${fresh.has(k) ? "is-fresh" : ""}`}>
@@ -276,7 +367,11 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
                       {rel(t, now)}
                     </span>
                   )}
-                  {about && <span className="lgt-about">{about.label}</span>}
+                  {w && (
+                    <span className="lgt-about" title={w.label}>
+                      {w.label}
+                    </span>
+                  )}
                 </span>
                 <span className="lgt-msg">{msg}</span>
               </button>
@@ -289,12 +384,13 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
                     <button type="button" className="fg-btn" onClick={() => send("openLogJson", { record: r })}>
                       Open as JSON
                     </button>
-                    {about && tree?.key !== about.key && (
-                      <button type="button" className="fg-btn" onClick={() => props.onOpenTree(about.key)}>
-                        Go to {about.label}
+                    {w && tree?.key !== w.key && (
+                      <button type="button" className="fg-btn" onClick={() => props.onOpenTree(w.key)}>
+                        Go to {w.treeLabel}
                       </button>
                     )}
                   </div>
+                  {typeof r.trace === "string" && r.trace.trim() && <pre className="lgt-json lgt-trace">{r.trace}</pre>}
                   <pre className="lgt-json" dangerouslySetInnerHTML={{ __html: highlight(JSON.stringify(r, null, 2), "json") }} />
                 </div>
               )}
@@ -306,9 +402,11 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
       {!loading && meta && meta.resource && shown.length === 0 && (
         <p className="fg-hint lgt-none">
           {records.length === 0
-            ? `No logs about ${wf.name} in the ${meta.scanned.toLocaleString()} newest records.`
+            ? mode === "server"
+              ? `No logs about ${wf.name}.`
+              : `No logs about ${wf.name} in the ${meta.scanned.toLocaleString()} newest records.`
             : inScope.length === 0
-              ? `None of ${wf.name}'s ${records.length} logs are about ${scope === "step" ? "this step" : tree?.label ?? "this action"}.`
+              ? `None of ${wf.name}'s ${records.length} logs are from ${scope === "step" ? "this step" : tree?.label ?? "this action"}.`
               : "No logs match the search or levels."}
         </p>
       )}
@@ -318,19 +416,28 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
           {loading
             ? "Reading logs…"
             : meta && meta.resource
-              ? `${records.length} found in ${meta.scanned.toLocaleString()}${meta.total !== null ? ` of ${meta.total.toLocaleString()}` : ""} records`
+              ? mode === "server"
+                ? `${records.length}${meta.total !== null ? ` of ${meta.total.toLocaleString()}` : ""} logs`
+                : `${records.length} found in ${meta.scanned.toLocaleString()}${meta.total !== null ? ` of ${meta.total.toLocaleString()}` : ""} records`
               : ""}
         </span>
         {meta && meta.resource && !meta.done && !loading && (
           <button type="button" className="fg-link" onClick={searchOlder}>
-            Search older
+            {mode === "server" ? "Load older" : "Search older"}
           </button>
         )}
       </div>
-      <button type="button" className="fg-link lgt-open" onClick={() => send("openSystemLogs", { search: wf.name })}>
+      <button
+        type="button"
+        className="fg-link lgt-open"
+        onClick={() => send("openSystemLogs", mode === "server" ? { filter: workflowFilter(wf.id) } : { search: wf.name })}
+      >
         Open in System Logs ↗
       </button>
-      <p className="fg-hint">Read-only. Logs are matched to this workflow by its id or name in the record.</p>
+      <p className="fg-hint">
+        Read-only.{" "}
+        {mode === "server" ? "The instance picks this workflow's logs (by its id)." : "Logs are matched to this workflow by its id or name in the record."}
+      </p>
     </div>
   );
 }

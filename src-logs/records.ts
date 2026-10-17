@@ -101,11 +101,11 @@ export function target(ids: (string | null | undefined)[], names: (string | null
  * matches `workflow`, `workflow_id`, `context.workflow.name`)? Long ids also
  * count anywhere in the record, since they can't be confused with anything else.
  */
-export function mentions(r: Rec, keys: RegExp, t: LogTarget): boolean {
+export function mentions(r: Rec, keys: RegExp, t: LogTarget, skip?: RegExp): boolean {
   const out: [string, string][] = [];
   leaves(r, "", out, 0);
   for (const [k, v] of out) {
-    if (!v || !keys.test(k)) continue;
+    if (!v || !keys.test(k) || (skip && skip.test(k))) continue;
     if (t.ids.includes(v) || t.names.includes(v)) return true;
   }
   const longIds = t.ids.filter((id) => id.length >= 8);
@@ -115,3 +115,41 @@ export function mentions(r: Rec, keys: RegExp, t: LogTarget): boolean {
 export const WORKFLOW_KEYS = /workflow|flow_id|flowid/i;
 export const ACTION_KEYS = /action|command|task|trigger/i;
 export const STEP_KEYS = /operator|step|node/i;
+/**
+ * A SystemLog record's `workflow` is a copy of the whole workflow: every
+ * action and step name is in it, so it says nothing about which one logged.
+ * Skip it when matching actions and steps.
+ */
+export const WORKFLOW_COPY = /^workflow\./i;
+
+/**
+ * The step that wrote a SystemLog record: its `task` is that step, usually as
+ * JSON text ({"id":"RGJMO5","type":"command","operator":"debug",…}).
+ */
+export function taskOf(r: Rec): { id: string | null; operator: string | null } | null {
+  let t: unknown = r.task;
+  if (typeof t === "string") {
+    if (!t.trim().startsWith("{")) return null;
+    try {
+      t = JSON.parse(t);
+    } catch {
+      return null;
+    }
+  }
+  if (!t || typeof t !== "object" || Array.isArray(t)) return null;
+  const o = t as Rec;
+  return { id: typeof o.id === "string" && o.id ? o.id : null, operator: typeof o.operator === "string" ? o.operator : null };
+}
+
+/** A cell's text: objects by their name (e.g. a record's workflow), the step a task names, else JSON. */
+export function cellText(k: string, v: unknown): string {
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    const o = v as Rec;
+    for (const n of ["name", "label", "title"]) if (typeof o[n] === "string" && o[n]) return o[n] as string;
+  }
+  if (k === "task") {
+    const t = taskOf({ task: v });
+    if (t) return [t.operator, t.id].filter(Boolean).join(" · ");
+  }
+  return str(v);
+}

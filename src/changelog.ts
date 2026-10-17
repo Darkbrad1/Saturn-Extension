@@ -1,6 +1,17 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.8",
+    title: "Logs tab, matched exactly",
+    items: [
+      "The Logs tab asks the instance for this workflow's logs (workflow.id), so older logs are found too; if the instance doesn't take the filter it reads and matches the newest ones as before.",
+      "This action and This step go by the step that wrote each log, so a log only counts for its own step — and for every action that runs it through a command.",
+      "Each log says which action and step wrote it; errors show their trace.",
+      "Logs are lighter: their copy of the whole workflow is left out of the tab.",
+      "Open in System Logs opens the screen already filtered to the workflow.",
+    ],
+  },
+  {
     version: "0.3.7",
     title: "Back online",
     items: [

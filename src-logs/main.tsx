@@ -5,13 +5,13 @@ import "prismjs/components/prism-json";
 import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import css from "./logs.css";
-import { abs, ascending, dateOf, levelClass, rel, shape, str, type Field, type Rec } from "./records";
+import { abs, ascending, cellText, dateOf, levelClass, rel, shape, str, type Field, type Rec } from "./records";
 
 declare function acquireVsCodeApi(): { postMessage: (m: unknown) => void; getState: () => unknown; setState: (s: unknown) => void };
 const vscode = acquireVsCodeApi();
 const send = (type: string, payload: Record<string, unknown> = {}) => vscode.postMessage({ type, payload });
 
-interface Init { instanceName: string; instanceUrl: string; resource: string | null; logResources: string[]; allResources: string[]; search?: string }
+interface Init { instanceName: string; instanceUrl: string; resource: string | null; logResources: string[]; allResources: string[]; search?: string; filter?: string }
 interface Saved { resource?: string; limit?: number; columns?: Record<string, string[]>; live?: boolean }
 
 const json = (v: unknown) => {
@@ -76,9 +76,16 @@ function App() {
         setResource(p.resource ?? saved.resource ?? null);
         if (!p.resource && !saved.resource) setError(null);
         if (p.search) setQuery(p.search);
+        if (p.filter) {
+          setFilter(p.filter);
+          setApplied(p.filter);
+        }
       } else if (m.type === "search") {
         // opened again from a workflow's Logs tab
         setQuery(typeof p.text === "string" ? p.text : "");
+        const f = typeof p.filter === "string" ? p.filter : "";
+        setFilter(f);
+        setApplied(f);
       } else if (m.type === "fields") {
         setFields(p.fields ?? []);
       } else if (m.type === "page") {
@@ -276,7 +283,7 @@ function App() {
             >
               <input
                 className="lg-search is-mono"
-                placeholder="Server filter (Saturn filter language) — Enter to apply"
+                placeholder={'Server filter, e.g. log_type = "error" — Enter to apply'}
                 aria-label="Server filter"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
@@ -372,7 +379,7 @@ function App() {
                                 {str(v) && <span className={`lg-level ${levelClass(str(v))}`}>{str(v)}</span>}
                               </td>
                             );
-                          const s = str(v);
+                          const s = cellText(k, v);
                           return (
                             <td key={k} className={k === sh.messageKey ? "is-msg" : typeof v === "object" && v ? "is-mono" : ""} title={s.length > 120 ? s.slice(0, 1000) : undefined}>
                               {s.length > 300 ? s.slice(0, 300) + "…" : s}

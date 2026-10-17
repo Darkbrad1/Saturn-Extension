@@ -172,7 +172,7 @@
       condition: d.property ? { property: d.property, operator: d.operator || "==", value: txt(d.value) } : null,
       whenTrue: br(n.true, "true"), whenFalse: br(n.false, "false"), path: t, truePath: [...t, "true", "commands"], falsePath: [...t, "false", "commands"] };
   }
-  function step(n, t) { const v = step0(n, t); if (v && n && n.mock === true) v.mock = true; return v; }
+  function step(n, t) { const v = step0(n, t); if (v && n && n.mock === true) v.mock = true; if (v && v.kind === "operator" && typeof n.id === "string") v.stepId = n.id; return v; }
   function step0(n, t) {
     if (!n) return null;
     if (n.type === "if") return iff(n, t);
@@ -247,23 +247,33 @@
   const fieldsAt = (d, ownerPath, formKey) => { const o = get(d, ownerPath); o[formKey] = o[formKey] && !Array.isArray(o[formKey]) ? o[formKey] : { fields: Array.isArray(o[formKey]) ? o[formKey] : [] }; o[formKey].fields ||= []; return o[formKey].fields; };
   const moveIn = (arr, from, to) => { const [x] = arr.splice(from, 1); let t = to; if (t > from) t -= 1; arr.splice(Math.min(t, arr.length), 0, x); };
 
-  // System Logs records for the Logs tab, oldest first like a plain list
-  // endpoint. They name their workflow in different ways (name, id, nested).
+  // System Logs records for the Logs tab, shaped like the real SystemLog
+  // resource: oldest first, each with a copy of its whole workflow, the step
+  // that wrote it as JSON text in `task` (with the step's id), log_type, name,
+  // message and trace. A few are from no workflow at all.
   const sysLogs = [];
-  window.__addSysLog = (r) => sysLogs.push({ id: 5000 + sysLogs.length + 1, created_at: new Date(Date.UTC(2026, 9, 16, 12, 0, 0) + sysLogs.length * 60000).toISOString(), ...r });
-  for (let i = 0; i < 450; i++) {
-    const kind = i % 9;
-    const lvl = i % 11 === 0 ? "error" : i % 5 === 0 ? "warn" : "info";
-    if (kind === 0) window.__addSysLog({ level: lvl, message: `Approve order: Update Record ran (#${i})`, workflow: "Order fulfilment", action: "approve", operator: "update_record" });
-    else if (kind === 1) window.__addSysLog({ level: lvl, message: `Sent email for order #${i}`, workflow_id: "wf_orders", action: "approve", operator: "send_email" });
-    else if (kind === 2) window.__addSysLog({ level: lvl, message: `Delivered #${i}`, context: { workflow: { id: "wf_orders", name: "Order fulfilment" }, action: "deliver" }, operator: "http_request" });
-    else if (kind === 3) window.__addSysLog({ level: lvl, message: `Ticket triaged #${i}`, workflow: "Support tickets", action: "triage", operator: "assign_owner" });
-    else if (kind === 4) window.__addSysLog({ level: lvl, message: `Command notify_customer ran #${i}`, workflow: "wf_orders", command: "notify_customer", operator: "send_email" });
-    else window.__addSysLog({ level: "debug", message: `Unrelated job ${i}`, source: "scheduler" });
-  }
-  // the Debug lab's only log is far back in time (tests searching older records)
-  sysLogs[3].workflow = "Debug lab"; sysLogs[3].message = "Debug lab: audit start"; sysLogs[3].action = "audit";
+  const t0 = Date.UTC(2026, 9, 16, 12, 0, 0);
+  window.__addSysLog = (r) => sysLogs.push({ id: `systemlog-${5000 + sysLogs.length + 1}`, created_at: new Date(t0 + sysLogs.length * 60000).toISOString(), trace: "", file: r.log_type ?? "debug", ...r,
+    _permissions_: [{ permission_type: "update", has_permission: true }], field_restrictions: [{ restriction_type: "read", restricted_fields: [] }] });
+  const stepsOf = (def) => { const out = []; const walk = (n, tree) => { if (!n || typeof n !== "object") return; if (n.type === "command" && n.operator) out.push({ n, tree });
+    (n.commands || []).forEach((c) => walk(c, tree)); if (n.command) walk(n.command, tree); if (n.true) walk(n.true, tree); if (n.false) walk(n.false, tree); };
+    def.stages.forEach((s) => s.actions.forEach((a) => walk(a.task, a.label))); def.actions.forEach((a) => walk(a.task, a.label)); def.commands.forEach((c) => walk(c.command, c.label)); return out; };
+  const logFor = (def, st, i, extra = {}) => { const lvl = i % 11 === 0 ? "error" : i % 5 === 0 ? "warn" : "info"; const title = catalog[st.n.operator]?.name ?? st.n.operator;
+    window.__addSysLog({ log_type: lvl, name: title, message: `${st.tree}: ${title} ran (#${i})`, task: JSON.stringify(st.n), workflow: structuredClone(def),
+      trace: lvl === "error" ? `Error: ${title} failed\n    at step ${st.n.id}` : "", ...extra }); };
+  { const orders = stepsOf(defs.wf_orders), tickets = stepsOf(defs.wf_tickets);
+    for (let i = 0; i < 450; i++) {
+      if (i % 4 === 0) logFor(defs.wf_tickets, tickets[i % tickets.length], i);
+      else if (i % 4 === 3) window.__addSysLog({ log_type: "debug", name: "Scheduler", message: `Unrelated job ${i}`, file: "scheduler" });
+      else logFor(defs.wf_orders, orders[i % orders.length], i);
+    }
+    // the Debug lab's only log is far back in time (tests searching older records)
+    const audit = stepsOf(defs.wf_debug).find((x) => x.tree === "Audit");
+    logFor(defs.wf_debug, audit, 3);
+    sysLogs[3] = { ...sysLogs.pop(), id: "systemlog-debuglab", log_type: "info", trace: "", created_at: sysLogs[3].created_at }; }
   window.__sysLogs = sysLogs;
+  // the host trims each record for the webview: the workflow copy down to its id and name, no permission lists
+  const trimLog = (r) => { const { _permissions_, field_restrictions, ...rest } = r; if (rest.workflow && typeof rest.workflow === "object") rest.workflow = { id: rest.workflow.id, name: rest.workflow.name, "\u2026": "the full workflow definition is left out here" }; return rest; };
 
   window.__mockLog = [];
   window.__getDef = (id) => defs[id ?? cur];
@@ -452,11 +462,20 @@
         (window.__opened = window.__opened || []).push({ type: msg.type, ...p });
         break;
       case "fetchWorkflowLogs": {
+        window.__logFilters = [...(window.__logFilters || []), p.filter ?? null];
         if (window.__logsFail) { post("workflowLogsFailed", { reqId: p.reqId, workflowId: p.workflowId, message: window.__logsFail }); break; }
-        const size = p.window || 200, off = p.offset || 0, end = Math.max(0, sysLogs.length - off);
-        const records = sysLogs.slice(Math.max(0, end - size), end).reverse();
+        // the instance's filter language, as far as the tab uses it: workflow.id = "…"
+        // (__filterRejected: the instance refuses filters; __filterIgnored: it silently ignores them)
+        let list = sysLogs;
+        if (p.filter) {
+          if (window.__filterRejected) { post("workflowLogsFailed", { reqId: p.reqId, workflowId: p.workflowId, message: "Read SystemLog records: 400 Bad Request" }); break; }
+          const m = /^workflow\.id = "(.*)"$/.exec(p.filter);
+          if (m && !window.__filterIgnored) list = list.filter((r) => r.workflow?.id === m[1]);
+        }
+        const size = p.window || 200, off = p.offset || 0, end = Math.max(0, list.length - off);
+        const records = list.slice(Math.max(0, end - size), end).reverse().map(trimLog);
         const scanned = off + records.length;
-        post("workflowLogs", { reqId: p.reqId, workflowId: p.workflowId, instanceName: "Demo instance", resource: "SystemLog", records, total: sysLogs.length, scanned, done: records.length < size || scanned >= sysLogs.length });
+        post("workflowLogs", { reqId: p.reqId, workflowId: p.workflowId, instanceName: "Demo instance", resource: "SystemLog", filter: p.filter ?? null, records, total: list.length, scanned, done: records.length < size || scanned >= list.length });
         break;
       }
       case "openSystemLogs": case "openLogJson": case "copyLogJson":

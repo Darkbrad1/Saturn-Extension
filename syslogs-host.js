@@ -69,13 +69,14 @@ var SysLogs$ = (() => {
 </html>`;
   }
 
-  /** opts.search: text to put in the screen's search box (e.g. a workflow's name). */
+  /** opts.search: text for the screen's search box; opts.filter: a server filter (e.g. a workflow's workflow.id = "…"). */
   function open(extensionUri, manager, instance, globalState, opts) {
     const search = opts && typeof opts.search === "string" ? opts.search.slice(0, 200) : "";
+    const filter = opts && typeof opts.filter === "string" ? opts.filter.slice(0, 2000) : "";
     const existing = panels.get(instance.id);
     if (existing) {
       existing.panel.reveal();
-      if (search) existing.panel.webview.postMessage({ type: "search", payload: { text: search } });
+      if (search || filter) existing.panel.webview.postMessage({ type: "search", payload: { text: search, filter } });
       return;
     }
     const panel = vs.window.createWebviewPanel(
@@ -106,6 +107,7 @@ var SysLogs$ = (() => {
               allResources: names,
               core,
               search,
+              filter,
             });
             break;
           }
@@ -207,10 +209,25 @@ var SysLogs$ = (() => {
   }
 
   /**
+   * A SystemLog record carries a full copy of its workflow (every stage, action
+   * and step) plus permission lists: keep the workflow's id and name only, so a
+   * window of records stays small in the webview.
+   */
+  function trim(r) {
+    if (!r || typeof r !== "object") return r;
+    const { _permissions_, field_restrictions, ...rest } = r;
+    const w = rest.workflow;
+    if (w && typeof w === "object" && !Array.isArray(w))
+      rest.workflow = { id: w.id, name: w.name, "\u2026": "the full workflow definition is left out here" };
+    return rest;
+  }
+
+  /**
    * Messages from the Workflows webview (all read-only):
-   *   fetchWorkflowLogs {reqId, workflowId, offset, window} -> workflowLogs {reqId, workflowId,
-   *     resource, instanceName, records (newest first), total, scanned, done} | workflowLogsFailed
-   *   openSystemLogs {search?}   opens the System Logs screen for the panel's instance
+   *   fetchWorkflowLogs {reqId, workflowId, offset, window, filter?} -> workflowLogs {reqId, workflowId,
+   *     resource, instanceName, records (newest first, trimmed), total, scanned, done, filter} | workflowLogsFailed
+   *     (filter: a server filter in Saturn's filter language, e.g. workflow.id = "workflow-…")
+   *   openSystemLogs {search?, filter?}   opens the System Logs screen for the panel's instance
    *   openLogJson {record}       the record in an untitled JSON editor
    *   copyLogJson {record}       the record as JSON on the clipboard
    */
@@ -228,25 +245,26 @@ var SysLogs$ = (() => {
           const limit = 100;
           const size = Math.min(500, Math.max(1, Number(p.window) || 200));
           const offset = Math.max(0, Number(p.offset) || 0);
-          const first = await Sc(manager, instance, resource, { limit, page: 1, filter: null });
+          const filter = typeof p.filter === "string" && p.filter.trim() ? p.filter.trim().slice(0, 2000) : null;
+          const first = await Sc(manager, instance, resource, { limit, page: 1, filter });
           const total = typeof first.total === "number" ? first.total : null;
           let records;
           if (oldestFirst(first.records) && total !== null) {
             const end = Math.max(0, total - offset);
-            const r = await readRange(manager, instance, resource, Math.max(0, end - size), end, limit, null, 6);
+            const r = await readRange(manager, instance, resource, Math.max(0, end - size), end, limit, filter, 6);
             records = r.records.reverse();
           } else {
-            const r = offset === 0 && size <= limit ? { records: first.records.slice(0, size) } : await readRange(manager, instance, resource, offset, offset + size, limit, null, 6);
+            const r = offset === 0 && size <= limit ? { records: first.records.slice(0, size) } : await readRange(manager, instance, resource, offset, offset + size, limit, filter, 6);
             records = r.records;
           }
           const scanned = offset + records.length;
-          post("workflowLogs", { ...base, records, total, scanned, done: records.length < size || (total !== null && scanned >= total) });
+          post("workflowLogs", { ...base, filter, records: records.map(trim), total, scanned, done: records.length < size || (total !== null && scanned >= total) });
           break;
         }
         case "openSystemLogs": {
           const { manager, instance } = targetOf(owner);
           if (!ctx) throw new Error("The System Logs screen isn't ready yet.");
-          open(ctx.extensionUri, manager, instance, ctx.globalState, { search: p.search });
+          open(ctx.extensionUri, manager, instance, ctx.globalState, { search: p.search, filter: p.filter });
           break;
         }
         case "openLogJson": {
@@ -265,5 +283,5 @@ var SysLogs$ = (() => {
     }
   }
 
-  return { open, pickLogResource, panels, attach, fromWorkflows, targetOf, oldestFirst };
+  return { open, pickLogResource, panels, attach, fromWorkflows, targetOf, oldestFirst, trim };
 })();

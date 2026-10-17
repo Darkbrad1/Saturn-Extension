@@ -72,6 +72,8 @@ export interface OperatorFlow {
   operator: string | null;
   delay: number | null;
   params: ParamView[];
+  /** the step's own id in the definition (System Logs records name the step that wrote them by it) */
+  stepId?: string;
   path: Path;
   /** Saturn's "mock" flag: true = the step is disabled (skipped when it runs). */
   mock?: boolean;

@@ -37,11 +37,13 @@ if not (0 < j - i < 1500):
     raise SystemExit("patch 'getHtml tag': template not found next to the uri")
 s = s[:j] + '<div id="root"></div>\n    <script type="module" nonce="${s}" src="${nv}"></script>\n    <script type="module" nonce="${s}" src="${t}"></script>' + s[j + len(old_tag):]
 
-# 2. Carry a step's "mock" flag (Saturn's "disabled") into the view model.
+# 2. Carry a step's "mock" flag (Saturn's "disabled") into the view model,
+#    and an operator step's own id (System Logs records name the step that
+#    wrote them by it, in their `task`).
 s = replace_once(
     s,
     "function yr(n,e,t,r=0){",
-    'function yr(n,e,t,r=0){let o$=yr$base(n,e,t,r);return o$&&n&&typeof n=="object"&&n.mock===!0&&(o$.mock=!0),o$}function yr$base(n,e,t,r=0){',
+    'function yr(n,e,t,r=0){let o$=yr$base(n,e,t,r);return o$&&n&&typeof n=="object"&&(n.mock===!0&&(o$.mock=!0),o$.kind==="operator"&&typeof n.id=="string"&&n.id&&(o$.stepId=n.id)),o$}function yr$base(n,e,t,r=0){',
     "view model mock flag",
 )
 

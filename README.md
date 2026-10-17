@@ -1,6 +1,14 @@
-# Workflows node view (v0.3.7)
+# Workflows node view (v0.3.8)
 
 A Blender-style node editor layered onto the Workflows webview. It does everything the list view does.
+
+## New in 0.3.8 — Logs tab, matched exactly
+Built on a real SystemLog record: it has `log_type`, `name` (the step's title), `message`, `trace`, `file`, `created_at`, `task` (the step that wrote it, as JSON text with its `id`) and `workflow` (a copy of the whole workflow definition, with `id` and `name`), plus `_permissions_` / `field_restrictions`.
+- **Server filter first**: the tab sends `filter: workflow.id = "<id>"` (Saturn's filter language, as menu tabs use: `field = "value"`, `AND`, `IN [...]`, dotted paths). If the instance refuses it (`workflowLogsFailed`) or returns nothing about the workflow, the tab falls back to reading the newest records and matching them itself. "Load older" pages through the filtered list.
+- **Steps by id**: patch #2 now also puts each operator step's `id` on the view model as `stepId`. "This step" keeps records whose `task.id` is that step; "This action" keeps the steps the action runs, including those of commands it calls. Name matching (for records without a task id) skips the record's `workflow` copy, which names every action and step.
+- **Rows** say which action and step wrote them (`Approve order · Send Email`); an error's `trace` is shown above its JSON.
+- **Trimmed records**: `SysLogs$.trim` keeps only the workflow copy's `id` and `name` and drops the permission lists before records reach the webview.
+- **Open in System Logs** passes the filter, and the System Logs screen applies it (`init.filter`, or `search {text, filter}`); its table shows objects by name and a `task` as `operator · id` (`cellText`).
 
 ## New in 0.3.7 — back online
 - The node view handles the host's `connectionRestored` `{synced}` message (sent after it reconnects and replays queued offline edits) with a toast: the host's summary, or "Back online". It used to be ignored, so going back online was silent in the node view. Checked in `test12.mjs`.
@@ -52,7 +60,7 @@ One step: `./package.sh path/to/sonover-code-0.1.1.vsix` builds, patches, runs t
 ```
 npm install
 node build.mjs --min
-python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.7
+python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.8
 node hosttest.cjs | hosttest-move.cjs | hosttest-reorder.cjs | hosttest-command.cjs | hosttest-field.cjs | hosttest-bulk.cjs | hosttest-logs.cjs  <unpacked>/extension/dist/extension.js
 node hosttest-wflogs.cjs        # the Logs tab's host side, on syslogs-host.js alone (no .vsix needed)
 ```

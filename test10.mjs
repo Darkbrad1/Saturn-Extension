@@ -113,6 +113,10 @@ ok((await p.locator(".lg-error").innerText()).includes("No record route"), "a re
 await p.evaluate(() => window.dispatchEvent(new MessageEvent("message", { data: { type: "search", payload: { text: "Order fulfilment" } } })));
 await p.waitForTimeout(100);
 ok((await p.getByLabel("Search", { exact: true }).inputValue()) === "Order fulfilment", "a search sent by the Logs tab fills the search box");
+// v0.3.8: or a server filter for the workflow, applied straight away
+await p.evaluate(() => window.dispatchEvent(new MessageEvent("message", { data: { type: "search", payload: { text: "", filter: 'workflow = "Support tickets"' } } })));
+await p.waitForTimeout(400);
+ok((await p.getByLabel("Server filter").inputValue()) === 'workflow = "Support tickets"' && (await posted()).length > 0 && (await p.evaluate(() => window.__posted.at(-1).payload.filter)) === 'workflow = "Support tickets"', "a server filter sent by the Logs tab is applied");
 
 // read-only: nothing that writes was ever sent
 types = await posted();

@@ -64,6 +64,17 @@ const manager = { list: () => [inst, other], get: () => undefined };
   ok(r.records.length === 120 && r.records[0].id === 150 && r.records[119].id === 31, "a newest-first list is read straight from the offset");
   global.__all.reverse();
 
+  // a server filter is passed to every read
+  calls.length = 0;
+  await S.fromWorkflows(panel, webview, "fetchWorkflowLogs", { reqId: 11, offset: 0, window: 200, filter: 'workflow.id = "w-1"' });
+  r = sent.pop().payload;
+  ok(r.filter === 'workflow.id = "w-1"' && calls.filter((c) => c[0] === "Sc").every((c) => c[3].filter === 'workflow.id = "w-1"'), "a server filter goes with every read (and comes back in the reply)");
+
+  // records are trimmed: the workflow copy to its id and name, no permission lists
+  const big = { id: "systemlog-1", message: "m", workflow: { id: "w-1", name: "Upload", stages: [], commands: [{ id: "X" }] }, _permissions_: [1], field_restrictions: [2], task: "{}" };
+  const tr = S.trim(big);
+  ok(tr.workflow.id === "w-1" && tr.workflow.name === "Upload" && !("commands" in tr.workflow) && !("_permissions_" in tr) && !("field_restrictions" in tr) && tr.message === "m" && big.workflow.commands, "trim keeps the workflow's id and name only, drops permission lists, leaves the original alone");
+
   await S.fromWorkflows({}, webview, "fetchWorkflowLogs", { reqId: 10 });
   r = sent.pop();
   ok(r.type === "workflowLogsFailed" && r.payload.reqId === 10 && /instance/.test(r.payload.message), "failures come back as workflowLogsFailed");

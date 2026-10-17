@@ -3420,3 +3420,8 @@ body.nv-scrubbing * {
 #sonover-node-view .lgt-open {
   font-size: 11px;
 }
+#sonover-node-view .lgt-trace {
+  margin-bottom: 6px;
+  color: #ffb4a8;
+  background: rgba(248, 81, 73, 0.1);
+}

@@ -4,7 +4,7 @@ Guidance for working in this repo. **Keep this file current:** whenever a change
 
 ## What this is
 
-A patch kit for the **sonover-code** VS Code extension (Saturn / Sonover platform, original build **0.1.1**). It is not a standalone extension: it builds two webview bundles and patches them, plus host-side changes, into an *unpacked copy of the original `.vsix`*. Current version: **0.3.7** (see `README.md` and `src/changelog.ts`).
+A patch kit for the **sonover-code** VS Code extension (Saturn / Sonover platform, original build **0.1.1**). It is not a standalone extension: it builds two webview bundles and patches them, plus host-side changes, into an *unpacked copy of the original `.vsix`*. Current version: **0.3.8** (see `README.md` and `src/changelog.ts`).
 
 It adds:
 - **Node view** (`src/`) — a Blender-style node editor (React 19 + `@xyflow/react`) layered onto the existing Workflows webview. It runs in the same webview as the original (minified, not in this repo) list-view bundle and does everything the list view does. It opens first; "List view" is one click away.
@@ -30,7 +30,7 @@ It adds:
 | `src/layout.ts` | Flow → nodes/edges layout. `LayoutDir` `"v"` (default, top-to-bottom) or `"h"`. Node ids encode paths (`h:`/`j:` + `pathKey`). |
 | `src/nodes.tsx` | React Flow node/edge renderers (`nv`, `reroute`, `frame`, `slot`, `wire`). |
 | `src/panel.tsx` | Side panel: Design / Inspect / Logs / Changes tabs, multi-select panel (`BulkOps`), resize handle. |
-| `src/logs.tsx` | Logs tab (`LogsTab`): requests windows of 200 newest records (`fetchWorkflowLogs`), keeps the ones about the workflow, auto-reads older until 25 match or 1,000 more were read; scope chips (workflow / action / step), level chips, search, Live (10 s), JSON detail, Go to action, Open in System Logs. |
+| `src/logs.tsx` | Logs tab (`LogsTab`): first asks for `workflow.id = "<id>"` (server mode); if refused or empty, reads windows of 200 newest records and matches here (scan mode, auto-reads older until 25 match or 1,000 more were read). Scope chips: workflow / action (steps it runs, incl. called commands) / step — by the record's `task` id vs `stepId`; level chips, search, Live (10 s), trace + JSON detail, Go to action, Open in System Logs (with the filter). |
 | `src/settings.tsx` | Stage / action / command / workflow panels: names, colours, access rules, form fields, triggers, resource hooks. |
 | `src/forms.tsx` | Parameter editors (`fieldsFor`, `FieldControl`, `StepForm`, `PanelEditor`), lookups, key/value editor (`KeyValueEditor`: an empty map is `{}` and still shows its inputs; clearing it sends `{}`, never `""`, which the host skips), delay. |
 | `src/fieldmore.tsx` | "Every form-field setting" editor; emits `FieldChange[]` → `setFormFieldProps`. |
@@ -41,9 +41,9 @@ It adds:
 | `src/changelog.ts` | Release notes shown in the Changes tab — add an entry for each release. |
 | `src/prism-setup.ts` | Sets `window.Prism = {manual: true}` before prismjs loads. |
 | `src-logs/main.tsx`, `logs.css` | System Logs webview UI. Accepts `search` in `init` or as a `search` message. |
-| `src-logs/records.ts` | Pure record helpers shared by the System Logs screen and the Logs tab: `shape` (date/level/message keys), `ascending`, `rel`/`abs`, `levelClass`, and workflow matching (`target`, `mentions`, `WORKFLOW_KEYS` / `ACTION_KEYS` / `STEP_KEYS`). |
-| `harness/` | Browser test harness: `mockhost.js` (mock of the extension host for the Workflows webview — like the real host, an empty object param keeps the stored value — incl. 450 System Logs records for the Logs tab, `__addSysLog`, `__logsFail`), `logsmock.js`, `csp.html` / `logs.html` / `sidebar.html` (pages with the webview's CSP), `wf-stub.js` (stand-in for the list-view bundle when the .vsix isn't available). |
-| `test*.mjs`, `test-csp.mjs` | Playwright checks (print `PASS`/`FAIL` lines). `test10.mjs` = 0.3.4 System Logs; `test11.mjs` = 0.3.5 Logs tab; `test12.mjs` = 0.3.6 property map editor + 0.3.7 back-online toast (both read `SHOTS` / `CHROME` env vars). |
+| `src-logs/records.ts` | Pure record helpers shared by the System Logs screen and the Logs tab: `shape` (date/level/message keys), `ascending`, `rel`/`abs`, `levelClass`, `taskOf` (the step a record's `task` names), `cellText`, and name matching (`target`, `mentions(r, keys, target, skip?)`, `WORKFLOW_KEYS` / `ACTION_KEYS` / `STEP_KEYS`, `WORKFLOW_COPY` to skip the record's workflow copy). |
+| `harness/` | Browser test harness: `mockhost.js` (mock of the extension host for the Workflows webview — like the real host, an empty object param keeps the stored value — incl. 450 SystemLog-shaped records for the Logs tab, `__addSysLog`, `__logsFail`, `__filterRejected` / `__filterIgnored`, `__logFilters`), `logsmock.js`, `csp.html` / `logs.html` / `sidebar.html` (pages with the webview's CSP), `wf-stub.js` (stand-in for the list-view bundle when the .vsix isn't available). |
+| `test*.mjs`, `test-csp.mjs` | Playwright checks (print `PASS`/`FAIL` lines). `test10.mjs` = 0.3.4 System Logs; `test11.mjs` = 0.3.5 / 0.3.8 Logs tab; `test12.mjs` = 0.3.6 property map editor + 0.3.7 back-online toast (both read `SHOTS` / `CHROME` env vars). |
 | `hosttest*.cjs` | Node scripts that load the **patched** `extension.js` (with `vscode` stubbed) and exercise its internal functions. `hosttest-wflogs-real.cjs` runs the Logs tab's host side inside it against a fake Saturn server (stubbed `fetch`). Exception: `hosttest-wflogs.cjs` runs `syslogs-host.js` alone with stubbed helpers — no .vsix needed. |
 
 ## How the extension talks to Saturn (from the original `extension/dist/extension.js`)
@@ -63,7 +63,7 @@ Only the extension host talks to Saturn; webviews can't reach the network (CSP) 
 
 The host code is minified, so patches refer to minified names (`Ke`, `yr`, `N`, `ue`, `on`, `Rr`, `Sc`, `Ln`, `dn`, `xc`, …). New helpers use a `$` suffix (`yr$base`, `on$after`, `ff$set`, `bk$cmp`, `SysLogs$`, `SL$`) to avoid clashing with minified names. Changes:
 1. `getHtml`: load `dist/webview/nodeview/index.js` before the Workflows bundle (same nonce).
-2. View model carries a step's `mock` flag (Saturn's "disabled").
+2. View model carries a step's `mock` flag (Saturn's "disabled") and, for operators, the step's `id` as `stepId`.
 3. `setStepMock` message `{workflowId, path, mock}`.
 4. Fix for moving a step into a later container in the same list (`on$after`).
 5. Form-field view model carries the stored field as `raw`.
@@ -71,7 +71,7 @@ The host code is minified, so patches refer to minified names (`Ke`, `yr`, `N`, 
 7. `bulkSteps` `{op: "delete"|"duplicate"|"mock", paths, mock?}` as ONE draft edit (last path first), and `copyNodes` `{paths}`.
 8. System Logs command `saturn.openSystemLogs` (its registration also calls `SysLogs$.attach({manager, globalState, extensionUri})`), sidebar message `saturn:openSystemLogs`, and the appended `syslogs-host.js`.
 9–11. List view: disabled-card style, Disabled badge + Enable/Disable button, `sonover:openWorkflow` window event so the node view switches workflows through the list view.
-12. Workflows panel messages for the Logs tab, all → `SysLogs$.fromWorkflows(this, t, type, e.payload)`: `fetchWorkflowLogs {reqId, workflowId, offset, window}` → `workflowLogs {reqId, workflowId, resource, instanceName, records (newest first), total, scanned, done}` or `workflowLogsFailed {reqId, message}`; `openSystemLogs {search?}`; `openLogJson` / `copyLogJson {record}`. (Numbered 12 but placed after 8 in the file, in the host section.)
+12. Workflows panel messages for the Logs tab, all → `SysLogs$.fromWorkflows(this, t, type, e.payload)`: `fetchWorkflowLogs {reqId, workflowId, offset, window, filter?}` → `workflowLogs {reqId, workflowId, resource, instanceName, records (newest first, trimmed by `SysLogs$.trim`), total, scanned, done, filter}` or `workflowLogsFailed {reqId, message}`; `openSystemLogs {search?, filter?}`; `openLogJson` / `copyLogJson {record}`. (Numbered 12 but placed after 8 in the file, in the host section.)
 Plus: copies the two bundles into `extension/dist/webview/{nodeview,logs}/index.js`, edits `extension/package.json` (command, context menu, `saturn.systemLogResource` setting), bumps the version from `0.1.1` in `package.json` and `extension.vsixmanifest`, and extends `extension/readme.md`.
 
 When adding a host change: add a numbered `replace_once` block with a comment, add a `hosttest-*.cjs` that runs the patched function, and mirror the behaviour in `harness/mockhost.js` so the browser tests cover it.
@@ -85,7 +85,7 @@ npm install
 node build.mjs --min                                   # -> dist/nodeview.js, dist/logs.js
 npx tsc --noEmit --jsx react-jsx --strict --module esnext --moduleResolution bundler \
   --target es2020 --skipLibCheck src/env.d.ts src/main.tsx src-logs/main.tsx   # typecheck (no tsconfig)
-python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.7
+python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.8
 node hosttest.cjs <unpacked>/extension/dist/extension.js   # likewise hosttest-move/-reorder/-command/-field/-bulk/-logs/-wflogs-real
 node hosttest-wflogs.cjs                                    # Logs tab host side; no .vsix needed
 ```
@@ -103,6 +103,7 @@ Caveats:
 - Every edit goes through the host's draft (`applyEdit`) so undo / Save / Discard and the list view stay in sync; multi-step operations must be a single draft edit.
 - The node view never calls `acquireVsCodeApi()` itself — use `send()` from `bridge.ts`. Don't write to the list view's saved state keys.
 - System Logs and the Logs tab are read-only: host side only uses the record-reading helpers (GET requests). Keep it that way.
-- The real System Logs record schema is unknown, so log handling is shape-based (key names like `workflow*`, `action`, `operator`, date/level/message key guessing). Don't hard-code one schema.
+- A real SystemLog record (resource `SystemLog`, route `/systemlogs`, ids `systemlog-…`) has `log_type`, `name`, `message`, `trace`, `file`, `created_at`, `task` (JSON text of the step that wrote it, with its `id`) and `workflow` (a copy of the whole definition — never match actions/steps against it), plus `_permissions_` / `field_restrictions`. Prefer `task.id` and `workflow.id`; keep the name-based fallbacks for other resources picked in the screen.
+- Saturn's filter language (menus, `?filter=` on record lists): `field = "value"`, `AND`, `OR`, `IN ["a", "b"]`, dotted paths (`workflow.id = "…"`). Treat a filter the instance rejects as unsupported and fall back.
 - Release checklist: the newest `src/changelog.ts` entry sets the packaged version (`package.sh` reads it); bump the version in the README's `patch.py` command line, add a `README.md` "New in x.y.z" section, add a `CHANGELOG` entry in `src/changelog.ts`, add a `testN.mjs` for the release, and update this file.
 - UI copy: plain, short, sentence case; British spelling is used in places ("colour").

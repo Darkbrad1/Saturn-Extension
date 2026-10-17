@@ -13,6 +13,7 @@ const def = { id: "w", name: "W", stages: [{ stage: "s", actions: [{ id: "a", ac
 const vm = Ke(def, new Map());
 const kids = vm.stages[0].actions[0].flow.children;
 console.log("view mock flags:", kids.map((k) => k.mock ?? false), "nested:", kids[2].children[0].mock ?? false);
+console.log("step ids:", kids.map((k) => k.stepId ?? null), "(operators carry their id)");
 // the exact mutator the setStepMock case runs
 const p = ["stages", 0, "actions", 0, "task", "commands", 0];
 const flip = (d, path, on) => ue(d, path, { ...N(d, path), mock: !!on });
