@@ -1,4 +1,4 @@
-# sonover-code (v0.3.10)
+# sonover-code (v0.3.11)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,11 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.11 — built from its own source
+- **Recovered host**: `host/extension.js` is the original 0.1.1 extension host, recovered from its build (formatted, key names readable, this project's changes built in); `build.mjs` builds the whole package from `host/` and `vsix/`, so `./package.sh` needs no input and `patch.py` is gone.
+- **Startup failures are shown** (`activate` in `host/extension.js`): if starting throws, an error message says "Sonover Code could not start: …" (and the error is still logged), instead of the Sonover sidebar staying blank. `hosttest-activate.cjs` covers it (fails on 0.3.10).
+- **New version**: the recovered build was first packaged as 0.3.10, the same version as the patched build; VS Code can keep the old copy when a package with an installed version is installed again. Uninstall 0.3.10 first if the sidebar is blank.
 
 ## New in 0.3.10 — readable log messages, nothing lost
 - **Messages** (`src-logs/message.tsx`, shared by both screens): `parseMessage` splits a message into text and the JSON objects/arrays inside it (brackets in strings respected; each named after a `const x =` / `x:` before it), `summarize` gives a row's one-liner (`flow {36 keys} · store {1 key} · resource {33 keys}`), and `MessageView` shows each value pretty-printed and highlighted in its own collapsible block with Copy (more than three values start collapsed; Expand / Collapse all). The Logs tab's detail shows the message first and folds the whole record under "Whole record"; the System Logs screen's detail pane shows it above the other fields, and its table's message column uses the summary.

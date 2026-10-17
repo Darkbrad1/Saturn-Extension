@@ -1,6 +1,15 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.11",
+    title: "Built from its own source",
+    items: [
+      "The whole extension is now built from this project: the original extension's lost code was recovered, so it no longer needs the 0.1.1 package to build.",
+      "If Sonover Code can't start, it says why in an error message instead of leaving its sidebar blank.",
+      "A new version number, so it installs cleanly over 0.3.10.",
+    ],
+  },
+  {
     version: "0.3.10",
     title: "Readable log messages, nothing lost",
     items: [

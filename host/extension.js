@@ -15899,7 +15899,19 @@ ${s || "(no diff available)"}`,
 var process2 = W(require("node:process")),
   fsPromises12 = require("node:fs/promises");
 // activate (minified: Yf) — Entry point: VS Code calls this once. Creates the instance manager, the sidebar, the tree and every command.
+// activate — VS Code's entry point. A failure while starting is shown, not
+// only logged: otherwise the Sonover views are just left blank.
 async function activate(n) {
+  try {
+    await startExtension(n);
+  } catch (e) {
+    console.error("[Sonover] could not start", e);
+    vscode.window.showErrorMessage(`Sonover Code could not start: ${e instanceof Error ? e.message : String(e)}`);
+    throw e;
+  }
+}
+// startExtension (minified: activate) — Registers everything: instances, views, panels, commands.
+async function startExtension(n) {
   console.log('Congratulations, your extension "sonover-code" is now active!');
   let e = new InstanceManager(n),
     t = new OfflineCache(n.globalStorageUri);

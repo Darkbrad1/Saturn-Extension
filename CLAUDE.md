@@ -4,7 +4,7 @@ Guidance for working in this repo. **Keep this file current:** whenever a change
 
 ## What this is
 
-The **sonover-code** VS Code extension (Saturn / Sonover platform) — the whole extension, built from this repo. Current version: **0.3.10** (see `README.md` and `src/changelog.ts`).
+The **sonover-code** VS Code extension (Saturn / Sonover platform) — the whole extension, built from this repo. Current version: **0.3.11** (see `README.md` and `src/changelog.ts`).
 
 The original 0.1.1 was built elsewhere and its source was lost. Its extension host was **recovered** into `host/extension.js` (formatted, key names made readable, this project's changes built in) and is maintained here; its other built files (the list view, sidebar, menus, pages, agent chat, tickets and preview webviews, the MCP server, `package.json`, manifest, icon) are kept as they shipped, under `vsix/`, with this project's edits applied. The owner has Sonover's permission to maintain it; `LICENSE.txt` is Sonover's proprietary licence — keep the repo private.
 
@@ -50,7 +50,7 @@ This project's own parts:
 | `src-logs/records.ts` | Pure record helpers shared by the System Logs screen and the Logs tab: `shape` (date/level/message keys), `ascending`, `rel`/`abs`, `levelClass`, `taskOf` (the step a record's `task` names), `cellText`, and name matching (`target`, `mentions(r, keys, target, skip?)`, `WORKFLOW_KEYS` / `ACTION_KEYS` / `STEP_KEYS`, `WORKFLOW_COPY` to skip the record's workflow copy). |
 | `harness/` | Browser test harness (served by `tools/serve.mjs`): `mockhost.js` (mock of the extension host for the Workflows webview — like the real host, an empty object param keeps the stored value — incl. 450 SystemLog-shaped records for the Logs tab, `__addSysLog`, `__logsFail`, `__filterRejected` / `__filterIgnored` / `__unordered`, `__logFilters`; it returns the newest 10 like the real host), `logsmock.js`, `csp.html` / `logs.html` / `sidebar.html` (pages with the webview's CSP), `wf-stub.js` (a minimal stand-in for the list view, for tests that don't need it). |
 | `test*.mjs`, `test-csp.mjs` | Playwright checks (print `PASS`/`FAIL` lines). `test10.mjs` = 0.3.4 System Logs; `test11.mjs` = 0.3.5 / 0.3.8 / 0.3.9 Logs tab; `test12.mjs` = 0.3.6 property map editor + 0.3.7 back-online toast + 0.3.10 apply-when-done (all read `SHOTS` (screenshot folder, default `shots/`) and `CHROME` (browser path) from the environment). |
-| `hosttest*.cjs` | Node scripts that load the **built** `out/vsix/extension/dist/extension.js` (with `vscode` stubbed) and exercise its internal functions (by their readable names). `hosttest-wflogs-real.cjs` runs the Logs tab's host side inside it against a fake Saturn server (stubbed `fetch`). Exception: `hosttest-wflogs.cjs` runs `host/syslogs.js` alone with stubbed helpers. |
+| `hosttest*.cjs` | Node scripts that load the **built** `out/vsix/extension/dist/extension.js` (with `vscode` stubbed) and exercise its internal functions (by their readable names). `hosttest-wflogs-real.cjs` runs the Logs tab's host side inside it against a fake Saturn server (stubbed `fetch`); `hosttest-activate.cjs` checks a startup failure is shown (0.3.11). Exception: `hosttest-wflogs.cjs` runs `host/syslogs.js` alone with stubbed helpers. |
 
 ## How the extension talks to Saturn (`host/extension.js`)
 
@@ -80,6 +80,7 @@ Until 0.3.10 these were applied by a `patch.py` to the original build (see git h
 8. System Logs: command `saturn.openSystemLogs` (its registration also calls `SystemLogsHost.attach({manager, globalState, extensionUri})`), the sidebar's `saturn:openSystemLogs` message, and `host/syslogs.js`.
 9–11. List view (`vsix/…/webview/workflows`): disabled-card style, Disabled badge + Enable/Disable button, `sonover:openWorkflow` window event so the node view switches workflows through the list view. Sidebar (`vsix/…/webview/sidebar`): the System Logs entry.
 12. Workflows panel messages for the Logs tab, all → `SystemLogsHost.fromWorkflows(this, t, type, e.payload)`: `fetchWorkflowLogs {reqId, workflowId, filter?}` → `workflowLogs {reqId, workflowId, resource, instanceName, records (the newest 10, newest first, trimmed by `SystemLogsHost.trim`), total, ordered, filter}` or `workflowLogsFailed {reqId, message}`; `openSystemLogs {search?, filter?}`; `openLogJson` / `copyLogJson {record}`.
+13. `activate` wraps the original's (now `startExtension`): a failure while starting shows "Sonover Code could not start: …" and is rethrown (logged by VS Code), so the views are never just blank.
 Plus in `vsix/extension/`: `package.json` (command, context menu, `saturn.systemLogResource` setting) and `readme.md` (the feature list).
 
 When changing the host: edit `host/extension.js` / `host/syslogs.js` directly, add or extend a `hosttest-*.cjs` that runs the function, and mirror the behaviour in `harness/mockhost.js` so the browser tests cover it.
@@ -98,7 +99,7 @@ The steps `package.sh` runs, and the browser tests:
 node build.mjs --min                                   # -> out/vsix (the unpacked extension), dist/nodeview.js, dist/logs.js
 npx tsc --noEmit --jsx react-jsx --strict --module esnext --moduleResolution bundler \
   --target es2020 --skipLibCheck src/env.d.ts src/main.tsx src-logs/main.tsx   # typecheck (no tsconfig)
-node hosttest.cjs out/vsix/extension/dist/extension.js   # likewise hosttest-move/-reorder/-command/-field/-bulk/-logs/-wflogs-real
+node hosttest.cjs out/vsix/extension/dist/extension.js   # likewise hosttest-move/-reorder/-command/-field/-bulk/-logs/-wflogs-real/-activate
 node hosttest-wflogs.cjs                                  # host/syslogs.js on its own
 node tools/serve.mjs &                                    # the browser-test server on :8765
 node test9.mjs                                            # any of test2–test12.mjs, test-csp.mjs (CSP: prints its errors, [] = pass)
