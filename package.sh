@@ -53,7 +53,7 @@ python3 -I patch.py "$work/vsix" dist/nodeview.js "$version"
 echo "==> host tests"
 ext="$work/vsix/extension/dist/extension.js"
 failed=0
-for t in hosttest.cjs hosttest-move.cjs hosttest-reorder.cjs hosttest-command.cjs hosttest-field.cjs hosttest-bulk.cjs hosttest-logs.cjs hosttest-wflogs.cjs; do
+for t in hosttest.cjs hosttest-move.cjs hosttest-reorder.cjs hosttest-command.cjs hosttest-field.cjs hosttest-bulk.cjs hosttest-logs.cjs hosttest-wflogs.cjs hosttest-wflogs-real.cjs; do
   if [ "$t" = hosttest-wflogs.cjs ]; then arg=syslogs-host.js; else arg="$ext"; fi
   if ! log="$(node "$t" "$arg" 2>&1)" || grep -q '^FAIL' <<<"$log"; then
     echo "   $t: FAILED"

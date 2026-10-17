@@ -44,7 +44,20 @@ It adds:
 | `src-logs/records.ts` | Pure record helpers shared by the System Logs screen and the Logs tab: `shape` (date/level/message keys), `ascending`, `rel`/`abs`, `levelClass`, and workflow matching (`target`, `mentions`, `WORKFLOW_KEYS` / `ACTION_KEYS` / `STEP_KEYS`). |
 | `harness/` | Browser test harness: `mockhost.js` (mock of the extension host for the Workflows webview — like the real host, an empty object param keeps the stored value — incl. 450 System Logs records for the Logs tab, `__addSysLog`, `__logsFail`), `logsmock.js`, `csp.html` / `logs.html` / `sidebar.html` (pages with the webview's CSP), `wf-stub.js` (stand-in for the list-view bundle when the .vsix isn't available). |
 | `test*.mjs`, `test-csp.mjs` | Playwright checks (print `PASS`/`FAIL` lines). `test10.mjs` = 0.3.4 System Logs; `test11.mjs` = 0.3.5 Logs tab; `test12.mjs` = 0.3.6 property map editor (both read `SHOTS` / `CHROME` env vars). |
-| `hosttest*.cjs` | Node scripts that load the **patched** `extension.js` (with `vscode` stubbed) and exercise its internal functions. Exception: `hosttest-wflogs.cjs` runs `syslogs-host.js` alone with stubbed helpers — no .vsix needed. |
+| `hosttest*.cjs` | Node scripts that load the **patched** `extension.js` (with `vscode` stubbed) and exercise its internal functions. `hosttest-wflogs-real.cjs` runs the Logs tab's host side inside it against a fake Saturn server (stubbed `fetch`). Exception: `hosttest-wflogs.cjs` runs `syslogs-host.js` alone with stubbed helpers — no .vsix needed. |
+
+## How the extension talks to Saturn (from the original `extension/dist/extension.js`)
+
+Only the extension host talks to Saturn; webviews can't reach the network (CSP) and go through `postMessage`. All of it is in the one minified file `extension/dist/extension.js`.
+- **Instances**: the instance manager (class `fr`, the `e` / `this.manager` passed around) keeps `{id, name, url, displayName?}` in `globalState["saturn.instances"]`; each instance's token is in VS Code secrets under `saturn:token:<id>` (`getToken` / `setToken`).
+- **Login**: `hc()` → `POST <url>/api/Users/authenticate {email, password}` → `{token, data: user}`; or an API key, checked with `GET <url>/api/Resources` (`mc()`).
+- **Every request**: `_(manager, instance, path, init)` → `fetch(Fo(instance.url, path))` = `<url>/api<path>` with `Authorization: Bearer <token>`, a 60 s timeout, `redirect: "error"`, and a response size cap (`ot`). `Fo` refuses paths that leave `/api`. `O(fn, what)` wraps a call and turns failures into errors; `Ze()` treats `{status: "FAILURE"}` bodies as errors.
+- **Workflows**: `/Workflows` — list `ft`, get `Xe` (`/Workflows/<id>`), create `kc` (POST), save `Wn` (PUT the whole definition), delete `bc`. Also `/Operators`, `/UserGroups`, `/Users`, `/workflowTriggers` + `/triggers`, `/resourceDetails` (lifecycle hooks, PUT), `/Resources` and `/Resources/<name>` (fields), `/resources/catalog` (core resources), `/menus`, `/custom-pages`, `/Saturnuicomponents`, `/resourceviews`.
+- **Records**: `Sc` (list a page: `?limit&page&filter`, tries plural route names from `Ur()`, e.g. `SystemLog` → `/systemlogs`; returns `{records, total}` from `data` + `count`/`total`), `Pc` (one record), `Vr` (create/update/delete). System Logs and the Logs tab use only `Sc`, `Ln`, `dn`, `xc`.
+- **Drafts**: the Workflows panel (class `It`; fields `panel`, `extensionUri`, `storageUri`, `manager`, `instance`) never writes per edit. `applyEdit` changes a local draft (`this.drafts`, persisted to `drafts.json` in the instance's storage folder) and posts `workflow` / `editSaved` / `draftState`. `saveChanges` PUTs the draft with `Wn`, re-reads it, and clears it; `discardChanges` drops it.
+- **Offline**: a connection monitor probes `HEAD <url>` (`Cc`); when the instance is unreachable, edits go to an offline store (`saveOffline`) and are pushed later. Creating a workflow offline is refused (the instance assigns the id).
+- **Parameter values** (`rn()`): an empty value keeps the stored one, which is why `KeyValueEditor` sends `{}` to clear a map. For `property_updater` the host also writes `_properties` from `properties`.
+- **Not Saturn**: the Tickets/kanban screen talks to `https://sonoverapi.saturn.gd/api` with the user's Sonover login (`gr()`), not to an instance.
 
 ## How the host is patched (`patch.py`)
 
@@ -73,7 +86,7 @@ node build.mjs --min                                   # -> dist/nodeview.js, di
 npx tsc --noEmit --jsx react-jsx --strict --module esnext --moduleResolution bundler \
   --target es2020 --skipLibCheck src/env.d.ts src/main.tsx src-logs/main.tsx   # typecheck (no tsconfig)
 python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.6
-node hosttest.cjs <unpacked>/extension/dist/extension.js   # likewise hosttest-move/-reorder/-command/-field/-bulk/-logs
+node hosttest.cjs <unpacked>/extension/dist/extension.js   # likewise hosttest-move/-reorder/-command/-field/-bulk/-logs/-wflogs-real
 node hosttest-wflogs.cjs                                    # Logs tab host side; no .vsix needed
 ```
 
