@@ -1,4 +1,5 @@
 // v0.3.6: the property map editor (e.g. Resource Property Updater) with no properties.
+// v0.3.7: the node view says when the instance is back online.
 import { chromium } from "playwright";
 const out = process.env.SHOTS ?? "/tmp/claude-0/-home-claude/a083e21d-6637-5cac-92a5-bbf1f2d008b9/scratchpad/shots";
 const b = await chromium.launch({ executablePath: process.env.CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
@@ -58,6 +59,14 @@ await panel.getByPlaceholder("Property Value").press("Enter");
 await p.waitForTimeout(500);
 s = await step();
 ok(s.data.properties.received_at === "{{ _resource.date_uploaded }}", "adding to an empty map works");
+
+// back online after working offline: the node view says so (it used to stay silent)
+await p.evaluate(() => window.__post("connectionRestored", { synced: "Offline work applied to the instance: 1 workflow." }));
+await p.waitForTimeout(200);
+ok((await p.locator(".nv-toast, [class*=toast]").allInnerTexts()).some((t) => t.includes("Offline work applied to the instance: 1 workflow.")), "reconnecting shows what offline work was applied");
+await p.evaluate(() => window.__post("connectionRestored", { synced: "" }));
+await p.waitForTimeout(200);
+ok((await p.locator(".nv-toast, [class*=toast]").allInnerTexts()).some((t) => t.includes("Back online")), "or just that it's back online");
 
 ok(errs.length === 0, "no page errors or CSP violations" + (errs.length ? ": " + errs.join(" | ") : ""));
 await b.close();

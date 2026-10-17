@@ -288,6 +288,10 @@ export function App() {
         case "connection":
           setConnection({ offline: !!p?.offline, pending: Array.isArray(p?.pending) ? p.pending : [] });
           break;
+        case "connectionRestored":
+          // the host has reconnected and replayed queued offline work; `synced` says what (or "")
+          toast(p?.synced || "Back online — connected to the instance again.");
+          break;
         case "workflowChangedRemotely":
           if (p?.workflowId) setRemote({ workflowId: String(p.workflowId), summary: p.summary ?? "", hasDraft: !!p.hasDraft });
           break;

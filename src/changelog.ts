@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.7",
+    title: "Back online",
+    items: [
+      "When the instance is reachable again, the node view says so, and what offline work was sent to it.",
+      "The Logs tab finds the workflow's instance directly instead of searching for it.",
+    ],
+  },
+  {
     version: "0.3.6",
     title: "Property map fixes",
     items: [

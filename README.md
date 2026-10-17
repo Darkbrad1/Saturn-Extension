@@ -1,6 +1,10 @@
-# Workflows node view (v0.3.6)
+# Workflows node view (v0.3.7)
 
 A Blender-style node editor layered onto the Workflows webview. It does everything the list view does.
+
+## New in 0.3.7 — back online
+- The node view handles the host's `connectionRestored` `{synced}` message (sent after it reconnects and replays queued offline edits) with a toast: the host's summary, or "Back online". It used to be ignored, so going back online was silent in the node view. Checked in `test12.mjs`.
+- `SysLogs$.targetOf` uses the Workflows panel's own `manager` / `instance` fields (their names in 0.1.1) first, and only falls back to finding them by shape.
 
 ## New in 0.3.6 — property map fixes
 - The key/value editor for object parameters (`KeyValueEditor` in `src/forms.tsx`, e.g. Resource Property Updater's properties) shows its inputs for an empty map (`{}`) instead of falling back to the raw JSON box; only values that aren't a plain object use the JSON box.
@@ -48,7 +52,7 @@ One step: `./package.sh path/to/sonover-code-0.1.1.vsix` builds, patches, runs t
 ```
 npm install
 node build.mjs --min
-python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.6
+python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.7
 node hosttest.cjs | hosttest-move.cjs | hosttest-reorder.cjs | hosttest-command.cjs | hosttest-field.cjs | hosttest-bulk.cjs | hosttest-logs.cjs  <unpacked>/extension/dist/extension.js
 node hosttest-wflogs.cjs        # the Logs tab's host side, on syslogs-host.js alone (no .vsix needed)
 ```

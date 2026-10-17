@@ -165,6 +165,10 @@ var SysLogs$ = (() => {
 
   /** The Saturn instance (and instance manager) a Workflows panel works on. */
   function targetOf(owner) {
+    // the 0.1.1 Workflows panel (class It) keeps them as this.manager / this.instance
+    if (owner && isManager(owner.manager) && isInstance(owner.instance))
+      return { manager: owner.manager, instance: owner.manager.get(owner.instance.id) || owner.instance };
+    // otherwise find them by shape (another build may name them differently)
     const vals = [];
     for (const k of Object.keys(owner || {})) {
       const v = owner[k];

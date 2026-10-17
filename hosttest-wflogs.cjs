@@ -38,6 +38,7 @@ const manager = { list: () => [inst, other], get: () => undefined };
   // the Workflows panel object: field names are whatever the minifier left
   const panel = { extensionUri: {}, o: { foo: 1 }, inst: { id: "i2", url: "https://b.example" }, mgr: { list: () => [inst, other], get: () => other } };
 
+  ok(S.targetOf({ manager: { list: () => [inst, other], get: () => other }, instance: { id: "i2", url: "https://b.example" } }).instance === other, "uses the panel's own manager / instance fields (0.1.1's names)");
   ok(S.targetOf(panel).instance === other, "finds the panel's instance by shape (and uses the manager's own object)");
   ok(S.targetOf({ m: { list: () => [inst, other], get: () => inst }, wfInstanceId: "i1" }).instance === inst, "or by an instance id string");
   ok(S.targetOf({ holder: { instance: inst, manager: { list: () => [inst, other], get: () => inst } } }).instance === inst, "or one level down");

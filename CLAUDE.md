@@ -4,7 +4,7 @@ Guidance for working in this repo. **Keep this file current:** whenever a change
 
 ## What this is
 
-A patch kit for the **sonover-code** VS Code extension (Saturn / Sonover platform, original build **0.1.1**). It is not a standalone extension: it builds two webview bundles and patches them, plus host-side changes, into an *unpacked copy of the original `.vsix`*. Current version: **0.3.6** (see `README.md` and `src/changelog.ts`).
+A patch kit for the **sonover-code** VS Code extension (Saturn / Sonover platform, original build **0.1.1**). It is not a standalone extension: it builds two webview bundles and patches them, plus host-side changes, into an *unpacked copy of the original `.vsix`*. Current version: **0.3.7** (see `README.md` and `src/changelog.ts`).
 
 It adds:
 - **Node view** (`src/`) — a Blender-style node editor (React 19 + `@xyflow/react`) layered onto the existing Workflows webview. It runs in the same webview as the original (minified, not in this repo) list-view bundle and does everything the list view does. It opens first; "List view" is one click away.
@@ -23,10 +23,10 @@ It adds:
 | `build.mjs` | esbuild: `src/main.tsx` → `dist/nodeview.js`, `src-logs/main.tsx` → `dist/logs.js` (IIFE, es2020, CSS imported as text). `--min` minifies. |
 | `package.sh` | One step from the original `.vsix` to an installable one: `./package.sh <sonover-code-0.1.1.vsix> [out.vsix]` → build, typecheck, unpack, `patch.py`, all host tests, zip (default `dist/sonover-code-<version>.vsix`; version = newest `src/changelog.ts` entry). Writes nothing if a patch or test fails. |
 | `patch.py` | Applies everything to an unpacked vsix. Every edit uses `replace_once` (must match exactly once, else fails loudly). |
-| `syslogs-host.js` | Host side of System Logs (`SysLogs$`); `patch.py` appends it to `extension/dist/extension.js` so it shares the minified bundle's scope. `open()` = the System Logs panel; `fromWorkflows()` = answers the Logs tab's messages from the Workflows panel; `attach()` receives the instance manager / globalState / extensionUri at command registration; `targetOf()` finds a Workflows panel's instance by shape (no minified field names). |
+| `syslogs-host.js` | Host side of System Logs (`SysLogs$`); `patch.py` appends it to `extension/dist/extension.js` so it shares the minified bundle's scope. `open()` = the System Logs panel; `fromWorkflows()` = answers the Logs tab's messages from the Workflows panel; `attach()` receives the instance manager / globalState / extensionUri at command registration; `targetOf()` finds a Workflows panel's instance: its `manager` / `instance` fields (0.1.1), else by shape. |
 | `src/bridge.ts` | **Must be imported first.** Takes the single `acquireVsCodeApi()` handle and hands a wrapped copy to the list-view bundle; tracks the open workflow; stores node-view state under key `__sonoverNodeView`. Exposes `send`, `onSelectionChange`, `loadNodeViewState`, `saveNodeViewState`. |
 | `src/main.tsx` | Injects CSS, mounts `<App/>` into `#sonover-node-view`. |
-| `src/App.tsx` | Main component: host message handling (`workflow`, `workflows`, `operators`, `draftState`, `editSaved`, `editFailed`, …), selection/multi-select, keyboard shortcuts, canvas, Add menu, workflow picker. |
+| `src/App.tsx` | Main component: host message handling (`workflow`, `workflows`, `operators`, `draftState`, `editSaved`, `editFailed`, `connection` / `connectionRestored`, …), selection/multi-select, keyboard shortcuts, canvas, Add menu, workflow picker. |
 | `src/layout.ts` | Flow → nodes/edges layout. `LayoutDir` `"v"` (default, top-to-bottom) or `"h"`. Node ids encode paths (`h:`/`j:` + `pathKey`). |
 | `src/nodes.tsx` | React Flow node/edge renderers (`nv`, `reroute`, `frame`, `slot`, `wire`). |
 | `src/panel.tsx` | Side panel: Design / Inspect / Logs / Changes tabs, multi-select panel (`BulkOps`), resize handle. |
@@ -43,7 +43,7 @@ It adds:
 | `src-logs/main.tsx`, `logs.css` | System Logs webview UI. Accepts `search` in `init` or as a `search` message. |
 | `src-logs/records.ts` | Pure record helpers shared by the System Logs screen and the Logs tab: `shape` (date/level/message keys), `ascending`, `rel`/`abs`, `levelClass`, and workflow matching (`target`, `mentions`, `WORKFLOW_KEYS` / `ACTION_KEYS` / `STEP_KEYS`). |
 | `harness/` | Browser test harness: `mockhost.js` (mock of the extension host for the Workflows webview — like the real host, an empty object param keeps the stored value — incl. 450 System Logs records for the Logs tab, `__addSysLog`, `__logsFail`), `logsmock.js`, `csp.html` / `logs.html` / `sidebar.html` (pages with the webview's CSP), `wf-stub.js` (stand-in for the list-view bundle when the .vsix isn't available). |
-| `test*.mjs`, `test-csp.mjs` | Playwright checks (print `PASS`/`FAIL` lines). `test10.mjs` = 0.3.4 System Logs; `test11.mjs` = 0.3.5 Logs tab; `test12.mjs` = 0.3.6 property map editor (both read `SHOTS` / `CHROME` env vars). |
+| `test*.mjs`, `test-csp.mjs` | Playwright checks (print `PASS`/`FAIL` lines). `test10.mjs` = 0.3.4 System Logs; `test11.mjs` = 0.3.5 Logs tab; `test12.mjs` = 0.3.6 property map editor + 0.3.7 back-online toast (both read `SHOTS` / `CHROME` env vars). |
 | `hosttest*.cjs` | Node scripts that load the **patched** `extension.js` (with `vscode` stubbed) and exercise its internal functions. `hosttest-wflogs-real.cjs` runs the Logs tab's host side inside it against a fake Saturn server (stubbed `fetch`). Exception: `hosttest-wflogs.cjs` runs `syslogs-host.js` alone with stubbed helpers — no .vsix needed. |
 
 ## How the extension talks to Saturn (from the original `extension/dist/extension.js`)
@@ -85,7 +85,7 @@ npm install
 node build.mjs --min                                   # -> dist/nodeview.js, dist/logs.js
 npx tsc --noEmit --jsx react-jsx --strict --module esnext --moduleResolution bundler \
   --target es2020 --skipLibCheck src/env.d.ts src/main.tsx src-logs/main.tsx   # typecheck (no tsconfig)
-python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.6
+python3 -I patch.py <unpacked-0.1.1-vsix> dist/nodeview.js 0.3.7
 node hosttest.cjs <unpacked>/extension/dist/extension.js   # likewise hosttest-move/-reorder/-command/-field/-bulk/-logs/-wflogs-real
 node hosttest-wflogs.cjs                                    # Logs tab host side; no .vsix needed
 ```
