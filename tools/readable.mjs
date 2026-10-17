@@ -148,13 +148,13 @@ const NAMES = {
 
   // ---- offline work and files on disk
   Bs: ["OfflineCache", "Cached instance data and the write queue, kept on disk for when the instance is unreachable."],
-  Cs: ["OfflineEdits", "Workflow edits made while offline, replayed (and reconciled) when the instance is back."],
+  Cs: ["OfflineTriggerQueue", "Trigger changes made while offline, sent when the instance is back."],
   Es: ["ParamFiles", "Code / HTML parameters opened as files in an editor (index.json + one file each)."],
   Ls: ["SaturnFileSystem", "The saturn:// file system: instance resources as files."],
   Vs: ["ResourceFolderSync", "Syncs resources to a folder on disk."],
   js: ["PageFiles", "Custom pages as .vue files on disk."],
   Hs: ["PreviewPanel", "HTML / component previews."],
-  ps: ["RecordBackups", "Backups of records the agent changed (restore)."],
+  ps: ["TaskLog", "The agent's task list for each instance (tasks.jsonl)."],
   Oe: ["instanceDataDir", "The folder for an instance's local data."],
   wn: ["workflowsDataDir", "<instance data folder>/workflows (drafts.json, offline edits)."],
   Vl: ["offlineSyncSummary", "\"Offline work applied to the instance: …\""],
