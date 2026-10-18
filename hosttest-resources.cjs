@@ -152,6 +152,15 @@ const writes = () => calls.filter(([m]) => m !== "GET" && m !== "OPTIONS");
   r = await ask("save", { resource: "Application", adds: [{ key: "notes", property: { label: "Notes", type: "string" } }] });
   ok(r.type === "saveMismatch" && /asked, in: status, application_number, loan_purpose\. /.test(r.payload.message) && !/notes/.test(r.payload.message), "settings the instance adds to a new property aren't a mismatch (on the others they are): " + r.type + " " + r.payload.message);
 
+  // a new key for a property
+  reset(); calls.length = 0;
+  r = await ask("save", { resource: "Application", changes: [{ key: "status", path: ["label"], value: "State" }], renames: [{ from: "status", to: "state" }] });
+  ok(r.type === "saved" && stored.data.map((p) => p.key).join() === "state,application_number,loan_purpose" && stored.data[0].label === "State" && Object.keys(lastSchema)[0] === "state", "a key is changed after the other changes, in its place, with its settings");
+  r = await ask("save", { resource: "Application", renames: [{ from: "state", to: "loan_purpose" }] });
+  ok(r.type === "saveFailed" && /same key/.test(r.payload.message), "a new key another property has is refused");
+  r = await ask("save", { resource: "Application", renames: [{ from: "state", to: "no good" }] });
+  ok(r.type === "saveFailed" && /can't be a property key/.test(r.payload.message) && writes().length === 1, "a key that isn't a key is refused, before writing");
+
   // lookups for the screen
   reset();
   const fl = await ask("fields", { resource: "Application" });

@@ -27,6 +27,7 @@ export type Kind =
   | { kind: "ownFields" } // several properties of this resource
   | { kind: "record"; resource: string; value: string; label: string } // a record of a core resource
   | { kind: "view" } // one of the property's views
+  | { kind: "key" } // the property's key: checked as you type
   | { kind: "json" };
 
 export interface Setting {
@@ -76,11 +77,15 @@ const RENDERERS: [string, string][] = [
   ["FileManagerUploader", "File manager"],
 ];
 
-/** The types a property can be given here (another type a property already has is kept). */
+/** The types a property can have: the ones Saturn's definitions use (another type a property
+ *  already has shows as one more card, and is kept). */
 export const TYPES: [string, string, string][] = [
   ["string", "String", "Text"],
   ["number", "Number", "A number"],
   ["boolean", "Boolean", "On or off"],
+  ["date", "Date", "A date or a time"],
+  ["array", "Array", "A list of values"],
+  ["object", "Object", "A group of values"],
 ];
 
 const NEW_FUNCTION = "(res,{user,setting})=>{\n  return true\n}";
@@ -93,7 +98,13 @@ export const GROUPS: Group[] = [
     parts: [
       {
         settings: [
-          { path: ["label"], label: "Label", edit: { kind: "text" } },
+          { path: ["label"], label: "Label", hint: "The name people see.", edit: { kind: "text" } },
+          {
+            path: ["key"],
+            label: "Key",
+            hint: "The name Saturn stores the value under (Saturn calls it Field). Workflows, views and other properties that use the old key aren't changed with it.",
+            edit: { kind: "key" },
+          },
           { path: ["description"], label: "Description", edit: { kind: "textarea" } },
           {
             path: ["type"],
@@ -112,6 +123,37 @@ export const GROUPS: Group[] = [
           { path: ["email"], label: "Email", edit: { kind: "bool", hint: "Must be an email address." } },
           { path: ["ipaddress"], label: "IP address", edit: { kind: "bool", hint: "Must be an IPv4 or IPv6 address." } },
           { path: ["hide"], label: "Hide from the API", edit: { kind: "bool", hint: "Never sent in API responses." } },
+        ],
+      },
+    ],
+  },
+  {
+    id: "visibility",
+    title: "Visibility",
+    blurb: "Where it shows, and when.",
+    parts: [
+      {
+        title: "Hide in",
+        settings: [
+          { path: ["hideInForm"], label: "Forms", edit: { kind: "bool" } },
+          { path: ["hideInForm_edit"], label: "Edit forms", edit: { kind: "bool" } },
+          { path: ["hideInForm_add"], label: "Add forms", edit: { kind: "bool" } },
+          { path: ["hideInTable"], label: "Tables", edit: { kind: "bool" } },
+          { path: ["hideInDrawer"], label: "Drawers", edit: { kind: "bool" } },
+          { path: ["hideInView"], label: "Record views", edit: { kind: "bool" } },
+        ],
+      },
+      {
+        title: "Only show when",
+        settings: [
+          {
+            path: ["form_visibility"],
+            label: "Visibility rule",
+            hint: "A function: it shows in forms only when the function returns true.",
+            toggles: { on: { evaluator: "function", data: NEW_FUNCTION } },
+            edit: { kind: "bool" },
+          },
+          { path: ["form_visibility", "data"], label: "Function", when: (p) => !!p.form_visibility, edit: { kind: "code", lang: "javascript", empty: NEW_FUNCTION } },
         ],
       },
     ],
@@ -309,37 +351,6 @@ export const GROUPS: Group[] = [
         settings: [
           { path: ["form_number_of_columns", "full_width"], label: "Full width", edit: { kind: "bool" } },
           { path: ["form_number_of_columns", "default"], label: "Columns", edit: { kind: "number", min: 1, max: 12 } },
-        ],
-      },
-    ],
-  },
-  {
-    id: "visibility",
-    title: "Visibility",
-    blurb: "Where it shows, and when.",
-    parts: [
-      {
-        title: "Hide in",
-        settings: [
-          { path: ["hideInForm"], label: "Forms", edit: { kind: "bool" } },
-          { path: ["hideInForm_edit"], label: "Edit forms", edit: { kind: "bool" } },
-          { path: ["hideInForm_add"], label: "Add forms", edit: { kind: "bool" } },
-          { path: ["hideInTable"], label: "Tables", edit: { kind: "bool" } },
-          { path: ["hideInDrawer"], label: "Drawers", edit: { kind: "bool" } },
-          { path: ["hideInView"], label: "Record views", edit: { kind: "bool" } },
-        ],
-      },
-      {
-        title: "Only show when",
-        settings: [
-          {
-            path: ["form_visibility"],
-            label: "Visibility rule",
-            hint: "A function: it shows in forms only when the function returns true.",
-            toggles: { on: { evaluator: "function", data: NEW_FUNCTION } },
-            edit: { kind: "bool" },
-          },
-          { path: ["form_visibility", "data"], label: "Function", when: (p) => !!p.form_visibility, edit: { kind: "code", lang: "javascript", empty: NEW_FUNCTION } },
         ],
       },
     ],

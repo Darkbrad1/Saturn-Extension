@@ -12,8 +12,8 @@
  *   1. read the definition again (never write over someone else's newer change);
  *   2. back it up to <global storage>/resource-backups/<instance id>/<resource>-<time>.json;
  *   3. write it with only what was asked changed: the settings the screen changed (each at its
- *      path in the property, on the definition as just re-read), new properties, and/or the
- *      properties' order (the schema's order is the order the map is sent in);
+ *      path in the property, on the definition as just re-read), new properties, the
+ *      properties' order (the schema's order is the order the map is sent in) and/or new keys;
  *   4. read it back and check exactly those changed and nothing else, and the order kept.
  * If the instance refuses, nothing changed. If the read-back differs in any other way, the screen
  * says how and offers to put the backup back (the same careful write and check).
@@ -157,6 +157,25 @@ var ResourcePropertiesHost = (() => {
       else out[key] = property;
     }
     return out;
+  }
+
+  /** renames: [{from, to}] -> the data with those properties' keys changed (each keeps its place
+   *  and its settings), or an error message: a property that's gone, a key that isn't a key, or
+   *  one another property has. Done last, after the other changes, which name the old keys. */
+  function applyRenames(data, renames) {
+    const keys = keysOf(data);
+    const to = new Map();
+    for (const rename of renames) {
+      const from = String(rename?.from ?? ""), next = String(rename?.to ?? "");
+      if (!keys.includes(from)) return `${from} is no longer a property of this resource — reload and try again.`;
+      if (!KEY_PATTERN.test(next)) return `"${next}" can't be a property key: use letters, digits and _, starting with a letter.`;
+      to.set(from, next);
+    }
+    const after = keys.map((key) => to.get(key) ?? key);
+    if (new Set(after).size !== after.length) return "Two properties would have the same key. Pick another key.";
+    return Array.isArray(data)
+      ? data.map((property) => (isObject(property) && to.has(property.key) ? { ...property, key: to.get(property.key) } : property))
+      : Object.fromEntries(Object.entries(data).map(([key, property]) => [to.get(key) ?? key, property]));
   }
 
   /** order: every property key, in the order wanted -> the data in that order, or an error
@@ -376,7 +395,9 @@ var ResourcePropertiesHost = (() => {
         const adds = Array.isArray(payload.adds) ? payload.adds.filter((a) => a && typeof a.key === "string") : [];
         // order: every property key in the new order (sent only when the order was changed)
         const order = Array.isArray(payload.order) && payload.order.every((k) => typeof k === "string") ? payload.order : null;
-        if (!changes.length && !adds.length && !order) return post("saveFailed", { resource, message: "Nothing to save." });
+        // renames: [{from, to}], a property's key changed (applied last)
+        const renames = Array.isArray(payload.renames) ? payload.renames.filter((r) => r && typeof r.from === "string" && typeof r.to === "string" && r.from !== r.to) : [];
+        if (!changes.length && !adds.length && !order && !renames.length) return post("saveFailed", { resource, message: "Nothing to save." });
         // the definition as it is now, not as the screen first read it
         const current = await readResource(manager, instance, resource);
         let nextData = applyChanges(current.data, changes);
@@ -384,6 +405,8 @@ var ResourcePropertiesHost = (() => {
         if (adds.length) nextData = applyAdds(nextData, adds);
         if (typeof nextData === "string") return post("saveFailed", { resource, message: nextData });
         if (order) nextData = applyOrder(nextData, order);
+        if (typeof nextData === "string") return post("saveFailed", { resource, message: nextData });
+        if (renames.length) nextData = applyRenames(nextData, renames);
         if (typeof nextData === "string") return post("saveFailed", { resource, message: nextData });
         const result = await writeChecked(manager, instance, resource, current, nextData, new Set(adds.map((a) => a.key)));
         post(result.ok ? "saved" : "saveMismatch", { resource, ok: result.ok, backup: result.backup, unchanged: result.unchanged, message: result.message, properties: propertiesOf(result.data) });
@@ -470,5 +493,5 @@ var ResourcePropertiesHost = (() => {
     storageUri = options.globalStorageUri ?? null;
   }
 
-  return { open, attach, handle, propertiesOf, applyChanges, applyRequired, applyAdds, applyOrder, newProperty, differences, entriesOf };
+  return { open, attach, handle, propertiesOf, applyChanges, applyRequired, applyAdds, applyOrder, applyRenames, newProperty, differences, entriesOf };
 })();

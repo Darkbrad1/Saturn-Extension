@@ -197,3 +197,5 @@ textarea.pe-input { height: auto; padding: 6px 8px; resize: vertical; }
 .nv-hl-pre .token.keyword { color: #c586c0; }
 .nv-hl-pre .token.function { color: #dcdcaa; }
 .nv-hl-pre .token.class-name { color: #4ec9b0; }
+.pe-key { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.pe-input[aria-invalid="true"] { border-color: var(--rs-error); }

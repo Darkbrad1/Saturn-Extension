@@ -67,10 +67,10 @@ await p.getByRole("button", { name: "Discard" }).click();
 ok(!(await box().isChecked()) && await p.locator(".rs-unsaved").count() === 0, "Discard drops the changes");
 
 // the settings: a menu beside one long page
-ok((await p.locator(".pe-page .pe-group-title").allInnerTexts()).join() === "General,Input,Data,Display,Visibility,Access,JSON", "every group is on one long page");
+ok((await p.locator(".pe-page .pe-group-title").allInnerTexts()).join() === "General,Visibility,Input,Data,Display,Access,JSON", "every group is on one long page, Visibility right after General");
 ok(await p.getByRole("switch").count() > 5 && await p.locator(".pe-page input[type=checkbox]:not([role=switch])").count() === await p.locator(".pe-picks input[type=checkbox]").count(), "on/off settings are switches (only the long property lists keep checkboxes)");
 ok(await p.locator(".pe-page input[type=radio]").count() === 0, "there are no round radio buttons");
-ok((await p.getByRole("radiogroup", { name: "Type" }).getByRole("radio").allInnerTexts()).map((t) => t.split("\n")[0]).join() === "String,Number,Boolean" && (await p.getByRole("radio", { name: /^String/ }).getAttribute("aria-checked")) === "true", "the type is three cards, the chosen one marked");
+ok((await p.getByRole("radiogroup", { name: "Type" }).getByRole("radio").allInnerTexts()).map((t) => t.split("\n")[0]).join() === "String,Number,Boolean,Date,Array,Object" && (await p.getByRole("radio", { name: /^String/ }).getAttribute("aria-checked")) === "true", "the type is a card for each type, the chosen one marked");
 await tab("Display");
 await p.waitForTimeout(100);
 ok((await p.locator(".pe-menu-sub").allInnerTexts()).join() === "Table,Record view,Form", "picking a group in the menu opens its sections");
@@ -138,6 +138,20 @@ await box().check();
 const state = await p.evaluate(() => window.acquireVsCodeApi().getState());
 ok(state.resource === "Application" && state.drafts.requested_loan_amount.required === true && state.order[0] === "submitted_at" && state.selected === "requested_loan_amount", "unsaved changes, the new order and the picked property are kept in the webview's state");
 await p.getByRole("button", { name: "Discard" }).click();
+
+// the label and the key can be changed
+await pick("Application Number");
+await p.getByLabel("Label", { exact: true }).fill("App No");
+await p.getByLabel("Key", { exact: true }).fill("status");
+ok((await p.locator(".pe-key .pe-error").innerText()).includes("status is already a property") && await topSave().isDisabled(), "a key another property has is flagged, and Save waits");
+await p.getByLabel("Key", { exact: true }).fill("app_no");
+ok((await p.locator(".rs-item.is-selected").innerText()).includes("App No") && (await p.locator(".rs-item.is-selected").innerText()).includes("app_no") && (await p.locator(".rs-unsaved").innerText()).includes("1 new key"), "the list shows the new label and key, and the change is counted");
+await topSave().click();
+await confirmSave().click();
+await p.waitForTimeout(200);
+const renamed = await p.evaluate(() => window.__posted.filter((m) => m.type === "save").at(-1).payload);
+ok(JSON.stringify(renamed.renames) === JSON.stringify([{ from: "application_number", to: "app_no" }]) && renamed.changes.some((c) => c.key === "application_number" && c.path.join() === "label" && c.value === "App No"), "Save sends the label change and the new key");
+ok(await p.evaluate(() => window.__data.Application.some((x) => x.key === "app_no" && x.label === "App No")) && (await listKeys()).includes("app_no"), "and after saving the property has its new key");
 
 // a new property
 await p.getByRole("button", { name: "Add a property" }).click();

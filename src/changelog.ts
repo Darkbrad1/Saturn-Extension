@@ -1,6 +1,15 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.21",
+    title: "Resources: change a property's key, every type, Visibility higher up",
+    items: [
+      "General has the property's Key (Saturn's Field) under its Label, and both can be changed. A key that isn't valid, or that another property has, is flagged and stops Save.",
+      "The type cards are every type: String, Number, Boolean, Date, Array and Object.",
+      "Visibility now comes right after General, in the menu and on the page.",
+    ],
+  },
+  {
     version: "0.3.20",
     title: "Resources: one settings page with a side menu",
     items: [

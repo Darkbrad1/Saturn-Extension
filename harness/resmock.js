@@ -2,7 +2,7 @@
 // Saturn's), Loan and LoanCategory (for map references), AttachmentGroup records.
 // window.__saveMode: "ok" (default) | "refuse" | "mismatch". Like the real host, a save applies each
 // change at its path ({key, path, value | remove}; the old {key, required} too), adds new
-// properties ({key, property}) at the end, then the order.
+// properties ({key, property}) at the end, then the order, then new keys ({from, to}).
 (function () {
   const prop = (key, label, type, required = false) => ({ key, label, type, required, searchable: false, map_label_type: "property", source: "static", rendering: { component: "default" }, input_properties: { type: "input" } });
   const data = {
@@ -40,6 +40,7 @@
         }
         for (const a of p.adds || []) list.push({ ...a.property, key: a.key });
         if (p.order) list = p.order.map((k) => list.find((x) => x.key === k));
+        for (const r of p.renames || []) list = list.map((x) => (x.key === r.from ? { ...x, key: r.to } : x));
         data[p.resource] = list;
         const saved = data[p.resource];
         if (window.__saveMode === "mismatch") { saved[0].searchable = true; return reply("saveMismatch", { resource: p.resource, ok: false, unchanged: false, backup: "/backups/Application-1.json", message: "The resource changed differently from what was asked, in: status. You can put the backup back.", properties: view(saved) }); }

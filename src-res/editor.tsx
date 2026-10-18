@@ -6,7 +6,7 @@
 // Everything is local until the screen's Save.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HighlightInput } from "../src/controls";
-import { ALL, GROUPS, get, type Group, type Path, type Prop, type Setting } from "./spec";
+import { ALL, GROUPS, KEY_PATTERN, get, type Group, type Path, type Prop, type Setting } from "./spec";
 
 export interface Field { key: string; label: string | null; type: string | null }
 export interface Lookups {
@@ -15,6 +15,8 @@ export interface Lookups {
   fieldsOf: (resource: string) => Field[] | null;
   /** this resource's properties */
   own: Field[];
+  /** whether another property of this resource has this key */
+  keyTaken: (key: string) => boolean;
   /** records of a core resource as [value, label]: null while they load */
   recordsOf: (resource: string, value: string, label: string) => [string, string][] | null;
 }
@@ -310,6 +312,15 @@ function Control(props: { setting: Setting; id: string; value: unknown; draft: P
         typeof v === "string" ? [v, `Saved view ${v}`] : [String((v as Prop)?.id ?? ""), `${String((v as Prop)?.name || (v as Prop)?.view || "view")} (${String((v as Prop)?.view ?? "")})`],
       );
       return <Select id={id} value={str} options={options} disabled={disabled} onPick={(v) => set(path, v)} />;
+    }
+    case "key": {
+      const problem = !KEY_PATTERN.test(str) ? "Use letters, digits and _, starting with a letter." : props.lookups.keyTaken(str) ? `${str} is already a property of this resource.` : null;
+      return (
+        <span className="pe-key">
+          <input id={id} className="pe-input is-mono" value={str} disabled={disabled} spellCheck={false} aria-invalid={!!problem} onChange={(e) => set(path, e.target.value)} />
+          {problem && <span className="pe-error">{problem}</span>}
+        </span>
+      );
     }
     case "json":
       return <JsonBox id={id} value={value} disabled={disabled} onSet={(v, remove) => set(path, v, remove)} />;

@@ -1,4 +1,4 @@
-# sonover-code (v0.3.20)
+# sonover-code (v0.3.21)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,11 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.21 — Resources: change a property's key, every type, Visibility higher up
+- General has a Key row (Saturn's "Field"), checked as you type (`edit.kind: "key"`: `KEY_PATTERN`, and not another property's key; a bad key disables Save). A property keeps a fixed id on screen (its key on the instance, or a new one's first key) and shows `shownKey`; new properties are kept as `{id, prop}`.
+- `save` takes `renames: [{from, to}]`, applied last (`applyRenames`: the property keeps its place and settings; refuses a gone property, an invalid key, or two properties with one key). Workflows, views and other properties that name the old key aren't changed with it; the Key row says so.
+- `TYPES` is every type Saturn's definitions use: string, number, boolean, date, array, object (another type a property has still shows as one more card). The Visibility group moved right after General. `hosttest-resources.cjs` (36 checks), `test13.mjs` (61).
 
 ## New in 0.3.20 — Resources: one settings page with a side menu
 - Three columns: the properties list, the settings menu (`.pe-menu`: Find a setting, the groups with change counts, each group's sections under it, JSON) and one long page (`.pe-page`) with every group. The menu scrolls the page to a section and highlights the section in view; the search narrows the page to matching settings.

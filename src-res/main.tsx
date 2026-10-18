@@ -15,13 +15,16 @@ declare function acquireVsCodeApi(): { postMessage: (m: unknown) => void; getSta
 const vscode = acquireVsCodeApi();
 const send = (type: string, payload: Record<string, unknown> = {}) => vscode.postMessage({ type, payload });
 
-interface Property { key: string; label: string | null; type: string | null; required: boolean; editable: boolean; definition: unknown }
+/** key: which property this is (its key on the instance, or for a new one its key when it was
+ *  added); shownKey: its key as edited here (a key can be changed before saving). */
+interface Property { key: string; shownKey: string; label: string | null; type: string | null; required: boolean; editable: boolean; definition: unknown }
+interface Added { id: string; prop: Prop }
 interface Saved {
   resource?: string | null;
   /** property key -> the property as edited here (only the ones that differ from the instance) */
   drafts?: Record<string, Prop>;
   /** new properties, not on the instance yet */
-  added?: Prop[];
+  added?: Added[];
   order?: string[] | null;
   selected?: string | null;
   group?: string;
@@ -45,7 +48,7 @@ function App() {
   const [resource, setResource] = useState<string | null>(saved.resource ?? null);
   const [properties, setProperties] = useState<Property[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Prop>>(saved.drafts ?? {});
-  const [added, setAdded] = useState<Prop[]>(saved.added ?? []);
+  const [added, setAdded] = useState<Added[]>((saved.added ?? []).map((a) => ("prop" in (a as Added) ? (a as Added) : { id: String((a as unknown as Prop).key), prop: a as unknown as Prop })));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -105,7 +108,7 @@ function App() {
           setProperties(payload.properties);
           // what's on the instance now is what the screen shows; keep only the changes still to make
           setDrafts((before) => keepDifferent(before, payload.properties));
-          setAdded((before) => before.filter((p) => !payload.properties.some((q: Property) => q.key === p.key)));
+          setAdded((before) => before.filter((a) => !payload.properties.some((q: Property) => q.key === a.prop.key)));
           setOrder(null);
           setNotice({ kind: "error", text: payload.message, backup: payload.unchanged ? undefined : payload.backup });
           break;
@@ -144,25 +147,32 @@ function App() {
 
   // every property, as it is here: the instance's with the edits made, then the new ones
   const all: Property[] = [
-    ...(properties ?? []).map((p) => (drafts[p.key] ? viewOf(drafts[p.key], p.editable) : p)),
-    ...added.map((d) => viewOf(d, true)),
+    ...(properties ?? []).map((p) => (drafts[p.key] ? viewOf(p.key, drafts[p.key], p.editable) : { ...p, shownKey: p.key })),
+    ...added.map((a) => viewOf(a.id, a.prop, true)),
   ];
   const byKey = new Map(all.map((p) => [p.key, p]));
   const originals = new Map((properties ?? []).map((p) => [p.key, asProp(p)]));
   const ordered = order ? [...order.map((k) => byKey.get(k)!).filter(Boolean), ...all.filter((p) => !order.includes(p.key))] : all;
   const q = query.trim().toLowerCase();
-  const shown = ordered.filter((p) => !q || p.key.toLowerCase().includes(q) || (p.label ?? "").toLowerCase().includes(q) || (p.type ?? "").toLowerCase().includes(q));
+  const shown = ordered.filter((p) => !q || p.shownKey.toLowerCase().includes(q) || (p.label ?? "").toLowerCase().includes(q) || (p.type ?? "").toLowerCase().includes(q));
   const current = (selected && byKey.get(selected)) || null;
-  const isNew = (key: string) => added.some((p) => p.key === key);
+  const isNew = (key: string) => added.some((a) => a.id === key);
   // dragging only on the whole list: in a filtered one "before that one" is ambiguous
   const canMove = !q && !saving;
 
   // what Save sends
   const changes = Object.entries(drafts).flatMap(([key, draft]) => diff(originals.get(key), draft).map((c) => ({ key, ...c })));
   const changedProps = new Set(changes.map((c) => c.key)).size;
-  const instanceOrder = [...(properties ?? []).map((p) => p.key), ...added.map((p) => String(p.key))];
-  const orderToSend = order && order.join("\n") !== instanceOrder.join("\n") ? ordered.map((p) => p.key) : null;
-  const dirty = changes.length > 0 || added.length > 0 || orderToSend !== null;
+  const instanceOrder = [...(properties ?? []).map((p) => p.key), ...added.map((a) => a.id)];
+  // the order names properties by their key on the instance (new ones by their key as typed)
+  const orderToSend = order && order.join("\n") !== instanceOrder.join("\n") ? ordered.map((p) => (isNew(p.key) ? p.shownKey : p.key)) : null;
+  // keys changed here: renamed when saving, after everything else
+  const renames = Object.entries(drafts).filter(([key, d]) => typeof d.key === "string" && d.key !== key).map(([from, d]) => ({ from, to: String(d.key) }));
+  // a key that can't be saved (not a valid key, or used twice) stops Save
+  const keyCounts = new Map<string, number>();
+  for (const p of all) keyCounts.set(p.shownKey, (keyCounts.get(p.shownKey) ?? 0) + 1);
+  const badKey = all.find((p) => !KEY_PATTERN.test(p.shownKey) || keyCounts.get(p.shownKey)! > 1);
+  const dirty = changes.length > 0 || added.length > 0 || orderToSend !== null || renames.length > 0;
 
   /** Moves a property to index `to` of the full list; back to the instance's order clears it. */
   const move = (key: string, to: number) => {
@@ -179,7 +189,7 @@ function App() {
   /** The property as edited: kept in drafts while it differs from the instance's. */
   const edit = (key: string, next: Prop) => {
     setNotice(null);
-    if (isNew(key)) return setAdded((before) => before.map((p) => (p.key === key ? next : p)));
+    if (isNew(key)) return setAdded((before) => before.map((a) => (a.id === key ? { ...a, prop: next } : a)));
     setDrafts((before) => {
       const out = { ...before };
       if (same(originals.get(key), next)) delete out[key];
@@ -188,11 +198,11 @@ function App() {
     });
   };
 
-  const addError = !adding ? null : !adding.label.trim() ? "Give it a label." : !KEY_PATTERN.test(adding.key) ? "The key needs letters, digits and _, starting with a letter." : byKey.has(adding.key) ? `${adding.key} is already a property.` : null;
+  const addError = !adding ? null : !adding.label.trim() ? "Give it a label." : !KEY_PATTERN.test(adding.key) ? "The key needs letters, digits and _, starting with a letter." : all.some((p) => p.shownKey === adding.key) ? `${adding.key} is already a property.` : null;
   const add = () => {
     if (!adding || addError) return;
     const property = newProperty(adding.key, adding.label.trim(), adding.type);
-    setAdded((before) => [...before, property]);
+    setAdded((before) => [...before, { id: adding.key, prop: property }]);
     if (order) setOrder([...order, adding.key]);
     setSelected(adding.key);
     setGroup("general");
@@ -215,14 +225,16 @@ function App() {
     send("save", {
       resource,
       changes,
-      ...(added.length ? { adds: added.map((p) => ({ key: p.key, property: p })) } : {}),
+      ...(added.length ? { adds: added.map((a) => ({ key: String(a.prop.key), property: a.prop })) } : {}),
+      ...(renames.length ? { renames } : {}),
       ...(orderToSend ? { order: orderToSend } : {}),
     });
   };
 
   const lookups: Lookups = {
     resources: resources ?? [],
-    own: all.map((p) => ({ key: p.key, label: p.label, type: p.type })),
+    own: all.map((p) => ({ key: p.shownKey, label: p.label, type: p.type })),
+    keyTaken: (key) => all.filter((p) => p.key !== selected).some((p) => p.shownKey === key),
     fieldsOf: (r) => {
       const have = fields[r];
       if (have === undefined && !asked.current.has(`fields:${r}`)) {
@@ -245,6 +257,7 @@ function App() {
   const summary = [
     changes.length ? `${changes.length} ${changes.length === 1 ? "setting" : "settings"} on ${changedProps} ${changedProps === 1 ? "property" : "properties"}` : "",
     added.length ? `${added.length} new ${added.length === 1 ? "property" : "properties"}` : "",
+    renames.length ? `${renames.length} new ${renames.length === 1 ? "key" : "keys"}` : "",
     orderToSend ? "the order" : "",
   ].filter(Boolean);
 
@@ -271,7 +284,7 @@ function App() {
         {dirty && <span className="rs-unsaved">{saving ? "Saving…" : `Unsaved: ${summary.join(", ")}`}</span>}
         <button className="rs-btn" onClick={() => send("openBackups")}>Backups</button>
         {dirty && <button className="rs-btn" disabled={saving} onClick={discard}>Discard</button>}
-        <button className="rs-btn is-primary" disabled={!dirty || saving || confirming} onClick={() => setConfirming(true)}>Save</button>
+        <button className="rs-btn is-primary" disabled={!dirty || saving || confirming || !!badKey} title={badKey ? `Fix the key of ${badKey.label ?? badKey.shownKey} first` : undefined} onClick={() => setConfirming(true)}>Save</button>
       </header>
 
       {dirty && confirming && (
@@ -388,8 +401,8 @@ function App() {
                     >
                       <span className={`rs-grip${p.required ? " is-required" : ""}`} aria-hidden="true" />
                       <span className="rs-item-text">
-                        <span className="rs-item-label">{p.label ?? p.key}{isNew(p.key) && <span className="rs-new-pill">new</span>}</span>
-                        <span className="rs-item-key">{p.key}</span>
+                        <span className="rs-item-label">{p.label ?? p.shownKey}{isNew(p.key) && <span className="rs-new-pill">new</span>}</span>
+                        <span className="rs-item-key">{p.shownKey}</span>
                       </span>
                       <span className="rs-item-type">{p.type ?? "—"}</span>
                       {changed && <span className="rs-dot" title="Unsaved change" />}
@@ -406,18 +419,18 @@ function App() {
             {!current ? (
               <p className="rs-empty">Pick a property on the left, or add one with +.</p>
             ) : !current.editable ? (
-              <p className="rs-empty">{current.key} isn't stored as settings, so it can't be changed here.</p>
+              <p className="rs-empty">{current.shownKey} isn't stored as settings, so it can't be changed here.</p>
             ) : (
               <>
                 <div className="rs-detail-head">
                   <div>
-                    <div className="rs-detail-label">{current.label ?? current.key}</div>
-                    <div className="rs-detail-key">{current.key}</div>
+                    <div className="rs-detail-label">{current.label ?? current.shownKey}</div>
+                    <div className="rs-detail-key">{current.shownKey}</div>
                   </div>
                   <div className="rs-detail-actions">
                     {current.key in drafts && <button className="rs-link" disabled={saving} onClick={() => edit(current.key, originals.get(current.key)!)}>Undo all changes to it</button>}
                     {isNew(current.key) && (
-                      <button className="rs-link" disabled={saving} onClick={() => { setAdded((before) => before.filter((p) => p.key !== current.key)); setOrder((before) => (before ? before.filter((k) => k !== current.key) : before)); setSelected(null); }}>
+                      <button className="rs-link" disabled={saving} onClick={() => { setAdded((before) => before.filter((a) => a.id !== current.key)); setOrder((before) => (before ? before.filter((k) => k !== current.key) : before)); setSelected(null); }}>
                         Remove (not saved yet)
                       </button>
                     )}
@@ -427,7 +440,7 @@ function App() {
                 <PropertyEditor
                   key={current.key}
                   original={isNew(current.key) ? newProperty(current.key, current.label ?? current.key, current.type ?? "string") : originals.get(current.key)!}
-                  draft={(isNew(current.key) ? added.find((p) => p.key === current.key) : drafts[current.key]) ?? originals.get(current.key)!}
+                  draft={(isNew(current.key) ? added.find((a) => a.id === current.key)?.prop : drafts[current.key]) ?? originals.get(current.key)!}
                   onChange={(next) => edit(current.key, next)}
                   lookups={lookups}
                   disabled={saving}
@@ -445,9 +458,10 @@ function App() {
 }
 
 /** What the list shows of a property as edited. */
-function viewOf(p: Prop, editable: boolean): Property {
+function viewOf(id: string, p: Prop, editable: boolean): Property {
   return {
-    key: String(p.key),
+    key: id,
+    shownKey: typeof p.key === "string" ? p.key : id,
     label: typeof p.label === "string" && p.label ? p.label : null,
     type: typeof p.type === "string" ? p.type : null,
     required: p.required === true,
