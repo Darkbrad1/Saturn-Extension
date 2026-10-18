@@ -4,7 +4,8 @@
 #   ./package.sh [output.vsix]
 #
 # Builds everything into out/vsix (build.mjs), typechecks, runs the host tests
-# against the built extension.js, and zips it (default: dist/sonover-code-<version>.vsix,
+# against the built extension.js, checks the minified webviews / MCP server against
+# their readable sources (tools/same-code.mjs), and zips it (default: dist/sonover-code-<version>.vsix,
 # version = newest entry in src/changelog.ts). Install it with
 # "Extensions: Install from VSIX…" or
 #   code --install-extension <file> --force      (codium for VSCodium)
@@ -49,6 +50,16 @@ for t in hosttest.cjs hosttest-move.cjs hosttest-reorder.cjs hosttest-command.cj
   fi
 done
 [ "$failed" = 0 ] || { echo "package.sh: host tests failed; no .vsix written" >&2; exit 1; }
+
+echo "==> shipped files: minified = readable source"
+for f in vsix/extension/dist/mcp/saturn-mcp.js vsix/extension/dist/webview/*/index.js; do
+  built="out/${f}"
+  if ! r="$(node tools/same-code.mjs "$f" "$built" 2>&1)"; then
+    echo "   ${f#vsix/extension/}: DIFFERS"; echo "$r" | sed 's/^/     /'; failed=1
+  fi
+done
+[ "$failed" = 0 ] || { echo "package.sh: a minified file is not its source's program; no .vsix written" >&2; exit 1; }
+echo "   ok"
 
 echo "==> package"
 rm -f "$out"

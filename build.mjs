@@ -2,10 +2,11 @@
 //   - the node view and System Logs webviews (esbuild) -> dist/nodeview.js, dist/logs.js,
 //     copied to extension/dist/webview/{nodeview,logs}/index.js
 //   - the extension host: host/extension.js + host/syslogs.js -> extension/dist/extension.js
-//   - everything else from vsix/ (manifest, package.json, readme, icon, the other webviews, the MCP server)
+//   - everything else from vsix/ (manifest, package.json, readme, icon, the other webviews, the MCP server);
+//     the webviews' JS/CSS and the MCP server are minified on the way
 //   - the version, from the newest src/changelog.ts entry, stamped into package.json and the manifest
 // `node build.mjs --min` minifies the two webviews. package.sh zips out/vsix into a .vsix.
-import { build } from "esbuild";
+import { build, transform } from "esbuild";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
 const common = {
@@ -38,6 +39,17 @@ const ext = `${out}/extension`;
 for (const [name, file] of [["nodeview", "dist/nodeview.js"], ["logs", "dist/logs.js"]]) {
   mkdirSync(`${ext}/dist/webview/${name}`, { recursive: true });
   cpSync(file, `${ext}/dist/webview/${name}/index.js`);
+}
+// the shipped webviews and the MCP server are kept readable in vsix/; they go into the package
+// minified (names and whitespace only, licence notices kept). package.sh proves with
+// tools/same-code.mjs that each minified file is the same program as its readable source.
+for (const f of shipped) {
+  const file = `${ext}/${f}`;
+  const css = f.endsWith(".css");
+  const { code } = await transform(readFileSync(file, "utf8"), css
+    ? { loader: "css", minify: true, legalComments: "inline" }
+    : { loader: "js", minifyWhitespace: true, minifyIdentifiers: true, legalComments: "eof" });
+  writeFileSync(file, code);
 }
 // one scope: syslogs.js uses extension.js's helpers (listRecords, saturnRequest, …)
 writeFileSync(`${ext}/dist/extension.js`, readFileSync("host/extension.js", "utf8") + "\n" + readFileSync("host/syslogs.js", "utf8"));
