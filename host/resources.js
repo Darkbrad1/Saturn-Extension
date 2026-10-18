@@ -390,7 +390,10 @@ var ResourcePropertiesHost = (() => {
     switch (message && message.type) {
       case "init": {
         const names = (await listResourceNames(manager, instance)).slice().sort((a, b) => a.localeCompare(b));
-        post("init", { instanceName: instanceLabel(instance), resources: names });
+        // which of them are Saturn's own (core) resources, so the picker lists the others first;
+        // null when the instance's catalog can't be read (then it's one list)
+        const core = await coreResourceNames(manager, instance);
+        post("init", { instanceName: instanceLabel(instance), resources: names, core: core ? names.filter((n) => core.has(n)) : null });
         break;
       }
       case "load": {

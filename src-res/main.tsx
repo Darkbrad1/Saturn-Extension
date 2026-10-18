@@ -115,6 +115,8 @@ function App() {
   const saved = useMemo(loadSaved, []);
   const [instanceName, setInstanceName] = useState("");
   const [resources, setResources] = useState<string[] | null>(null);
+  // the core (Saturn's own) resources among them, or null when the instance didn't say
+  const [core, setCore] = useState<string[] | null>(null);
   const [resource, setResource] = useState<string | null>(saved.resource ?? null);
   // each resource's properties as the instance has them (read when it's opened)
   const [loaded, setLoaded] = useState<Record<string, Property[]>>({});
@@ -187,6 +189,7 @@ function App() {
         case "init":
           setInstanceName(payload.instanceName);
           setResources(payload.resources);
+          setCore(Array.isArray(payload.core) ? payload.core : null);
           break;
         case "properties":
           setLoading(false);
@@ -457,6 +460,7 @@ function App() {
     },
   };
 
+  const option = (r: string) => <option key={r} value={r}>{r}{works[r] && !isEmpty(works[r]) ? " •" : ""}</option>;
   const unsavedText = plans.length > 1 ? `Unsaved in ${plans.length} resources` : plans.length ? `Unsaved: ${plans[0].plan.summary.join(", ")}${plans[0].resource !== resource ? ` (${plans[0].resource})` : ""}` : "";
   const pickedLive = picked.filter((p) => !deleted.has(p.key));
   const pickedDeleted = picked.filter((p) => deleted.has(p.key));
@@ -485,7 +489,14 @@ function App() {
           Resource
           <select value={resource ?? ""} disabled={!resources || saving} onChange={(e) => { setResource(e.target.value || null); setSelected([]); setTrail([]); setNotice(null); }}>
             <option value="">{resources ? "Pick one" : "Loading…"}</option>
-            {(resources ?? []).map((r) => <option key={r} value={r}>{r}{works[r] && !isEmpty(works[r]) ? " •" : ""}</option>)}
+            {core ? (
+              <>
+                <optgroup label="Resources">{(resources ?? []).filter((r) => !core.includes(r)).map(option)}</optgroup>
+                <optgroup label="Core resources">{(resources ?? []).filter((r) => core.includes(r)).map(option)}</optgroup>
+              </>
+            ) : (
+              (resources ?? []).map(option)
+            )}
           </select>
         </label>
         {resource && (

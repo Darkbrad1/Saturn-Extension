@@ -14,6 +14,7 @@
       { ...prop("category", "Category", "string"), map: { type: "model", reference: "LoanCategory", value_field: "id", label_field: "label" } },
       { ...prop("payments", "Payments", "array"), source: "dynamic", source_type: "resource_lookup", source_definition: { reference: "Application", bounded_property: "loan", default_limit: 10 } },
     ],
+    User: [prop("email", "Email", "string", true)],
     LoanCategory: [prop("id", "ID", "string"), prop("label", "Label", "string"), prop("code", "Code", "string")],
   };
   const view = (list) => list.map((p) => ({ key: p.key, label: p.label, type: p.type, required: p.required === true, editable: true, definition: p }));
@@ -28,7 +29,7 @@
     postMessage: (m) => {
       window.__posted.push(m);
       const p = m.payload || {};
-      if (m.type === "init") reply("init", { instanceName: "demo", resources: Object.keys(data) });
+      if (m.type === "init") reply("init", { instanceName: "demo", resources: Object.keys(data).sort(), core: ["User"] });
       if (m.type === "load") reply("properties", { resource: p.resource, properties: view(data[p.resource]) });
       if (m.type === "save") {
         if (window.__saveMode === "refuse") return reply("saveFailed", { resource: p.resource, message: "This instance doesn't accept changes to resources at /Resources/Application (405). Nothing was changed." });

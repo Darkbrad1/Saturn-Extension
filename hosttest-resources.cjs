@@ -31,7 +31,8 @@ global.fetch = async (u, o = {}) => {
   const url = new URL(u), method = o.method || "GET";
   calls.push([method, url.pathname, o.headers?.Authorization]);
   const reply = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-  if (url.pathname === "/api/Resources" && method === "GET") return reply({ data: [{ name: "Application" }, { name: "Loan" }] });
+  if (url.pathname === "/api/Resources" && method === "GET") return reply({ data: [{ name: "Application" }, { name: "Loan" }, { name: "User" }] });
+  if (url.pathname === "/api/resources/catalog" && method === "GET") return reply({ data: ["User", "Workflow"] });
   if (url.pathname === "/api/Resources/Application" && method === "GET") return reply(JSON.parse(JSON.stringify(stored)));
   if (url.pathname === "/api/resources/Application/schema" && method === "PUT") {
     if (mode === "refuse") return new Response(JSON.stringify({ message: "no" }), { status: 405, headers: { "content-type": "application/json", allow: "GET" } });
@@ -70,7 +71,8 @@ const writes = () => calls.filter(([m]) => m !== "GET" && m !== "OPTIONS");
 (async () => {
   reset();
   const init = await ask("init", {});
-  ok(init.type === "init" && init.payload.resources.join() === "Application,Loan", "init lists the instance's resources");
+  ok(init.type === "init" && init.payload.resources.join() === "Application,Loan,User", "init lists the instance's resources");
+  ok(JSON.stringify(init.payload.core) === '["User"]', "and which of them are core resources (from the instance's catalog)");
   const props = await ask("load", { resource: "Application" });
   ok(props.payload.properties.map((p) => p.key).join() === "status,application_number,loan_purpose" && props.payload.properties.every((p) => p.required === false && p.editable), "load reads a list-shaped definition by each property's own key");
   const fields = await getResourceFields(manager, instance, "Application");

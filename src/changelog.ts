@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.23",
+    title: "Resources: even gaps in two columns, core resources listed last",
+    items: [
+      "On a wide page the setting cards run down two columns, like a newspaper, so the gap under every card is the same. Before, a short card next to a tall one left a big hole.",
+      "The resource picker lists the instance's own resources first and Saturn's core resources after them, in two groups.",
+    ],
+  },
+  {
     version: "0.3.22",
     title: "Resources: several properties at once, a right-click menu, mapped chips",
     items: [

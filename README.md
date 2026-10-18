@@ -1,4 +1,4 @@
-# sonover-code (v0.3.22)
+# sonover-code (v0.3.23)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,10 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.23 — Resources: even gaps in two columns, core resources listed last
+- The settings page is one flow of blocks (`.pe-flow`; a block is a card, the first of a group carries its heading). On a page 1150 px wide or more it uses CSS columns, so the cards run down the left column then the right, and every card has the same gap under it (the grid made each row as tall as its taller card). The menu now follows the first section in reading order that's still in view.
+- `init` also sends `core`: which resources are Saturn's own, from `GET /resources/catalog` (`coreResourceNames`; null if the catalog can't be read). The picker shows two groups, Resources then Core resources. `hosttest-resources.cjs` (40 checks), `test14.mjs` (30).
 
 ## New in 0.3.22 — Resources: several properties at once, a right-click menu, mapped chips
 - Multi-select (Ctrl/Cmd+click, Shift+click; `selected` is a list). `PropertyEditor` takes `items: [{original, draft}]`: a setting with different values shows "Mixed" (switches in the middle, `aria-checked="mixed"`; selects show a Mixed entry), a change goes to every item, and settings marked `single` (label, key, description) are left out. Dragging a picked property or Alt+↑/↓ moves all picked ones as a block (`move(keys, to)`, `nudge`).

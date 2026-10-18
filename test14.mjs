@@ -112,15 +112,32 @@ await p.getByRole("button", { name: "‹ Back" }).click();
 await p.waitForTimeout(300);
 ok((await p.locator(".rs-select select").inputValue()) === "Loan", "Back goes back too");
 
-// ===== the page uses its width =====
+// ===== the page uses its width, with the same gap under every card =====
 await item("Amount").click();
-const cols = await p.evaluate(() => getComputedStyle(document.querySelector(".pe-parts")).gridTemplateColumns.split(" ").length);
+const columns = () => p.evaluate(() => Number(getComputedStyle(document.querySelector(".pe-flow")).columnCount));
+const gaps = () =>
+  p.evaluate(() => {
+    // the space from each card to the next block below it, in the same column
+    const blocks = [...document.querySelectorAll(".pe-flow > .pe-block:not(.is-wide)")].map((el) => {
+      const card = el.querySelector(".pe-card").getBoundingClientRect();
+      const box = el.getBoundingClientRect();
+      return { left: Math.round(box.left), top: box.top, cardBottom: card.bottom };
+    });
+    const out = [];
+    for (let i = 1; i < blocks.length; i++) if (blocks[i].left === blocks[i - 1].left) out.push(Math.round(blocks[i].top - blocks[i - 1].cardBottom));
+    return out;
+  });
 const wide = await p.evaluate(() => document.querySelector(".pe-page").clientWidth);
-ok(wide < 1150 ? cols === 1 : cols === 2, `sections sit side by side on a wide page (${wide}px: ${cols} column${cols > 1 ? "s" : ""})`);
+ok(wide < 1150 ? (await columns()) === 1 : (await columns()) === 2, `one column on a narrow page, two on a wide one (${wide}px: ${await columns()})`);
 await p.setViewportSize({ width: 1900, height: 900 });
-await p.waitForTimeout(150);
-ok((await p.evaluate(() => getComputedStyle(document.querySelector(".pe-group:nth-of-type(4) .pe-parts") ?? document.querySelector(".pe-parts")).gridTemplateColumns.split(" ").length)) === 2, "and in two columns once it is wide enough");
+await p.waitForTimeout(200);
+const g = await gaps();
+ok((await columns()) === 2 && g.length > 2 && g.every((x) => x === g[0]), `on a wide page the cards run down two columns with the same gap under each (${g.join(", ")} px)`);
 await p.screenshot({ path: out + "/m3-wide.png" });
+
+// ===== the resource picker: the instance's own resources first, then the core ones =====
+const groups = await p.evaluate(() => [...document.querySelectorAll(".rs-select optgroup")].map((g) => g.label + ": " + [...g.querySelectorAll("option")].map((o) => o.value).join(",")));
+ok(groups.join(" | ") === "Resources: Application,Loan,LoanCategory | Core resources: User", "the resource picker lists the non-core resources first, then the core ones: " + groups.join(" | "));
 
 ok(errs.length === 0, "no page or CSP errors " + JSON.stringify(errs));
 await b.close();

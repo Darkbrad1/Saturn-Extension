@@ -112,10 +112,12 @@ export function PropertyEditor(props: {
   const onScroll = () => {
     const box = page.current;
     if (!box) return;
-    let at = "";
-    const secs = box.querySelectorAll<HTMLElement>("[data-sec]");
-    for (const el of secs) if (el.offsetTop - box.offsetTop - 24 <= box.scrollTop) at = el.dataset.sec!;
-    if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4) at = secs.item(secs.length - 1)?.dataset.sec ?? at;
+    // the first section, in reading order, that's still in view (with two columns, tops alone
+    // don't give the order)
+    const top = box.getBoundingClientRect().top + 24;
+    const secs = [...box.querySelectorAll<HTMLElement>("[data-sec]")];
+    let at = secs.find((el) => el.getBoundingClientRect().bottom > top)?.dataset.sec ?? "";
+    if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4 && box.scrollTop > 0) at = secs[secs.length - 1]?.dataset.sec ?? at;
     if (at && at !== inView) {
       setInView(at);
       const g = at.split("-")[0];
@@ -166,33 +168,38 @@ export function PropertyEditor(props: {
 
       <div className="pe-page" ref={page} onScroll={onScroll}>
         {many && <p className="pe-many">Editing {items.length} properties. A change here goes to all of them; a setting they don't share shows as Mixed.</p>}
-        {GROUPS.map((g) => {
-          const parts = shownParts(g);
-          if (!parts.length) return null;
-          return (
-            <section key={g.id} id={anchor(g.id)} data-sec={g.id} className="pe-group" aria-label={g.title}>
-              <h2 className="pe-group-title">{g.title}</h2>
-              <p className="pe-blurb">{g.blurb}</p>
-              <div className="pe-parts">
-                {parts.map(({ part, i, rows }) => (
-                  <div key={i} id={anchor(g.id, i)} data-sec={part.title ? `${g.id}-${i}` : g.id} className="pe-part">
-                    {part.title && <h3 className="pe-part-title">{part.title}</h3>}
-                    <div className="pe-card">{rows.map(row)}</div>
-                  </div>
-                ))}
+        {/* every card is a block in one flow, so the gap under each is the same, in one column or two
+            (on a wide page the blocks run down two columns, like a newspaper) */}
+        <div className="pe-flow">
+          {GROUPS.flatMap((g) => {
+            const parts = shownParts(g);
+            return parts.map(({ part, i, rows }, n) => (
+              <div key={`${g.id}-${i}`} id={n === 0 ? anchor(g.id) : undefined} data-sec={part.title ? `${g.id}-${i}` : g.id} className={`pe-block${n === 0 ? " is-first" : ""}`}>
+                {n === 0 && (
+                  <header className="pe-group-head" aria-label={g.title}>
+                    <h2 className="pe-group-title">{g.title}</h2>
+                    <p className="pe-blurb">{g.blurb}</p>
+                  </header>
+                )}
+                <div id={anchor(g.id, i)} className="pe-part">
+                  {part.title && <h3 className="pe-part-title">{part.title}</h3>}
+                  <div className="pe-card">{rows.map(row)}</div>
+                </div>
               </div>
-            </section>
-          );
-        })}
-        {showJson && (
-          <section id={anchor("json")} data-sec="json" className="pe-group" aria-label="JSON">
-            <h2 className="pe-group-title">JSON</h2>
-            <p className="pe-blurb">The whole property as Saturn stores it. Anything the groups don't cover can be changed here.</p>
-            <div className="pe-card is-pad">
-              <WholeJson draft={first.draft} onChange={(d) => props.onChange([d])} disabled={props.disabled} />
+            ));
+          })}
+          {showJson && (
+            <div id={anchor("json")} data-sec="json" className="pe-block is-first is-wide">
+              <header className="pe-group-head">
+                <h2 className="pe-group-title">JSON</h2>
+                <p className="pe-blurb">The whole property as Saturn stores it. Anything the groups don't cover can be changed here.</p>
+              </header>
+              <div className="pe-card is-pad">
+                <WholeJson draft={first.draft} onChange={(d) => props.onChange([d])} disabled={props.disabled} />
+              </div>
             </div>
-          </section>
-        )}
+          )}
+        </div>
         {q && !GROUPS.some((g) => shownParts(g).length) && !showJson && <p className="rs-empty">No setting matches “{find}”.</p>}
         <div className="pe-tail" />
       </div>
