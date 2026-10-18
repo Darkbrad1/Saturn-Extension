@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.15",
+    title: "Resources: saving the way the instance allows",
+    items: [
+      "Saving a resource uses the method the instance allows for it (PUT, PATCH or POST, never DELETE), and remembers the one that worked.",
+      "If the instance answers as if it made a new record instead, the save stops at once and says which record.",
+    ],
+  },
+  {
     version: "0.3.14",
     title: "Resources: finding how to save",
     items: [

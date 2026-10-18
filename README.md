@@ -1,4 +1,4 @@
-# sonover-code (v0.3.14)
+# sonover-code (v0.3.15)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.15 — Resources: saving the way the instance allows
+- loanapp.saturn.gd's check: `OPTIONS /api/Resources/Application` allows `HEAD, GET, POST, DELETE` (no PUT), `/api/Resources` `HEAD, GET`, no MCP server. So a save now asks `OPTIONS` first and uses the first of PUT, PATCH, POST the address allows — never DELETE — and remembers the method that worked (`globalState` `sonover.resourceSaveMethod.<id>`; forgotten again on a 405). The backup, the two body shapes and the read-back check are as before; if nothing changed and the reply looks like a created record (`{data: {id}}`), it stops after that one write and names the record. `hosttest-resources.cjs` covers it (26 checks).
 
 ## New in 0.3.14 — Resources: finding how to save
 - A real instance answered the save's `PUT /Resources/<name>` with 405: that address takes no PUT. A refused save now names what the address allows (the response's `Allow` header), and the error offers **Check what it takes** (`probe` in `host/resources.js`): read-only — `OPTIONS` on `/Resources/<name>` and `/Resources`, and the instance's own MCP server (`POST /api/mcp`: `initialize`, `tools/list` only), listing tools about resources / schemas / properties — shown with Copy. Nothing is written. `hosttest-resources.cjs` and `test13.mjs` cover it.
