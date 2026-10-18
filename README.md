@@ -1,4 +1,4 @@
-# sonover-code (v0.3.15)
+# sonover-code (v0.3.16)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.16 — Resources: what the instance answered
+- loanapp.saturn.gd took the save's POST (both shapes) but the resource stayed the same. A save that changes nothing now quotes the instance's answer to each attempt (300 characters each), and `createdRecordId` also recognises `{data: [{id}]}` and `{id}` replies.
 
 ## New in 0.3.15 — Resources: saving the way the instance allows
 - loanapp.saturn.gd's check: `OPTIONS /api/Resources/Application` allows `HEAD, GET, POST, DELETE` (no PUT), `/api/Resources` `HEAD, GET`, no MCP server. So a save now asks `OPTIONS` first and uses the first of PUT, PATCH, POST the address allows — never DELETE — and remembers the method that worked (`globalState` `sonover.resourceSaveMethod.<id>`; forgotten again on a 405). The backup, the two body shapes and the read-back check are as before; if nothing changed and the reply looks like a created record (`{data: {id}}`), it stops after that one write and names the record. `hosttest-resources.cjs` covers it (26 checks).

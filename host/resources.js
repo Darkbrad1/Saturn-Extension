@@ -129,8 +129,17 @@ var ResourcePropertiesHost = (() => {
 
   /** The id of a record a reply looks like it created ({data: {id: "application-…"}}), or null. */
   function createdRecordId(reply) {
-    const data = reply?.data;
-    return isObject(data) && typeof data.id === "string" && data.id ? data.id : null;
+    const data = Array.isArray(reply?.data) ? reply.data[0] : reply?.data;
+    for (const candidate of [data, reply]) {
+      if (isObject(candidate) && typeof candidate.id === "string" && candidate.id && !Array.isArray(candidate.data)) return candidate.id;
+    }
+    return null;
+  }
+
+  /** A reply, short enough to show: what the instance said to a write. */
+  function replyText(reply) {
+    const text = reply === null ? "(no JSON body)" : JSON.stringify(reply);
+    return text.length > 300 ? `${text.slice(0, 300)}…` : text;
   }
 
   /** Writes nextData over the current definition (backed up first) and checks the result. */
@@ -140,8 +149,10 @@ var ResourcePropertiesHost = (() => {
     const remembered = globalState?.get(shapeKey(instance));
     const shapes = remembered === "body" ? ["body", "data"] : ["data", "body"];
     let after = current, recordId = null;
+    const answers = [];
     for (const shape of shapes) {
       const reply = await write(manager, instance, resource, method, shape === "data" ? nextData : { ...current.body, data: nextData });
+      answers.push(`${method} with ${shape === "data" ? "the property list" : "the whole definition"}: ${replyText(reply)}`);
       after = await readResource(manager, instance, resource);
       if (!differences(nextData, after.data).length) {
         await globalState?.update(shapeKey(instance), shape);
@@ -166,7 +177,7 @@ var ResourcePropertiesHost = (() => {
       message: unchanged && recordId
         ? `The instance answered the ${method} as if it created a record (${recordId}) — the resource's properties are unchanged. That record may need deleting in Saturn.`
         : unchanged
-          ? `The instance took the ${method}, but the resource is unchanged: it doesn't seem to take changes this way.`
+          ? `The instance took the ${method}, but the resource is unchanged: it doesn't seem to take changes this way. It answered — ${answers.join(" · ")}`
           : `The resource changed differently from what was asked, in: ${wrong.slice(0, 12).join(", ")}${wrong.length > 12 ? "…" : ""}. You can put the backup back.`,
     };
   }

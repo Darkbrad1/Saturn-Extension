@@ -37,7 +37,7 @@ global.fetch = async (u, o = {}) => {
     if (method === "DELETE") { stored = null; return reply({ status: "SUCCESS" }); }
     const body = JSON.parse(o.body);
     if (mode === "refuse" || !allow.includes(method)) return new Response(JSON.stringify({ message: "no" }), { status: 405, headers: { "content-type": "application/json", allow: "GET, POST" } });
-    if (mode === "postRecord") return reply({ status: "SUCCESS", data: { id: "application-9", ...(Array.isArray(body) ? {} : body) } });
+    if (mode === "postRecord") return reply({ status: "SUCCESS", data: [{ id: "application-9", created_at: "now" }] });
     if (mode === "data" && Array.isArray(body)) stored = { ...stored, data: body };
     if (mode === "body" && body?.type === "resource") stored = body; // takes only the whole body; a bare list is ignored
     if (mode === "mangle" && Array.isArray(body)) stored = { ...stored, data: body.map((p) => ({ ...p, searchable: true })) };
@@ -90,6 +90,10 @@ const requiredOf = (key) => stored.data.find((p) => p.key === key).required;
   r = await ask("save", { resource: "Application", changes: [{ key: "loan_purpose", required: true }] });
   ok(r.type === "saved" && requiredOf("loan_purpose") === true, "when the list alone changes nothing, the whole body is tried once and works");
   ok(calls.filter(([m]) => m === "PUT").length === 2 && store.get("sonover.resourceSaveShape.i1") === "body", "two PUTs, and the body shape is remembered");
+  // an address that takes the write and changes nothing: the message shows its answers
+  reset("ignore"); store.clear();
+  r = await ask("save", { resource: "Application", changes: [{ key: "status", required: true }] });
+  ok(r.type === "saveMismatch" && r.payload.unchanged && /It answered — PUT with the property list: \{"status":"SUCCESS"\} · PUT with the whole definition/.test(r.payload.message), "a write that changes nothing shows what the instance answered: " + r.payload.message.slice(0, 160));
   calls.length = 0;
   r = await ask("save", { resource: "Application", changes: [{ key: "loan_purpose", required: false }] });
   ok(r.type === "saved" && calls.filter(([m]) => m === "PUT").length === 1, "next time the remembered shape goes first (one PUT)");

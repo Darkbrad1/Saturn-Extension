@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.16",
+    title: "Resources: what the instance answered",
+    items: [
+      "When a save is taken but changes nothing, the message shows what the instance answered to each attempt.",
+      "A reply that looks like a newly created record is recognised in more shapes.",
+    ],
+  },
+  {
     version: "0.3.15",
     title: "Resources: saving the way the instance allows",
     items: [
