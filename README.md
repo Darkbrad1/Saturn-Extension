@@ -1,4 +1,4 @@
-# sonover-code (v0.3.19)
+# sonover-code (v0.3.20)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,12 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.20 — Resources: one settings page with a side menu
+- Three columns: the properties list, the settings menu (`.pe-menu`: Find a setting, the groups with change counts, each group's sections under it, JSON) and one long page (`.pe-page`) with every group. The menu scrolls the page to a section and highlights the section in view; the search narrows the page to matching settings.
+- Rows like VS Code / Obsidian settings: name, description and "was … / Put back" on the left, the control on the right (big controls under the text). Sections are rounded cards.
+- On/off settings are switches (`Switch`: a checkbox with `role="switch"`); the long property lists keep checkboxes. The property type is three cards (`Cards`: String, Number, Boolean; another type a property already has shows as a fourth card), as are Static / Dynamic and the new property form's type. No round radio buttons.
+- Styled like the node view (its side panel's colours, inputs and buttons), not the VS Code theme. Save, Discard and the unsaved count moved to the top bar; Save's confirm shows under it. `test13.mjs` (57 checks).
 
 ## New in 0.3.19 — Resources: every setting of a property, and new properties
 - The right side of the Resources screen is now a full property editor (`src-res/editor.tsx`), drawn from a list of settings (`src-res/spec.ts`: each setting's path in the property, its control, and when it shows). Saturn's eight tabs are six groups here: General, Input, Data (Source + Lookup + Defaults), Display, Visibility, Access, plus JSON (the whole property). Settings show only when they apply; Find a setting searches all groups; a changed setting shows "was …" with Put back; tabs count their changes; "Undo all changes to it".

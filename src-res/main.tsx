@@ -7,8 +7,8 @@
 // being hidden (webview state), and the resource can't be switched while some are unsaved.
 import { createRoot } from "react-dom/client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PropertyEditor, type Field, type Lookups } from "./editor";
-import { KEY_PATTERN, diff, keyFrom, newProperty, type Prop } from "./spec";
+import { Cards, PropertyEditor, type Field, type Lookups } from "./editor";
+import { KEY_PATTERN, TYPES, diff, keyFrom, newProperty, type Prop } from "./spec";
 import css from "./res.css";
 
 declare function acquireVsCodeApi(): { postMessage: (m: unknown) => void; getState: () => unknown; setState: (s: unknown) => void };
@@ -267,8 +267,22 @@ function App() {
             Reload
           </button>
         )}
-        <button className="rs-btn rs-push" onClick={() => send("openBackups")}>Backups</button>
+        <span className="rs-push" />
+        {dirty && <span className="rs-unsaved">{saving ? "Saving…" : `Unsaved: ${summary.join(", ")}`}</span>}
+        <button className="rs-btn" onClick={() => send("openBackups")}>Backups</button>
+        {dirty && <button className="rs-btn" disabled={saving} onClick={discard}>Discard</button>}
+        <button className="rs-btn is-primary" disabled={!dirty || saving || confirming} onClick={() => setConfirming(true)}>Save</button>
       </header>
+
+      {dirty && confirming && (
+        <div className="rs-confirm" role="alertdialog" aria-label="Confirm saving">
+          <span>
+            Save {summary.join(", ")} to <b>{resource}</b> on {instanceName}? It applies to everyone using it. A backup is kept, and the change is checked after saving.
+          </span>
+          <button className="rs-btn" onClick={() => setConfirming(false)}>Cancel</button>
+          <button className="rs-btn is-primary" onClick={save}>Save</button>
+        </div>
+      )}
 
       {notice && (
         <div className={`rs-notice is-${notice.kind}`} role={notice.kind === "error" ? "alert" : "status"}>
@@ -313,9 +327,7 @@ function App() {
               <form className="rs-new" onSubmit={(e) => { e.preventDefault(); add(); }}>
                 <input className="pe-input" autoFocus placeholder="Label, like First Name" aria-label="New property label" value={adding.label} onChange={(e) => setAdding({ ...adding, label: e.target.value, key: adding.keyTouched ? adding.key : keyFrom(e.target.value) })} />
                 <input className="pe-input is-mono" placeholder="key, like first_name" aria-label="New property key" value={adding.key} onChange={(e) => setAdding({ ...adding, key: e.target.value, keyTouched: true })} />
-                <select className="pe-input" aria-label="New property type" value={adding.type} onChange={(e) => setAdding({ ...adding, type: e.target.value })}>
-                  {["string", "number", "boolean", "date", "array", "object"].map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <Cards label="New property type" value={adding.type} options={TYPES.map(([v, label]) => [v, label] as [string, string])} onPick={(type) => setAdding({ ...adding, type })} />
                 {addError && (adding.label || adding.key) && <span className="pe-error">{addError}</span>}
                 <div className="pe-btns">
                   <button type="button" className="rs-btn" onClick={() => setAdding(null)}>Cancel</button>
@@ -428,25 +440,6 @@ function App() {
         </div>
       )}
 
-      {dirty && (
-        <footer className="rs-bar">
-          {confirming ? (
-            <>
-              <span>
-                Save {summary.join(", ")} to <b>{resource}</b> on {instanceName}? It applies to everyone using it. A backup is kept, and the change is checked after saving.
-              </span>
-              <button className="rs-btn" onClick={() => setConfirming(false)}>Cancel</button>
-              <button className="rs-btn is-primary" onClick={save}>Save</button>
-            </>
-          ) : (
-            <>
-              <span>{saving ? "Saving…" : `Unsaved: ${summary.join(", ")}`}</span>
-              <button className="rs-btn" disabled={saving} onClick={discard}>Discard</button>
-              <button className="rs-btn is-primary" disabled={saving} onClick={() => setConfirming(true)}>Save</button>
-            </>
-          )}
-        </footer>
-      )}
     </div>
   );
 }

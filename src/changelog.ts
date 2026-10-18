@@ -1,6 +1,16 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.20",
+    title: "Resources: one settings page with a side menu",
+    items: [
+      "Three columns: the properties, a menu of the settings groups and their sections, and one long page with every setting, like VS Code's settings. The menu jumps to a section and follows as you scroll; its search narrows the page.",
+      "Each setting is a row: its name and description on the left, its control on the right. Sections are cards.",
+      "On/off settings are switches. The type is three cards (String, Number, Boolean), and so are Static and Dynamic: the chosen card is outlined.",
+      "The screen now looks like the node view. Save, Discard and the unsaved count are in the top bar, next to Backups.",
+    ],
+  },
+  {
     version: "0.3.19",
     title: "Resources: every setting of a property, and new properties",
     items: [

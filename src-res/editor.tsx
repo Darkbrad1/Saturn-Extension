@@ -1,8 +1,10 @@
-// The editor for one property, on the right of the Resources screen: its settings in groups
-// (spec.ts), each control showing its value as edited here, a dot and "was …" when it differs
-// from what the instance has, and a way to put it back. A search finds a setting in any group.
+// The editor for one property, on the right of the Resources screen: a menu of its setting groups
+// and their sections (spec.ts) beside one long page with all of them, like VS Code's settings.
+// The menu jumps to a section and follows the scrolling; its search narrows the page. Each row
+// has its name and hint on the left and its control on the right (switches for on/off, cards for
+// a few choices), a dot and "was …" when it differs from what the instance has, and Put back.
 // Everything is local until the screen's Save.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { HighlightInput } from "../src/controls";
 import { ALL, GROUPS, get, type Group, type Path, type Prop, type Setting } from "./spec";
 
@@ -42,18 +44,24 @@ export function changedIn(group: Group, original: Prop, draft: Prop) {
 /** Inside a part that was just switched on (a new map, a new rule), only the switch counts as a change. */
 const isQuiet = (setting: Setting, original: Prop) => setting.path.length > 1 && get(original, setting.path.slice(0, -1)) === undefined;
 
+/** The anchor id of a group or a part of it on the page. */
+const anchor = (group: string, part?: number) => `pe-sec-${group}${part === undefined ? "" : `-${part}`}`;
+
 export function PropertyEditor(props: {
   original: Prop;
   draft: Prop;
   onChange: (draft: Prop) => void;
   lookups: Lookups;
   disabled: boolean;
+  /** the group shown when it opens (and remembered as you scroll) */
   group: string;
   onGroup: (id: string) => void;
 }) {
   const { original, draft } = props;
   const [find, setFind] = useState("");
-  const group = GROUPS.find((g) => g.id === props.group) ?? GROUPS[0];
+  // the part of the page in view: "group" or "group-part"
+  const [inView, setInView] = useState(props.group);
+  const page = useRef<HTMLDivElement>(null);
   const set = (path: Path, value: unknown, remove = false) => {
     // "not set" again when it wasn't set before
     if (!remove && value === "" && get(original, path) === undefined) remove = true;
@@ -65,56 +73,109 @@ export function PropertyEditor(props: {
   };
 
   const q = find.trim().toLowerCase();
-  const found = q ? ALL.filter(({ setting }) => `${setting.label} ${setting.hint ?? ""} ${setting.path.join(".")}`.toLowerCase().includes(q)) : [];
+  const matches = (s: Setting) => !q || `${s.label} ${s.hint ?? ""} ${s.edit.kind === "bool" ? s.edit.hint ?? "" : ""} ${s.path.join(".")}`.toLowerCase().includes(q);
   const otherChanges = !same(stripKnown(original), stripKnown(draft));
+  // what the page shows: each group's parts, with the rows that apply (and match the search)
+  const shownParts = (g: Group) =>
+    g.parts
+      .map((part, i) => ({ part, i, rows: part.settings.filter((s) => (!s.when || s.when(draft) || !same(get(original, s.path), get(draft, s.path))) && matches(s)) }))
+      .filter((x) => x.rows.length);
+  const showJson = !q || "json whole property".includes(q);
 
-  const row = (setting: Setting, groupTitle?: string) => (
-    <SettingRow key={setting.path.join(".") + setting.label} setting={setting} groupTitle={groupTitle} original={original} draft={draft} set={set} revert={revert} lookups={props.lookups} disabled={props.disabled} />
+  const jump = (id: string) => {
+    const el = page.current?.querySelector<HTMLElement>(`#${id}`);
+    if (el && page.current) page.current.scrollTo({ top: el.offsetTop - page.current.offsetTop - 8 });
+    setInView(id.replace("pe-sec-", ""));
+  };
+  // open where it was left
+  useEffect(() => {
+    if (props.group && props.group !== "general") jump(anchor(props.group));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // the menu follows the scrolling: the last section whose top has passed the top of the page
+  const onScroll = () => {
+    const box = page.current;
+    if (!box) return;
+    let at = "";
+    for (const el of box.querySelectorAll<HTMLElement>("[data-sec]")) if (el.offsetTop - box.offsetTop - 24 <= box.scrollTop) at = el.dataset.sec!;
+    if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4) at = box.querySelectorAll<HTMLElement>("[data-sec]").item(box.querySelectorAll("[data-sec]").length - 1)?.dataset.sec ?? at;
+    if (at && at !== inView) {
+      setInView(at);
+      const g = at.split("-")[0];
+      if (g !== props.group) props.onGroup(g);
+    }
+  };
+  const activeGroup = inView.split("-")[0];
+
+  const row = (setting: Setting) => (
+    <SettingRow key={setting.path.join(".") + setting.label} setting={setting} original={original} draft={draft} set={set} revert={revert} lookups={props.lookups} disabled={props.disabled} />
   );
 
   return (
     <div className="pe">
-      <div className="pe-nav" role="tablist" aria-label="Settings">
+      <nav className="pe-menu" aria-label="Settings">
+        <input className="pe-input pe-find" placeholder="Find a setting" aria-label="Find a setting" value={find} onChange={(e) => setFind(e.target.value)} />
         {GROUPS.map((g) => {
+          const parts = shownParts(g);
+          if (!parts.length) return null;
           const n = changedIn(g, original, draft);
+          const open = activeGroup === g.id || !!q;
+          const titled = parts.filter((x) => x.part.title);
           return (
-            <button key={g.id} role="tab" aria-selected={!q && g.id === group.id} className={`pe-tab${!q && g.id === group.id ? " is-on" : ""}`} onClick={() => { setFind(""); props.onGroup(g.id); }}>
-              {g.title}
-              {n > 0 && <span className="pe-count" title={`${n} changed`}>{n}</span>}
-            </button>
+            <div key={g.id} className={`pe-menu-group${open ? " is-open" : ""}`}>
+              <button className={`pe-menu-item${activeGroup === g.id && !inView.includes("-") ? " is-on" : ""}`} aria-current={activeGroup === g.id ? "true" : undefined} onClick={() => jump(anchor(g.id))}>
+                <span>{g.title}</span>
+                {n > 0 && <span className="pe-count" title={`${n} changed`}>{n}</span>}
+                {titled.length > 0 && <span className="pe-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>}
+              </button>
+              {open &&
+                titled.map(({ part, i }) => (
+                  <button key={i} className={`pe-menu-sub${inView === `${g.id}-${i}` ? " is-on" : ""}`} onClick={() => jump(anchor(g.id, i))}>
+                    {part.title}
+                  </button>
+                ))}
+            </div>
           );
         })}
-        <button role="tab" aria-selected={!q && props.group === "json"} className={`pe-tab${!q && props.group === "json" ? " is-on" : ""}`} onClick={() => { setFind(""); props.onGroup("json"); }}>
-          JSON
-          {otherChanges && <span className="pe-count" title="Changed outside the groups">•</span>}
-        </button>
-        <input className="rs-search pe-find" placeholder="Find a setting" aria-label="Find a setting" value={find} onChange={(e) => setFind(e.target.value)} />
-      </div>
+        {showJson && (
+          <div className="pe-menu-group">
+            <button className={`pe-menu-item${activeGroup === "json" ? " is-on" : ""}`} onClick={() => jump(anchor("json"))}>
+              <span>JSON</span>
+              {otherChanges && <span className="pe-count" title="Changed outside the groups">•</span>}
+            </button>
+          </div>
+        )}
+      </nav>
 
-      {q ? (
-        <div className="pe-body">
-          {found.length ? found.map(({ group: g, setting }) => row(setting, g.title)) : <p className="rs-empty">No setting matches “{find}”.</p>}
-        </div>
-      ) : props.group === "json" ? (
-        <div className="pe-body">
-          <p className="pe-blurb">The whole property as Saturn stores it. Anything the groups don't cover can be changed here.</p>
-          <WholeJson draft={draft} onChange={props.onChange} disabled={props.disabled} />
-        </div>
-      ) : (
-        <div className="pe-body">
-          <p className="pe-blurb">{group.blurb}</p>
-          {group.parts.map((part, i) => {
-            const rows = part.settings.filter((s) => !s.when || s.when(draft) || !same(get(original, s.path), get(draft, s.path)));
-            if (!rows.length) return null;
-            return (
-              <div key={i} className={`pe-part${part.grid ? " is-grid" : ""}`}>
-                {part.title && <div className="pe-part-title">{part.title}</div>}
-                <div className="pe-part-rows">{rows.map((s) => row(s))}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div className="pe-page" ref={page} onScroll={onScroll}>
+        {GROUPS.map((g) => {
+          const parts = shownParts(g);
+          if (!parts.length) return null;
+          return (
+            <section key={g.id} id={anchor(g.id)} data-sec={g.id} className="pe-group" aria-label={g.title}>
+              <h2 className="pe-group-title">{g.title}</h2>
+              <p className="pe-blurb">{g.blurb}</p>
+              {parts.map(({ part, i, rows }) => (
+                <div key={i} id={anchor(g.id, i)} data-sec={part.title ? `${g.id}-${i}` : g.id} className="pe-part">
+                  {part.title && <h3 className="pe-part-title">{part.title}</h3>}
+                  <div className="pe-card">{rows.map(row)}</div>
+                </div>
+              ))}
+            </section>
+          );
+        })}
+        {showJson && (
+          <section id={anchor("json")} data-sec="json" className="pe-group" aria-label="JSON">
+            <h2 className="pe-group-title">JSON</h2>
+            <p className="pe-blurb">The whole property as Saturn stores it. Anything the groups don't cover can be changed here.</p>
+            <div className="pe-card is-pad">
+              <WholeJson draft={draft} onChange={props.onChange} disabled={props.disabled} />
+            </div>
+          </section>
+        )}
+        {q && !GROUPS.some((g) => shownParts(g).length) && !showJson && <p className="rs-empty">No setting matches “{find}”.</p>}
+        <div className="pe-tail" />
+      </div>
     </div>
   );
 }
@@ -128,7 +189,6 @@ function stripKnown(p: Prop) {
 
 function SettingRow(props: {
   setting: Setting;
-  groupTitle?: string;
   original: Prop;
   draft: Prop;
   set: (path: Path, value: unknown, remove?: boolean) => void;
@@ -143,36 +203,44 @@ function SettingRow(props: {
   const quiet = isQuiet(setting, original);
   const id = `pe-${setting.path.join("-")}`;
   const edit = setting.edit;
-  const inline = edit.kind === "bool";
-  const control = <Control setting={setting} id={id} value={value} draft={draft} set={set} lookups={props.lookups} disabled={props.disabled} />;
+  const hint = setting.hint ?? (edit.kind === "bool" ? edit.hint : undefined);
+  // big controls (code, lists, cards…) go under the text; small ones on the right of it
+  const wide = ["textarea", "code", "json", "tags", "csv", "fields", "ownFields", "choice", "cards"].includes(edit.kind);
   return (
-    <div className={`pe-row${inline ? " is-inline" : ""}${changed ? " is-changed" : ""}`}>
-      {inline ? (
-        <label className="pe-check" htmlFor={id}>
-          {control}
-          <span>
-            <span className="pe-label">{setting.label}</span>
-            {props.groupTitle && <span className="pe-where">{props.groupTitle}</span>}
-            {(setting.hint || (edit.kind === "bool" && edit.hint)) && <span className="pe-hint">{setting.hint ?? (edit.kind === "bool" ? edit.hint : "")}</span>}
+    <div className={`pe-row${wide ? " is-wide" : ""}${changed && !quiet ? " is-changed" : ""}`}>
+      <div className="pe-text">
+        <label className="pe-label" htmlFor={id}>{setting.label}</label>
+        {hint && <span className="pe-hint">{hint}</span>}
+        {changed && !quiet && (
+          <span className="pe-was">
+            <span className="rs-dot is-inline" />
+            was {short(show(setting.toggles ? before !== undefined : before))}
+            <button className="rs-link" disabled={props.disabled} onClick={() => props.revert(setting.path)}>Put back</button>
           </span>
-        </label>
-      ) : (
-        <>
-          <label className="pe-label" htmlFor={id}>
-            {setting.label}
-            {props.groupTitle && <span className="pe-where">{props.groupTitle}</span>}
-          </label>
-          {setting.hint && <span className="pe-hint">{setting.hint}</span>}
-          {control}
-        </>
-      )}
-      {changed && !quiet && (
-        <div className="pe-was">
-          <span className="rs-dot is-inline" />
-          was {short(show(setting.toggles ? before !== undefined : before))}
-          <button className="rs-link" disabled={props.disabled} onClick={() => props.revert(setting.path)}>Put back</button>
-        </div>
-      )}
+        )}
+      </div>
+      <div className="pe-control">
+        <Control setting={setting} id={id} value={value} draft={draft} set={set} lookups={props.lookups} disabled={props.disabled} />
+      </div>
+    </div>
+  );
+}
+
+/** An on/off switch (a checkbox underneath, so it works with the keyboard and labels). */
+export function Switch(props: { id?: string; on: boolean; label: string; disabled?: boolean; onSet: (on: boolean) => void }) {
+  return <input id={props.id} type="checkbox" role="switch" className="pe-switch" checked={props.on} aria-checked={props.on} aria-label={props.label} disabled={props.disabled} onChange={(e) => props.onSet(e.target.checked)} />;
+}
+
+/** One of a few choices, as cards: the chosen one is outlined. */
+export function Cards(props: { label: string; value: string; options: [string, string, string?][]; disabled?: boolean; onPick: (v: string) => void }) {
+  return (
+    <div className="pe-cards" role="radiogroup" aria-label={props.label}>
+      {props.options.map(([v, title, hint]) => (
+        <button key={v} type="button" role="radio" aria-checked={props.value === v} className={`pe-card-choice${props.value === v ? " is-on" : ""}`} disabled={props.disabled} onClick={() => props.onPick(v)}>
+          <b>{title}</b>
+          {hint && <small>{hint}</small>}
+        </button>
+      ))}
     </div>
   );
 }
@@ -186,9 +254,9 @@ function Control(props: { setting: Setting; id: string; value: unknown; draft: P
     case "bool":
       if (setting.toggles) {
         const on = value !== undefined && value !== null;
-        return <input id={id} type="checkbox" checked={on} disabled={disabled} aria-label={setting.label} onChange={(e) => (e.target.checked ? set(path, setting.toggles!.on) : set(path, undefined, true))} />;
+        return <Switch id={id} on={on} label={setting.label} disabled={disabled} onSet={(v) => (v ? set(path, setting.toggles!.on) : set(path, undefined, true))} />;
       }
-      return <input id={id} type="checkbox" checked={value === true} disabled={disabled} aria-label={setting.label} onChange={(e) => set(path, e.target.checked)} />;
+      return <Switch id={id} on={value === true} label={setting.label} disabled={disabled} onSet={(v) => set(path, v)} />;
     case "text":
       return <input id={id} className={`pe-input${edit.mono ? " is-mono" : ""}`} value={str} placeholder={edit.placeholder} disabled={disabled} onChange={(e) => set(path, e.target.value)} />;
     case "textarea":
@@ -198,16 +266,12 @@ function Control(props: { setting: Setting; id: string; value: unknown; draft: P
     case "select":
       return <Select id={id} value={str} options={edit.options} disabled={disabled} onPick={(v) => set(path, v)} />;
     case "choice":
-      return (
-        <div className="pe-choices" role="radiogroup" aria-label={setting.label}>
-          {edit.options.map(([v, label, hint]) => (
-            <label key={v} className={`pe-choice${(str || "static") === v ? " is-on" : ""}`}>
-              <input type="radio" name={id} checked={(str || "static") === v} disabled={disabled} onChange={() => set(path, v)} />
-              <span><b>{label}</b>{hint && <small>{hint}</small>}</span>
-            </label>
-          ))}
-        </div>
-      );
+      return <Cards label={setting.label} value={str || "static"} options={edit.options} disabled={disabled} onPick={(v) => set(path, v)} />;
+    case "cards": {
+      // a value the cards don't list (a type set elsewhere) is shown as one more card
+      const options = edit.options.some(([v]) => v === str) || !str ? edit.options : [...edit.options, [str, str] as [string, string]];
+      return <Cards label={setting.label} value={str} options={options} disabled={disabled} onPick={(v) => set(path, v)} />;
+    }
     case "tags":
       return <Tags id={id} tags={Array.isArray(value) ? value.map(String) : []} placeholder={edit.placeholder} disabled={disabled} onSet={(t) => set(path, t)} />;
     case "csv":

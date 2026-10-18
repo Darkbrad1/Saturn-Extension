@@ -16,7 +16,8 @@ export type Kind =
   | { kind: "number"; min?: number; max?: number; step?: number }
   | { kind: "bool"; hint?: string }
   | { kind: "select"; options: [string, string][] }
-  | { kind: "choice"; options: [string, string, string?][] } // big radio cards: value, label, hint
+  | { kind: "choice"; options: [string, string, string?][] } // cards: value, label, hint
+  | { kind: "cards"; options: [string, string, string?][] } // cards, no default value
   | { kind: "tags"; placeholder?: string }
   | { kind: "csv" } // a comma-separated list, edited as tags
   | { kind: "code"; lang: "javascript" | "html"; empty: string }
@@ -44,8 +45,7 @@ export interface Group {
   title: string;
   /** what the group is for, in one line */
   blurb: string;
-  /** grid: switches side by side */
-  parts: { title?: string; grid?: boolean; settings: Setting[] }[];
+  parts: { title?: string; settings: Setting[] }[];
 }
 
 export const get = (o: unknown, path: Path): unknown =>
@@ -76,6 +76,13 @@ const RENDERERS: [string, string][] = [
   ["FileManagerUploader", "File manager"],
 ];
 
+/** The types a property can be given here (another type a property already has is kept). */
+export const TYPES: [string, string, string][] = [
+  ["string", "String", "Text"],
+  ["number", "Number", "A number"],
+  ["boolean", "Boolean", "On or off"],
+];
+
 const NEW_FUNCTION = "(res,{user,setting})=>{\n  return true\n}";
 
 export const GROUPS: Group[] = [
@@ -92,14 +99,13 @@ export const GROUPS: Group[] = [
             path: ["type"],
             label: "Type",
             hint: "What kind of value it holds.",
-            edit: { kind: "select", options: [["string", "string"], ["number", "number"], ["boolean", "boolean"], ["date", "date"], ["array", "array"], ["object", "object"]] },
+            edit: { kind: "cards", options: TYPES },
           },
           { path: ["meta_tags"], label: "Meta tags", edit: { kind: "tags", placeholder: "Type a tag, press Enter" } },
         ],
       },
       {
         title: "Rules",
-        grid: true,
         settings: [
           { path: ["required"], label: "Required", edit: { kind: "bool", hint: "Must be filled in on forms." } },
           { path: ["unique"], label: "Unique", edit: { kind: "bool", hint: "No two records can have the same value." } },
@@ -314,7 +320,6 @@ export const GROUPS: Group[] = [
     parts: [
       {
         title: "Hide in",
-        grid: true,
         settings: [
           { path: ["hideInForm"], label: "Forms", edit: { kind: "bool" } },
           { path: ["hideInForm_edit"], label: "Edit forms", edit: { kind: "bool" } },
