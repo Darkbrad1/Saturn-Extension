@@ -5,16 +5,13 @@
  * A resource's definition is GET /Resources/<name> -> {type: "resource", data: [{key, label,
  * type, required, …}, …]} (a list of properties, each with its key; some instances may send a
  * {<key>: {…}} map instead — both are read, and written back in the shape they came in).
- * Saturn's way of saving one isn't documented, so a save is careful:
+ * Saving is what Saturn's own app does (seen in its network traffic): PUT /resources/<name>/schema
+ * with {data: "<JSON text of {<property key>: <property without its key>, …}>"} — the whole schema.
+ * A save is careful:
  *   1. read the definition again (never write over someone else's newer change);
  *   2. back it up to <global storage>/resource-backups/<instance id>/<resource>-<time>.json;
- *   3. send it to /Resources/<name> — with the first of PUT, PATCH, POST the address allows
- *      (OPTIONS; never DELETE; the one that worked is remembered) — only the chosen properties'
- *      `required` changed — first as
- *      the `data` alone (the way a workflow is saved), and if the instance takes that but nothing
- *      changes, once more as the whole {type, data} body; the shape that worked is remembered;
- *   4. read it back and check exactly those changed and nothing else (if nothing changed and the
- *      reply looks like a created record, stop at once and say so).
+ *   3. write it with only the chosen properties' `required` changed;
+ *   4. read it back and check exactly those changed and nothing else.
  * If the instance refuses, nothing changed. If the read-back differs in any other way, the screen
  * says how and offers to put the backup back (the same careful write and check).
  * When a save is refused, `probe` (read-only: OPTIONS, and the instance's MCP initialize +
@@ -25,9 +22,6 @@ var ResourcePropertiesHost = (() => {
   const panels = new Map(); // instance id -> panel
   const isObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
   let storageUri = null;
-  let globalState = null;
-  const shapeKey = (instance) => `sonover.resourceSaveShape.${instance.id}`;
-  const methodKey = (instance) => `sonover.resourceSaveMethod.${instance.id}`;
 
   /** GET /Resources/<name> -> {body, data} (data: the property list or map). */
   async function readResource(manager, instance, resource) {
@@ -90,50 +84,21 @@ var ResourcePropertiesHost = (() => {
     return file;
   }
 
-  /** The method a resource is saved with on this instance: the remembered one, else the first of
-   *  PUT, PATCH, POST that OPTIONS /Resources/<name> says the address takes (PUT if it says nothing).
-   *  DELETE is never used. */
-  async function saveMethod(manager, instance, resource) {
-    const remembered = globalState?.get(methodKey(instance));
-    if (remembered) return remembered;
-    let allowed = "";
-    try {
-      const response = await saturnRequest(manager, instance, `/Resources/${encodeURIComponent(resource)}`, { method: "OPTIONS", signal: AbortSignal.timeout(8000) });
-      allowed = allowedMethods(response).toUpperCase();
-    } catch {}
-    const methods = allowed.split(/[\s,]+/);
-    return ["PUT", "PATCH", "POST"].find((m) => methods.includes(m)) ?? "PUT";
-  }
-
-  /** One write; throws (and nothing was written) if the instance refuses. Returns its reply body. */
-  async function write(manager, instance, resource, method, payload) {
-    const what = `Save resource ${resource}`;
-    let response;
-    try {
-      response = await saturnRequest(manager, instance, `/Resources/${encodeURIComponent(resource)}`, { method, body: JSON.stringify(payload) });
-    } catch (error) {
-      throw new Error(`${what}: ${error instanceof Error ? error.message : String(error)}. Nothing was changed.`);
+  /** The definition in the shape Saturn saves it: {<property key>: <property without its key>}.
+   *  (GET answers with a list whose items carry their key; Saturn's own app saves this map.)
+   *  Throws if a property has no key — it couldn't be saved under one. */
+  function schemaMap(data) {
+    const map = {};
+    for (const [key, property] of entriesOf(data)) {
+      if (key.startsWith("#")) throw new Error("A property of this resource has no key, so it can't be saved from here. Nothing was changed.");
+      if (isObject(property)) {
+        const { key: _key, ...rest } = property;
+        map[key] = rest;
+      } else {
+        map[key] = property;
+      }
     }
-    if (!response.ok) {
-      const allowed = allowedMethods(response);
-      // a remembered method that stopped working is forgotten, so the next save asks again
-      if (response.status === 405) await globalState?.update(methodKey(instance), undefined);
-      throw new Error(response.status === 404 || response.status === 405
-        ? `This instance doesn't accept changes to resources at /Resources/${resource} with ${method} (${response.status}${allowed ? `; it allows ${allowed}` : ""}). Nothing was changed.`
-        : `${what} (${method}): ${response.status} ${response.statusText}. Nothing was changed.`);
-    }
-    const reply = await response.json().catch(() => null);
-    if (reply?.status === "FAILURE") throw new Error(`${what}: ${typeof reply.message === "string" ? reply.message : "the instance refused"}. Nothing was changed.`);
-    return reply;
-  }
-
-  /** The id of a record a reply looks like it created ({data: {id: "application-…"}}), or null. */
-  function createdRecordId(reply) {
-    const data = Array.isArray(reply?.data) ? reply.data[0] : reply?.data;
-    for (const candidate of [data, reply]) {
-      if (isObject(candidate) && typeof candidate.id === "string" && candidate.id && !Array.isArray(candidate.data)) return candidate.id;
-    }
-    return null;
+    return map;
   }
 
   /** A reply, short enough to show: what the instance said to a write. */
@@ -142,43 +107,45 @@ var ResourcePropertiesHost = (() => {
     return text.length > 300 ? `${text.slice(0, 300)}…` : text;
   }
 
+  /** The save Saturn's own app makes: PUT /resources/<name>/schema {data: "<the schema map as
+   *  JSON text>"} — the whole definition. Throws (nothing written) if the instance refuses;
+   *  returns its reply body. */
+  async function write(manager, instance, resource, data) {
+    const what = `Save resource ${resource}`;
+    const body = JSON.stringify({ data: JSON.stringify(schemaMap(data)) });
+    let response;
+    try {
+      response = await saturnRequest(manager, instance, `/resources/${encodeURIComponent(resource)}/schema`, { method: "PUT", body });
+    } catch (error) {
+      throw new Error(`${what}: ${error instanceof Error ? error.message : String(error)}. Nothing was changed.`);
+    }
+    if (!response.ok) {
+      const allowed = allowedMethods(response);
+      throw new Error(response.status === 404 || response.status === 405
+        ? `This instance doesn't accept changes to resources at /resources/${resource}/schema (${response.status}${allowed ? `; it allows ${allowed}` : ""}). Nothing was changed.`
+        : `${what}: ${response.status} ${response.statusText}. Nothing was changed.`);
+    }
+    const reply = await response.json().catch(() => null);
+    if (reply?.status === "FAILURE") throw new Error(`${what}: ${typeof reply.message === "string" ? reply.message : "the instance refused"}. Nothing was changed.`);
+    return reply;
+  }
+
   /** Writes nextData over the current definition (backed up first) and checks the result. */
   async function writeChecked(manager, instance, resource, current, nextData) {
     const backupFile = await backup(instance, resource, current.body);
-    const method = await saveMethod(manager, instance, resource);
-    const remembered = globalState?.get(shapeKey(instance));
-    const shapes = remembered === "body" ? ["body", "data"] : ["data", "body"];
-    let after = current, recordId = null;
-    const answers = [];
-    for (const shape of shapes) {
-      const reply = await write(manager, instance, resource, method, shape === "data" ? nextData : { ...current.body, data: nextData });
-      answers.push(`${method} with ${shape === "data" ? "the property list" : "the whole definition"}: ${replyText(reply)}`);
-      after = await readResource(manager, instance, resource);
-      if (!differences(nextData, after.data).length) {
-        await globalState?.update(shapeKey(instance), shape);
-        await globalState?.update(methodKey(instance), method);
-        return { ok: true, backup: backupFile.fsPath, data: after.data };
-      }
-      // taken but changed something else: stop, don't write again
-      if (differences(current.data, after.data).length) break;
-      // nothing changed, and the reply looks like a new record: that's what this address does with
-      // a POST, so stop rather than make another
-      recordId = createdRecordId(reply);
-      if (recordId) break;
-      // taken but nothing changed: try the other shape once
-    }
-    const unchanged = differences(current.data, after.data).length === 0;
+    const reply = await write(manager, instance, resource, nextData);
+    const after = await readResource(manager, instance, resource);
     const wrong = differences(nextData, after.data);
+    if (!wrong.length) return { ok: true, backup: backupFile.fsPath, data: after.data };
+    const unchanged = differences(current.data, after.data).length === 0;
     return {
       ok: false,
       backup: backupFile.fsPath,
       data: after.data,
       unchanged,
-      message: unchanged && recordId
-        ? `The instance answered the ${method} as if it created a record (${recordId}) — the resource's properties are unchanged. That record may need deleting in Saturn.`
-        : unchanged
-          ? `The instance took the ${method}, but the resource is unchanged: it doesn't seem to take changes this way. It answered — ${answers.join(" · ")}`
-          : `The resource changed differently from what was asked, in: ${wrong.slice(0, 12).join(", ")}${wrong.length > 12 ? "…" : ""}. You can put the backup back.`,
+      message: unchanged
+        ? `The instance answered, but the resource is unchanged. It answered: ${replyText(reply)}`
+        : `The resource changed differently from what was asked, in: ${wrong.slice(0, 12).join(", ")}${wrong.length > 12 ? "…" : ""}. You can put the backup back.`,
     };
   }
 
@@ -351,10 +318,9 @@ var ResourcePropertiesHost = (() => {
     panel.webview.html = html(panel, extensionUri);
   }
 
-  /** At command registration: where backups go, and where the working save shape is remembered. */
+  /** At command registration: where backups go. */
   function attach(options) {
     storageUri = options.globalStorageUri ?? null;
-    globalState = options.globalState ?? null;
   }
 
   return { open, attach, handle, propertiesOf, applyRequired, differences, entriesOf };

@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.17",
+    title: "Resources: saving the way Saturn does",
+    items: [
+      "Saving a resource now makes the same request Saturn's own app makes: the whole schema, with only the Required changes, to the resource's schema address.",
+      "The backup before saving, the check after it and Restore backup are as before; the guessing of other ways to save is gone.",
+    ],
+  },
+  {
     version: "0.3.16",
     title: "Resources: what the instance answered",
     items: [

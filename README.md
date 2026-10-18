@@ -1,4 +1,4 @@
-# sonover-code (v0.3.16)
+# sonover-code (v0.3.17)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.17 — Resources: saving the way Saturn does
+- From Saturn's own app's network traffic: a resource is saved with `PUT /api/resources/<name>/schema` and the body `{"data": "<JSON text of {<property key>: <property without its key>, …}>"}` — the whole schema, as a map keyed by property, sent as a JSON string. `host/resources.js` now does exactly that (`schemaMap` turns GET's list back into the map); the method / shape guessing (OPTIONS, POST, the two bodies, remembered settings) is gone. Backup, read-back check and Restore stay. `hosttest-resources.cjs` (18 checks) models the real endpoint.
 
 ## New in 0.3.16 — Resources: what the instance answered
 - loanapp.saturn.gd took the save's POST (both shapes) but the resource stayed the same. A save that changes nothing now quotes the instance's answer to each attempt (300 characters each), and `createdRecordId` also recognises `{data: [{id}]}` and `{id}` replies.
