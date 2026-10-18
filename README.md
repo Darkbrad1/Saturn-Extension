@@ -1,4 +1,4 @@
-# sonover-code (v0.3.23)
+# sonover-code (v0.3.24)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.24 — Resources: one column of settings
+- The two-column layout is gone: `.pe-flow` is one column of blocks at any width (the cards stretch to the page's width), with the same gap under every card. `test14.mjs` (29) checks it at 1900 px.
 
 ## New in 0.3.23 — Resources: even gaps in two columns, core resources listed last
 - The settings page is one flow of blocks (`.pe-flow`; a block is a card, the first of a group carries its heading). On a page 1150 px wide or more it uses CSS columns, so the cards run down the left column then the right, and every card has the same gap under it (the grid made each row as tall as its taller card). The menu now follows the first section in reading order that's still in view.

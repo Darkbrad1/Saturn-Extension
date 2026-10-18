@@ -118,10 +118,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* column 3: one long page, sections as cards (like VS Code / Obsidian settings) */
 .pe-page { flex: 1; min-width: 0; overflow: auto; padding: 14px 22px 0; scroll-behavior: auto; }
 .pe-page { container-type: inline-size; }
-/* one flow of blocks (a card, the first of a group with its heading); on a wide page they run
-   down two columns, so the gap under every card is the same */
-.pe-flow { column-count: 1; column-gap: 18px; }
-@container (min-width: 1150px) { .pe-flow { column-count: 2; } }
+/* one column of blocks (a card, the first of a group with its heading), the full width of the
+   page, with the same gap under every card */
+.pe-flow { display: flex; flex-direction: column; }
 .pe-block { break-inside: avoid; padding-bottom: 16px; }
 .pe-block.is-first .pe-group-head { padding-top: 4px; }
 .pe-block.is-wide { column-span: all; }

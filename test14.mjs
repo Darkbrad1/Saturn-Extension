@@ -1,7 +1,7 @@
 // v0.3.22: the Resources screen with several properties picked (one change goes to all, Mixed,
 // moving them together), the right-click menu (duplicate, copy / paste settings, delete /
 // restore), chips for mapped properties with jumping there and back, each resource keeping its
-// own unsaved changes, and the sections side by side on a wide page.
+// own unsaved changes, and one column of cards with even gaps (0.3.24).
 import { chromium } from "playwright";
 const out = process.env.SHOTS ?? "shots";
 const b = await chromium.launch({ executablePath: process.env.CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
@@ -112,9 +112,8 @@ await p.getByRole("button", { name: "‹ Back" }).click();
 await p.waitForTimeout(300);
 ok((await p.locator(".rs-select select").inputValue()) === "Loan", "Back goes back too");
 
-// ===== the page uses its width, with the same gap under every card =====
+// ===== one column, the full width, with the same gap under every card =====
 await item("Amount").click();
-const columns = () => p.evaluate(() => Number(getComputedStyle(document.querySelector(".pe-flow")).columnCount));
 const gaps = () =>
   p.evaluate(() => {
     // the space from each card to the next block below it, in the same column
@@ -127,12 +126,11 @@ const gaps = () =>
     for (let i = 1; i < blocks.length; i++) if (blocks[i].left === blocks[i - 1].left) out.push(Math.round(blocks[i].top - blocks[i - 1].cardBottom));
     return out;
   });
-const wide = await p.evaluate(() => document.querySelector(".pe-page").clientWidth);
-ok(wide < 1150 ? (await columns()) === 1 : (await columns()) === 2, `one column on a narrow page, two on a wide one (${wide}px: ${await columns()})`);
 await p.setViewportSize({ width: 1900, height: 900 });
 await p.waitForTimeout(200);
+const lefts = await p.evaluate(() => [...new Set([...document.querySelectorAll(".pe-flow > .pe-block")].map((el) => Math.round(el.getBoundingClientRect().left)))]);
 const g = await gaps();
-ok((await columns()) === 2 && g.length > 2 && g.every((x) => x === g[0]), `on a wide page the cards run down two columns with the same gap under each (${g.join(", ")} px)`);
+ok(lefts.length === 1 && g.length > 2 && g.every((x) => x === g[0]), `even on a wide page it's one column, with the same gap under each card (${g.join(", ")} px)`);
 await p.screenshot({ path: out + "/m3-wide.png" });
 
 // ===== the resource picker: the instance's own resources first, then the core ones =====

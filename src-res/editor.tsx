@@ -112,8 +112,7 @@ export function PropertyEditor(props: {
   const onScroll = () => {
     const box = page.current;
     if (!box) return;
-    // the first section, in reading order, that's still in view (with two columns, tops alone
-    // don't give the order)
+    // the first section, in reading order, that's still in view
     const top = box.getBoundingClientRect().top + 24;
     const secs = [...box.querySelectorAll<HTMLElement>("[data-sec]")];
     let at = secs.find((el) => el.getBoundingClientRect().bottom > top)?.dataset.sec ?? "";
@@ -168,8 +167,7 @@ export function PropertyEditor(props: {
 
       <div className="pe-page" ref={page} onScroll={onScroll}>
         {many && <p className="pe-many">Editing {items.length} properties. A change here goes to all of them; a setting they don't share shows as Mixed.</p>}
-        {/* every card is a block in one flow, so the gap under each is the same, in one column or two
-            (on a wide page the blocks run down two columns, like a newspaper) */}
+        {/* every card is a block in one column, so the gap under each is the same */}
         <div className="pe-flow">
           {GROUPS.flatMap((g) => {
             const parts = shownParts(g);

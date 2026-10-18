@@ -1,6 +1,11 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.24",
+    title: "Resources: one column of settings",
+    items: ["The settings are one column again on every screen size, as wide as the page, with the same gap under every card."],
+  },
+  {
     version: "0.3.23",
     title: "Resources: even gaps in two columns, core resources listed last",
     items: [
