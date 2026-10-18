@@ -1,4 +1,5 @@
-/* Resource properties: pick a resource, see its properties, change whether each is required.
+/* Resource properties: pick a resource, see its properties, change any of their settings, add
+ * new ones, and reorder them.
  * build.mjs appends this to dist/extension.js after extension.js, so it shares its scope:
  *   listResourceNames(manager, instance) -> names · saturnRequest · checked · jsonDeepEqual
  *   instanceLabel · nonce · setPanelIcon
@@ -10,8 +11,9 @@
  * A save is careful:
  *   1. read the definition again (never write over someone else's newer change);
  *   2. back it up to <global storage>/resource-backups/<instance id>/<resource>-<time>.json;
- *   3. write it with only what was asked changed: properties' `required`, and/or the properties'
- *      order (the schema's order is the order the map is sent in);
+ *   3. write it with only what was asked changed: the settings the screen changed (each at its
+ *      path in the property, on the definition as just re-read), new properties, and/or the
+ *      properties' order (the schema's order is the order the map is sent in);
  *   4. read it back and check exactly those changed and nothing else, and the order kept.
  * If the instance refuses, nothing changed. If the read-back differs in any other way, the screen
  * says how and offers to put the backup back (the same careful write and check).
@@ -53,18 +55,108 @@ var ResourcePropertiesHost = (() => {
     }));
   }
 
-  /** changes: [{key, required}] -> the data with only those flags changed, or an error message. */
-  function applyRequired(data, changes) {
-    const wanted = new Map(changes.map((change) => [change.key, !!change.required]));
-    const present = new Map(entriesOf(data));
-    for (const key of wanted.keys()) {
-      if (!present.has(key)) return `${key} is no longer a property of this resource — reload and try again.`;
-      if (!isObject(present.get(key))) return `${key} can't be marked required.`;
+  /** Path parts that must never be written: they would reach into Object.prototype. */
+  const UNSAFE = new Set(["__proto__", "prototype", "constructor"]);
+
+  /** A copy of `target` with `value` set at `path` (objects on the way are copied, missing ones
+   *  made), or with the last part removed when `remove` is set. */
+  function setAt(target, path, value, remove) {
+    const copy = isObject(target) ? { ...target } : {};
+    const [head, ...rest] = path;
+    if (!rest.length) {
+      if (remove) delete copy[head];
+      else copy[head] = value;
+      return copy;
     }
-    const change = (key, property) => (wanted.has(key) ? { ...property, required: wanted.get(key) } : property);
+    copy[head] = setAt(copy[head], rest, value, remove);
+    return copy;
+  }
+
+  /** One change from the screen in its long form: {key, path, value} or {key, path, remove}.
+   *  The short form {key, required} (the first version of this screen) is path ["required"]. */
+  function normalChange(change) {
+    if (Array.isArray(change.path)) return { key: change.key, path: change.path.map(String), value: change.value, remove: change.remove === true };
+    return { key: change.key, path: ["required"], value: !!change.required, remove: false };
+  }
+
+  /** changes: [{key, path, value | remove}] -> the data with only those settings changed, or an
+   *  error message. Each change is made on the definition as it is now (just re-read), so a
+   *  setting someone else changed meanwhile is kept unless this screen changed the same one. */
+  function applyChanges(data, changes) {
+    const wanted = changes.map(normalChange);
+    const present = new Map(entriesOf(data));
+    for (const change of wanted) {
+      if (!present.has(change.key)) return `${change.key} is no longer a property of this resource — reload and try again.`;
+      if (!isObject(present.get(change.key))) return `${change.key} can't be changed here.`;
+      if (!change.path.length || change.path.some((part) => UNSAFE.has(part))) return `A change to ${change.key} has a path that can't be written.`;
+      if (change.path[0] === "key") return `A property's key can't be changed here (${change.key}).`;
+    }
+    const changed = new Map();
+    for (const change of wanted) changed.set(change.key, setAt(changed.get(change.key) ?? present.get(change.key), change.path, change.value, change.remove));
     return Array.isArray(data)
-      ? data.map((property) => (isObject(property) && wanted.has(property.key) ? change(property.key, property) : property))
-      : Object.fromEntries(Object.entries(data).map(([key, property]) => [key, change(key, property)]));
+      ? data.map((property) => (isObject(property) && changed.has(property.key) ? changed.get(property.key) : property))
+      : Object.fromEntries(Object.entries(data).map(([key, property]) => [key, changed.get(key) ?? property]));
+  }
+
+  /** The first version's name for applyChanges (changes: [{key, required}]). */
+  const applyRequired = applyChanges;
+
+  /** What a property key may look like: a letter or _, then letters, digits and _. */
+  const KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+  /** A new property with the settings Saturn's own app gives one (seen in its save of a new
+   *  property), with this label and type. */
+  function newProperty(label, type) {
+    const look = { component: "default", options: { size: "small", shape: "circle", opacity: 0.2 } };
+    return {
+      type,
+      meta_tags: [],
+      defaults: { read: type === "number" ? 0 : type === "boolean" ? false : "", write: "" },
+      label,
+      required: false,
+      searchable: false,
+      unique: false,
+      hideInTable: false,
+      hideInForm: false,
+      hideInView: false,
+      hideInDrawer: false,
+      ipaddress: false,
+      hide: false,
+      email: false,
+      tableColumnWidth: 0,
+      placeInOwnTab: false,
+      map_label_type: "property",
+      source: "static",
+      access_control: {},
+      number_of_columns: { full_width: false, default: 1 },
+      form_number_of_columns: { full_width: false, default: 1 },
+      required_columns: [],
+      rendering: { ...look, _variances: { list: { ...look }, view: { ...look, span: 2 }, form: {} } },
+      default_view: "SLKJDSF",
+      views: [{ id: "SLKJDSF", view: "data_table", details: {} }],
+      input_properties: { type: type === "boolean" ? "switch" : "input", options: { code: "<template></template> " } },
+    };
+  }
+
+  /** adds: [{key, property}] -> the data with those properties added at the end, or an error
+   *  message (a key that's taken or not a valid key). A property sent without settings gets
+   *  Saturn's defaults (newProperty). */
+  function applyAdds(data, adds) {
+    const keys = new Set(keysOf(data));
+    const out = Array.isArray(data) ? [...data] : { ...data };
+    for (const add of adds) {
+      const key = String(add?.key ?? "");
+      if (!KEY_PATTERN.test(key)) return `"${key}" can't be a property key: use letters, digits and _, starting with a letter.`;
+      if (keys.has(key)) return `${key} is already a property of this resource — pick another key.`;
+      keys.add(key);
+      const given = isObject(add.property) ? add.property : {};
+      if (Object.keys(given).some((part) => UNSAFE.has(part))) return `The new property ${key} has a setting that can't be written.`;
+      const property = { ...newProperty(typeof given.label === "string" && given.label ? given.label : key, typeof given.type === "string" ? given.type : "string"), ...given };
+      delete property.key;
+      if (Array.isArray(out)) out.push({ ...property, key });
+      else out[key] = property;
+    }
+    return out;
   }
 
   /** order: every property key, in the order wanted -> the data in that order, or an error
@@ -82,11 +174,19 @@ var ResourcePropertiesHost = (() => {
   /** The property keys of a definition, in order. */
   const keysOf = (data) => entriesOf(data).map(([key]) => key);
 
-  /** The keys of the properties that differ between two definitions. */
-  function differences(expected, actual) {
+  /** Whether `actual` has every setting `expected` has, with the same values (it may have more). */
+  function covers(expected, actual) {
+    if (!isObject(expected) || !isObject(actual)) return jsonDeepEqual(expected, actual);
+    return Object.keys(expected).every((part) => covers(expected[part], actual[part]));
+  }
+
+  /** The keys of the properties that differ between two definitions. Properties named in
+   *  `added` only need to have what was sent: the instance may fill in more settings. */
+  function differences(expected, actual, added = new Set()) {
     const left = new Map(entriesOf(expected));
     const right = new Map(entriesOf(actual));
-    return [...new Set([...left.keys(), ...right.keys()])].filter((key) => !jsonDeepEqual(left.get(key), right.get(key)));
+    return [...new Set([...left.keys(), ...right.keys()])].filter((key) =>
+      added.has(key) && right.has(key) ? !covers(left.get(key), right.get(key)) : !jsonDeepEqual(left.get(key), right.get(key)));
   }
 
   async function backup(instance, resource, body) {
@@ -147,11 +247,11 @@ var ResourcePropertiesHost = (() => {
   }
 
   /** Writes nextData over the current definition (backed up first) and checks the result. */
-  async function writeChecked(manager, instance, resource, current, nextData) {
+  async function writeChecked(manager, instance, resource, current, nextData, added = new Set()) {
     const backupFile = await backup(instance, resource, current.body);
     const reply = await write(manager, instance, resource, nextData);
     const after = await readResource(manager, instance, resource);
-    const wrong = differences(nextData, after.data);
+    const wrong = differences(nextData, after.data, added);
     const orderKept = keysOf(nextData).join("\n") === keysOf(after.data).join("\n");
     if (!wrong.length && orderKept) return { ok: true, backup: backupFile.fsPath, data: after.data };
     if (!wrong.length) {
@@ -272,16 +372,20 @@ var ResourcePropertiesHost = (() => {
       case "save": {
         const resource = String(payload.resource);
         const changes = Array.isArray(payload.changes) ? payload.changes.filter((c) => c && typeof c.key === "string") : [];
+        // adds: new properties [{key, property}], added at the end (then placed by `order`)
+        const adds = Array.isArray(payload.adds) ? payload.adds.filter((a) => a && typeof a.key === "string") : [];
         // order: every property key in the new order (sent only when the order was changed)
         const order = Array.isArray(payload.order) && payload.order.every((k) => typeof k === "string") ? payload.order : null;
-        if (!changes.length && !order) return post("saveFailed", { resource, message: "Nothing to save." });
+        if (!changes.length && !adds.length && !order) return post("saveFailed", { resource, message: "Nothing to save." });
         // the definition as it is now, not as the screen first read it
         const current = await readResource(manager, instance, resource);
-        let nextData = applyRequired(current.data, changes);
+        let nextData = applyChanges(current.data, changes);
+        if (typeof nextData === "string") return post("saveFailed", { resource, message: nextData });
+        if (adds.length) nextData = applyAdds(nextData, adds);
         if (typeof nextData === "string") return post("saveFailed", { resource, message: nextData });
         if (order) nextData = applyOrder(nextData, order);
         if (typeof nextData === "string") return post("saveFailed", { resource, message: nextData });
-        const result = await writeChecked(manager, instance, resource, current, nextData);
+        const result = await writeChecked(manager, instance, resource, current, nextData, new Set(adds.map((a) => a.key)));
         post(result.ok ? "saved" : "saveMismatch", { resource, ok: result.ok, backup: result.backup, unchanged: result.unchanged, message: result.message, properties: propertiesOf(result.data) });
         break;
       }
@@ -295,6 +399,25 @@ var ResourcePropertiesHost = (() => {
         const current = await readResource(manager, instance, resource);
         const result = await writeChecked(manager, instance, resource, current, savedData);
         post(result.ok ? "restored" : "saveMismatch", { resource, ok: result.ok, backup: result.backup, unchanged: result.unchanged, message: result.message, properties: propertiesOf(result.data) });
+        break;
+      }
+      case "fields": {
+        // another resource's properties, for the settings that name one (map, source, lookups)
+        const resource = String(payload.resource);
+        const { data } = await readResource(manager, instance, resource);
+        post("fields", { resource, fields: entriesOf(data).filter(([key]) => !key.startsWith("#")).map(([key, property]) => ({ key, label: isObject(property) && typeof property.label === "string" ? property.label : null, type: isObject(property) && typeof property.type === "string" ? property.type : null })) });
+        break;
+      }
+      case "options": {
+        // records of a core resource as [value, label], for settings that name one (attachment groups)
+        const resource = String(payload.resource);
+        const rows = await listLookupOptions(manager, instance, resource, String(payload.value || "id"), String(payload.label || "name")).catch(() => []);
+        post("options", { resource, value: payload.value, label: payload.label, options: rows.map((row) => [row.value, row.label]) });
+        break;
+      }
+      case "subjects": {
+        // the user groups, users and permissions an access rule can name
+        post("subjects", await loadAccessSubjects(manager, instance));
         break;
       }
       case "probe": {
@@ -347,5 +470,5 @@ var ResourcePropertiesHost = (() => {
     storageUri = options.globalStorageUri ?? null;
   }
 
-  return { open, attach, handle, propertiesOf, applyRequired, applyOrder, differences, entriesOf };
+  return { open, attach, handle, propertiesOf, applyChanges, applyRequired, applyAdds, applyOrder, newProperty, differences, entriesOf };
 })();

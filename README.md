@@ -1,4 +1,4 @@
-# sonover-code (v0.3.18)
+# sonover-code (v0.3.19)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,12 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.19 — Resources: every setting of a property, and new properties
+- The right side of the Resources screen is now a full property editor (`src-res/editor.tsx`), drawn from a list of settings (`src-res/spec.ts`: each setting's path in the property, its control, and when it shows). Saturn's eight tabs are six groups here: General, Input, Data (Source + Lookup + Defaults), Display, Visibility, Access, plus JSON (the whole property). Settings show only when they apply; Find a setting searches all groups; a changed setting shows "was …" with Put back; tabs count their changes; "Undo all changes to it".
+- The setting names come from real Saturn definitions (the Application schema). Settings Saturn's screens have whose stored names aren't known yet (property mask, validation rules, Is Password, Allow Custom Values, URL, the map's filter / search field / dropdown limit, label and lookup functions, colours, Access Control's shape, the other input types) are left out until a capture of Saturn's save shows them; the JSON tab edits anything meanwhile.
+- **+** adds a property (label → key, type) with the settings Saturn's own app gives a new one (`newProperty`, in both `spec.ts` and `host/resources.js`).
+- `save` now takes `changes: [{key, path, value | remove}]` (the old `{key, required}` still works), `adds: [{key, property}]` and `order`. The host applies each change at its path on the definition as just re-read (`applyChanges`; refuses `key` and prototype paths), adds new properties (`applyAdds`; refuses a taken or invalid key), and the read-back lets the instance add settings of its own to a new property. New messages: `fields {resource}` (another resource's properties) and `options {resource, value, label}` (records, e.g. attachment groups). `hosttest-resources.cjs` (33 checks), `test13.mjs` (52).
 
 ## New in 0.3.18 — Resources: properties down the side, in order
 - Layout like Saturn's stage / action editor: the properties down the left (`.rs-side`: search, cards with name, key, type, a blue grip when required, a dot when changed), the picked one on the right (`.rs-detail`: Required, the whole definition). Dragging a card (HTML drag and drop; off while searching) or Alt+↑ / Alt+↓ reorders; Reset order. The order is kept in webview state with the other unsaved changes.

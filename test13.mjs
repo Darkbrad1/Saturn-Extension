@@ -1,5 +1,6 @@
-// v0.3.13 / 0.3.18: the Resources screen (a resource's properties down the left, in order — drag to
-// reorder —, the one picked on the right, required or not) and its sidebar entry.
+// v0.3.13 / 0.3.18 / 0.3.19: the Resources screen (a resource's properties down the left, in order,
+// drag to reorder, + to add one; the one picked on the right with all its settings) and its
+// sidebar entry.
 import { chromium } from "playwright";
 const out = process.env.SHOTS ?? "shots";
 const b = await chromium.launch({ executablePath: process.env.CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
@@ -9,7 +10,9 @@ p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
 p.on("console", (m) => /Content Security|Refused/.test(m.text()) && errs.push("CSP: " + m.text()));
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 const last = () => p.evaluate(() => window.__posted.at(-1));
-const box = (label) => p.getByRole("checkbox", { name: new RegExp(`^${label} required$`) });
+// the Required switch of the property shown (General tab)
+const box = () => p.getByRole("checkbox", { name: "Required", exact: true });
+const tab = (name) => p.getByRole("tab", { name: new RegExp(`^${name}`) }).click();
 const item = (label) => p.locator(".rs-item", { hasText: label }).first();
 const pick = (label) => item(label).click();
 const listKeys = () => p.locator(".rs-item .rs-item-key").allInnerTexts();
@@ -41,27 +44,48 @@ ok((await p.locator(".rs-side-info").innerText()).includes("4 properties · 1 re
 ok((await p.locator(".rs-detail").innerText()).includes("Pick a property"), "the right side asks for a property");
 await pick("Status");
 ok((await p.locator(".rs-detail-label").innerText()) === "Status" && (await p.locator(".rs-detail-key").innerText()) === "status" && (await p.locator(".rs-pill").innerText()) === "string", "picking one shows it on the right");
-ok(!(await box("Status").isChecked()), "with whether it's required");
+ok(!(await box().isChecked()), "with whether it's required");
 await pick("Submitted At");
-ok(await box("Submitted At").isChecked(), "(Submitted At is)");
+ok(await box().isChecked(), "(Submitted At is)");
 await p.screenshot({ path: out + "/r0-layout.png" });
 
 // change and discard
 await pick("Status");
-await box("Status").check();
-ok(await p.locator(".rs-item .rs-dot").count() === 1 && (await p.locator(".rs-was").innerText()) === "was optional", "a change is marked in the list, with what it was");
-ok((await p.locator(".rs-bar").innerText()).includes("1 unsaved change"), "the bar counts unsaved changes");
+await box().check();
+ok(await p.locator(".rs-item .rs-dot").count() === 1 && (await p.locator(".pe-was").innerText()).includes("was off"), "a change is marked in the list, with what it was");
+ok((await p.locator(".rs-bar").innerText()).includes("Unsaved: 1 setting on 1 property"), "the bar counts unsaved changes");
 ok(await p.locator(".rs-select select").isDisabled(), "the resource can't be switched while changes are unsaved");
-await box("Status").uncheck();
+await box().uncheck();
 ok(await p.locator(".rs-bar").count() === 0, "changing it back leaves nothing unsaved");
-await box("Status").check();
+await box().check();
+await p.getByRole("button", { name: "Put back" }).click();
+ok(!(await box().isChecked()) && await p.locator(".rs-bar").count() === 0, "Put back undoes one setting");
+await box().check();
 await p.getByRole("button", { name: "Discard" }).click();
-ok(!(await box("Status").isChecked()) && await p.locator(".rs-bar").count() === 0, "Discard drops the changes");
+ok(!(await box().isChecked()) && await p.locator(".rs-bar").count() === 0, "Discard drops the changes");
 
-// the whole definition
-await p.getByRole("button", { name: "Show the whole definition" }).click();
-ok((await p.locator(".rs-detail .rs-json").innerText()).includes('"rendering"'), "the whole definition can be shown");
-await p.getByRole("button", { name: "Hide the whole definition" }).click();
+// the settings, in groups
+await tab("Display");
+ok((await p.locator(".pe-body").innerText()).includes("Default renderer") && (await p.locator(".pe-body").innerText()).includes("Column width"), "the Display group has the display settings");
+await tab("Input");
+ok(!(await p.locator(".pe-body").innerText()).includes("Rows"), "a setting only shows when it applies (Rows only for a textarea)");
+await p.getByLabel("Input type").selectOption("textarea");
+ok((await p.locator(".pe-body").innerText()).includes("Rows"), "and shows once it does");
+await p.getByRole("button", { name: "Put back" }).click();
+await tab("Data");
+await p.getByRole("checkbox", { name: "Include map" }).check();
+await p.getByLabel("Reference").first().selectOption("LoanCategory");
+await p.waitForTimeout(150);
+ok((await p.evaluate(() => window.__posted.some((m) => m.type === "fields" && m.payload.resource === "LoanCategory"))) && (await p.getByLabel("Value field").first().locator("option").allInnerTexts()).includes("Code (code)"), "a map's fields are picked from the referenced resource's properties");
+ok((await p.locator(".pe-tab", { hasText: "Data" }).locator(".pe-count").innerText()) === "1", "the group's tab counts its changes (a new map is one)");
+await p.fill(".pe-find", "column width");
+ok((await p.locator(".pe-body .pe-row").count()) === 1 && (await p.locator(".pe-body").innerText()).includes("Display"), "Find a setting finds one in any group, and says where");
+await p.fill(".pe-find", "");
+await tab("JSON");
+ok((await p.locator(".pe-body").innerText()).includes('"reference": "LoanCategory"'), "the JSON tab shows the whole property as edited");
+await p.getByRole("button", { name: "Undo all changes to it" }).click();
+ok(await p.locator(".rs-bar").count() === 0, "Undo all changes to it puts the property back");
+await tab("General");
 
 // search
 await p.fill(".rs-search", "loan");
@@ -71,7 +95,7 @@ await p.fill(".rs-search", "");
 // reorder: drag, and Alt+arrows
 await item("Submitted At").dragTo(item("Status"), { targetPosition: { x: 20, y: 4 } });
 ok((await listKeys()).join() === "submitted_at,status,application_number,requested_loan_amount", "dragging a property moves it in the list");
-ok((await p.locator(".rs-bar").innerText()).includes("1 unsaved change (incl. the order)"), "the new order is an unsaved change");
+ok((await p.locator(".rs-bar").innerText()).includes("Unsaved: the order"), "the new order is an unsaved change");
 await pick("Status");
 await p.keyboard.press("Alt+ArrowDown");
 ok((await listKeys()).join() === "submitted_at,application_number,status,requested_loan_amount", "Alt+↓ moves the picked one down");
@@ -81,20 +105,20 @@ ok((await listKeys()).join() === "status,submitted_at,application_number,request
 await p.getByRole("button", { name: "Reset order" }).click();
 ok((await listKeys()).join() === "status,application_number,requested_loan_amount,submitted_at" && await p.locator(".rs-bar").count() === 0, "Reset order puts it back");
 
-// save: confirm first — Required and the order together
+// save: confirm first. Required and the order together
 await pick("Status");
-await box("Status").check();
+await box().check();
 await pick("Submitted At");
-await box("Submitted At").uncheck();
+await box().uncheck();
 await item("Requested Loan Amount").dragTo(item("Status"), { targetPosition: { x: 20, y: 4 } });
-await p.getByRole("button", { name: "Save" }).click();
-ok((await p.locator(".rs-bar").innerText()).includes("Change Required on 2 properties and the order of the properties of Application on demo"), "Save asks first, saying what will change and where");
+await p.getByRole("button", { name: "Save", exact: true }).click();
+ok((await p.locator(".rs-bar").innerText()).includes("Save 2 settings on 2 properties, the order to Application on demo"), "Save asks first, saying what will change and where");
 ok((await p.evaluate(() => window.__posted.filter((m) => m.type === "save").length)) === 0, "nothing is sent before confirming");
 await p.screenshot({ path: out + "/r1-confirm.png" });
-await p.locator(".rs-bar").getByRole("button", { name: "Save" }).click();
+await p.locator(".rs-bar").getByRole("button", { name: "Save", exact: true }).click();
 await p.waitForTimeout(200);
 const save = await p.evaluate(() => window.__posted.find((m) => m.type === "save"));
-ok(save && JSON.stringify(save.payload.changes) === JSON.stringify([{ key: "status", required: true }, { key: "submitted_at", required: false }]) && save.payload.order.join() === "requested_loan_amount,status,application_number,submitted_at", "confirming sends the changed properties and the new order");
+ok(save && JSON.stringify(save.payload.changes) === JSON.stringify([{ key: "status", path: ["required"], value: true }, { key: "submitted_at", path: ["required"], value: false }]) && save.payload.order.join() === "requested_loan_amount,status,application_number,submitted_at", "confirming sends each changed setting at its path, and the new order");
 ok(await required("Application", "status") === true && (await listKeys()).join() === "requested_loan_amount,status,application_number,submitted_at" && await p.locator(".rs-bar").count() === 0, "saved: the list shows the instance's new order and values, nothing unsaved");
 ok((await p.locator(".rs-notice").innerText()).includes("backup"), "and says a backup was kept");
 await p.screenshot({ path: out + "/r2-saved.png" });
@@ -102,17 +126,36 @@ await p.screenshot({ path: out + "/r2-saved.png" });
 // unsaved changes survive the tab being hidden (webview state)
 await item("Submitted At").dragTo(item("Requested Loan Amount"), { targetPosition: { x: 20, y: 4 } });
 await pick("Requested Loan Amount");
-await box("Requested Loan Amount").check();
+await box().check();
 const state = await p.evaluate(() => window.acquireVsCodeApi().getState());
-ok(state.resource === "Application" && state.pending.requested_loan_amount === true && state.order[0] === "submitted_at" && state.selected === "requested_loan_amount", "unsaved changes, the new order and the picked property are kept in the webview's state");
+ok(state.resource === "Application" && state.drafts.requested_loan_amount.required === true && state.order[0] === "submitted_at" && state.selected === "requested_loan_amount", "unsaved changes, the new order and the picked property are kept in the webview's state");
 await p.getByRole("button", { name: "Discard" }).click();
+
+// a new property
+await p.getByRole("button", { name: "Add a property" }).click();
+await p.getByLabel("New property label").fill("First Name");
+ok((await p.getByLabel("New property key").inputValue()) === "first_name", "a new property's key is made from its label");
+await p.getByLabel("New property key").fill("status");
+ok((await p.locator(".rs-new").innerText()).includes("status is already a property") && await p.locator(".rs-new").getByRole("button", { name: "Add" }).isDisabled(), "a key that's taken can't be added");
+await p.getByLabel("New property key").fill("first_name");
+await p.locator(".rs-new").getByRole("button", { name: "Add" }).click();
+ok((await listKeys()).at(-1) === "first_name" && (await p.locator(".rs-detail-label").innerText()) === "First Name" && (await p.locator(".rs-item", { hasText: "First Name" }).innerText()).includes("new"), "it's added at the end, marked new, and opened");
+await box().check();
+await p.getByRole("button", { name: "Save", exact: true }).click();
+ok((await p.locator(".rs-bar").innerText()).includes("1 new property"), "the confirm counts the new property");
+await p.locator(".rs-bar").getByRole("button", { name: "Save", exact: true }).click();
+await p.waitForTimeout(200);
+const adding = await p.evaluate(() => window.__posted.filter((m) => m.type === "save").at(-1).payload);
+ok(adding.adds?.[0]?.key === "first_name" && adding.adds[0].property.required === true && adding.adds[0].property.input_properties.type === "input" && !adding.changes.length, "Save sends it with Saturn's settings for a new property");
+ok(await p.evaluate(() => window.__data.Application.at(-1).key === "first_name") && !(await p.locator(".rs-item", { hasText: "First Name" }).innerText()).includes("new"), "once saved it's an ordinary property");
+await p.screenshot({ path: out + "/r3-added.png" });
 
 // refused
 await p.evaluate(() => (window.__saveMode = "refuse"));
 await pick("Status");
-await box("Status").uncheck();
-await p.getByRole("button", { name: "Save" }).click();
-await p.locator(".rs-bar").getByRole("button", { name: "Save" }).click();
+await box().uncheck();
+await p.getByRole("button", { name: "Save", exact: true }).click();
+await p.locator(".rs-bar").getByRole("button", { name: "Save", exact: true }).click();
 await p.waitForTimeout(200);
 ok((await p.locator(".rs-notice.is-error").innerText()).includes("doesn't accept changes") && await p.locator(".rs-bar").count() === 1, "a refused save is shown, and the change stays unsaved to try again or discard");
 await p.getByRole("button", { name: "Check what it takes" }).click();
@@ -125,9 +168,9 @@ await p.getByRole("button", { name: "Discard" }).click();
 // read back differently: offer the backup
 await p.evaluate(() => (window.__saveMode = "mismatch"));
 await pick("Requested Loan Amount");
-await box("Requested Loan Amount").check();
-await p.getByRole("button", { name: "Save" }).click();
-await p.locator(".rs-bar").getByRole("button", { name: "Save" }).click();
+await box().check();
+await p.getByRole("button", { name: "Save", exact: true }).click();
+await p.locator(".rs-bar").getByRole("button", { name: "Save", exact: true }).click();
 await p.waitForTimeout(200);
 ok((await p.locator(".rs-notice.is-error").innerText()).includes("changed differently") && await p.getByRole("button", { name: "Restore backup" }).count() === 1, "an unexpected result is shown with Restore backup");
 await p.getByRole("button", { name: "Restore backup" }).click();

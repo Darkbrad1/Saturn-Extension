@@ -1,6 +1,17 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.19",
+    title: "Resources: every setting of a property, and new properties",
+    items: [
+      "The property you pick shows all its settings, in six groups: General, Input, Data (where its value and choices come from, and its defaults), Display, Visibility and Access, plus the whole property as JSON. A setting only shows when it does something.",
+      "Find a setting searches every group. A changed setting shows what it was, with Put back; each group's tab counts its changes.",
+      "Settings that name another resource (a map's reference, a dynamic source) list that resource's properties to pick from.",
+      "+ adds a property: give it a label (the key is made from it) and a type. It gets the settings Saturn gives a new property, and is saved with the rest.",
+      "Saving changes only the settings you changed, on the definition as the instance has it at that moment, with the same backup and check as before.",
+    ],
+  },
+  {
     version: "0.3.18",
     title: "Resources: properties down the side, in order",
     items: [

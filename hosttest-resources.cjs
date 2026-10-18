@@ -40,6 +40,8 @@ global.fetch = async (u, o = {}) => {
     lastSchema = JSON.parse(body.data);
     if (mode === "ok") stored = { ...stored, data: Object.entries(lastSchema).map(([key, p]) => ({ ...p, key })) };
     if (mode === "sorted") stored = { ...stored, data: Object.entries(lastSchema).sort(([a], [b]) => a.localeCompare(b)).map(([key, p]) => ({ ...p, key })) };
+    // "fill": the instance adds a setting of its own to each property (as an instance may for a new one)
+    if (mode === "fill") stored = { ...stored, data: Object.entries(lastSchema).map(([key, p]) => ({ ...p, key, created_by: "server" })) };
     if (mode === "mangle") stored = { ...stored, data: Object.entries(lastSchema).map(([key, p]) => ({ ...p, key, searchable: true })) };
     return reply({ status: "SUCCESS", data: "updated" });
   }
@@ -120,6 +122,40 @@ const writes = () => calls.filter(([m]) => m !== "GET" && m !== "OPTIONS");
   r = await ask("save", { resource: "Application", changes: [{ key: "status", required: true }] });
   ok(r.type === "saveMismatch" && !r.payload.unchanged && /changed differently/.test(r.payload.message) && r.payload.backup, "an unexpected change is reported, with the backup to restore: " + r.payload.message);
   ok(writes().length === 1, "and nothing more is written");
+
+  // any setting, at its path
+  reset(); calls.length = 0;
+  r = await ask("save", { resource: "Application", changes: [
+    { key: "status", path: ["map"], value: { type: "model", reference: "LoanCategory", value_field: "id", label_field: "label" } },
+    { key: "status", path: ["rendering", "_variances", "list", "component"], value: "currency" },
+    { key: "application_number", path: ["unique"], remove: true },
+  ] });
+  const status = stored.data.find((p) => p.key === "status");
+  ok(r.type === "saved" && status.map.reference === "LoanCategory" && status.rendering._variances.list.component === "currency" && status.rendering.component === "default", "settings are changed at their path, nested ones made, the rest of the object kept");
+  ok(!("unique" in stored.data.find((p) => p.key === "application_number")) && stored.data.find((p) => p.key === "loan_purpose").label === "Loan Purpose", "a removed setting is gone, other properties untouched");
+  r = await ask("save", { resource: "Application", changes: [{ key: "status", path: ["key"], value: "state" }] });
+  ok(r.type === "saveFailed" && /key can't be changed/.test(r.payload.message), "a property's key can't be changed");
+  r = await ask("save", { resource: "Application", changes: [{ key: "status", path: ["__proto__", "x"], value: 1 }] });
+  ok(r.type === "saveFailed" && /can't be written/.test(r.payload.message), "a path into the prototype is refused");
+
+  // new properties
+  reset(); calls.length = 0;
+  r = await ask("save", { resource: "Application", adds: [{ key: "first_name", property: { label: "First Name", type: "string", required: true } }], order: ["first_name", "status", "application_number", "loan_purpose"] });
+  const added = stored.data.find((p) => p.key === "first_name");
+  ok(r.type === "saved" && stored.data[0].key === "first_name" && added.required === true && added.label === "First Name", "a new property is added, with its settings, where the order puts it");
+  ok(added.input_properties.type === "input" && added.views[0].id === "SLKJDSF" && added.source === "static" && !("key" in lastSchema.first_name), "with the settings Saturn's own app gives a new one");
+  r = await ask("save", { resource: "Application", adds: [{ key: "status", property: {} }] });
+  ok(r.type === "saveFailed" && /already a property/.test(r.payload.message), "a key that's taken is refused");
+  r = await ask("save", { resource: "Application", adds: [{ key: "9 lives", property: {} }] });
+  ok(r.type === "saveFailed" && /can't be a property key/.test(r.payload.message), "a key that isn't a key is refused");
+  reset("fill");
+  r = await ask("save", { resource: "Application", adds: [{ key: "notes", property: { label: "Notes", type: "string" } }] });
+  ok(r.type === "saveMismatch" && /asked, in: status, application_number, loan_purpose\. /.test(r.payload.message) && !/notes/.test(r.payload.message), "settings the instance adds to a new property aren't a mismatch (on the others they are): " + r.type + " " + r.payload.message);
+
+  // lookups for the screen
+  reset();
+  const fl = await ask("fields", { resource: "Application" });
+  ok(fl.type === "fields" && fl.payload.fields.map((f) => f.key).join() === "status,application_number,loan_purpose" && fl.payload.fields[0].label === "Status", "fields lists another resource's properties");
 
   // bad requests
   reset();
