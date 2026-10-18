@@ -1,4 +1,347 @@
-"use strict";var z=class extends Error{constructor(t){super(`The server's response was larger than ${Math.round(t/(1024*1024))} MB, so it was not read.`),this.name="ResponseTooLargeError"}},Nt=new Set([101,204,205,304]);function j(e,t=52428800){let n=Number(e.headers.get("content-length"));if(Number.isFinite(n)&&n>t)throw e.body?.cancel().catch(()=>{}),new z(t);if(!e.body||Nt.has(e.status))return e;let o=0,a=e.body.pipeThrough(new TransformStream({transform(r,s){if(o+=r.byteLength,o>t){s.error(new z(t));return}s.enqueue(r)}}));return new Response(a,{status:e.status,statusText:e.statusText,headers:e.headers})}var xt=require("node:readline"),$t=require("node:net"),Pt=require("node:crypto");var _=e=>typeof e=="string"&&e.trim()?e:null,K=e=>Array.isArray(e)?e:[];function v(e){if(!e||typeof e!="object")return 0;let t=e.type==="command"?1:0;for(let n of Object.values(e))if(Array.isArray(n))for(let o of n)t+=v(o);else n&&typeof n=="object"&&(t+=v(n));return t}function vt(e){let t=_(e?.id)??"",n=_(e?.name)??t,o={workflow_id:t,workflow:n},a=[];return K(e?.stages).forEach((r,s)=>{let c=_(r?.stage)??"";a.push({...o,kind:"stage",stage:null,name:c,label:_(r?.label),id:_(r?.id),path:["stages",s]}),K(r?.actions).forEach((i,l)=>{a.push({...o,kind:"action",stage:c,name:_(i?.action)??"",label:_(i?.label),id:_(i?.id),path:["stages",s,"actions",l],steps:v(i?.task)})})}),K(e?.actions).forEach((r,s)=>{a.push({...o,kind:"action",stage:null,name:_(r?.action)??"",label:_(r?.label),id:_(r?.id),path:["actions",s],steps:v(r?.task)})}),K(e?.commands).forEach((r,s)=>{a.push({...o,kind:"command",stage:null,name:_(r?.name)??"",label:_(r?.label),id:_(r?.id),path:["commands",s],steps:v(r?.command)})}),a}function le(e){return e.toLowerCase().replace(/[_\-.]+/g," ").replace(/\s+/g," ").trim()}function Ft(e,t){let n=le(t);if(!n)return 1;let o=[e.name,e.label??"",e.id??""].map(le).filter(Boolean);if(o.some(r=>r===n))return 3;if(o.some(r=>r.startsWith(n)))return 2;let a=[...o,le(e.stage??"")].join(" ");return n.split(" ").every(r=>a.includes(r))?1:0}function Fe(e,t,n,o=null){let a=e.filter(r=>!o||r?.id===o).flatMap(vt).filter(r=>!n||n.length===0||n.includes(r.kind)).map(r=>({hit:r,score:Ft(r,t)})).filter(r=>r.score>0).sort((r,s)=>s.score-r.score||r.hit.workflow.localeCompare(s.hit.workflow)||r.hit.name.localeCompare(s.hit.name));return{hits:a.slice(0,50).map(r=>r.hit),total:a.length}}var It=/pass(?:word|wd|code|phrase)?$|^pass|secret|token|api[_-]?key|private[_-]?key|hash|salt|otp|mfa|2fa|totp|credential|session|cookie|authorization|refresh/i;function J(e){return It.test(e)}function F(e){return typeof e=="string"&&/^[A-Za-z][A-Za-z0-9_]{0,99}$/.test(e)}function G(e){if(!F(e))return[];let t=e.toLowerCase(),n=[`${t}s`];t.endsWith("s")&&n.push(t,`${t}es`),t.length>1&&t.endsWith("y")&&!"aeiou".includes(t[t.length-2])&&n.push(`${t.slice(0,-1)}ies`),/(x|z|ch|sh)$/.test(t)&&n.push(`${t}es`),t.endsWith("person")&&n.push(`${t.slice(0,-6)}people`),n.push(t);let o=e.charAt(0).toLowerCase()+e.slice(1);return n.push(/[^aeiou]y$/i.test(o)?`${o.slice(0,-1)}ies`:/(s|x|z|ch|sh)$/i.test(o)?`${o}es`:`${o}s`),[...new Set(n)].map(a=>`/${a}`)}function ue(e,t){if(e===404)return!0;let n=t&&typeof t=="object"?t.message:void 0;return typeof n=="string"&&/route not found/i.test(n)}function de(e,t){let n=t&&typeof t=="object"?t.message:void 0;return typeof n=="string"&&/route not found/i.test(n)}function Ie(e){let t=new URLSearchParams;return t.set("limit",String(e.limit)),t.set("page",String(e.page)),e.filter&&t.set("filter",e.filter),`?${t.toString()}`}function Le(e){let n=(Array.isArray(e)?e:Array.isArray(e?.data)?e.data:[]).filter(a=>!!a&&typeof a=="object"&&!Array.isArray(a)),o=typeof e?.count=="number"?e.count:typeof e?.total=="number"?e.total:null;return{records:n,total:o}}function x(e,t=0){if(typeof e=="string")return e.length>500?`${e.slice(0,500)}\u2026 (${e.length} chars)`:e;if(!e||typeof e!="object")return e;if(t>=4)return Array.isArray(e)?`[${e.length} items]`:"{\u2026}";if(Array.isArray(e)){let o=e.slice(0,20).map(a=>x(a,t+1));return e.length>20?[...o,`\u2026 ${e.length-20} more`]:o}let n={};for(let[o,a]of Object.entries(e))J(o)||(n[o]=x(a,t+1));return n}function De(e,t,n){let o=t.slice(0,n.limit).map(c=>{if(!n.fields)return x(c);let i={};for(let l of["id",...n.fields])l in c&&(i[l]=c[l]);return x(i)}),a={resource:e,page:n.page,returned:o.length,...n.total!==null?{total:n.total}:{},note:"Credential-like fields are never included. Long text is shortened."},r=JSON.stringify({...a,records:o},null,1),s=o.length;for(;r.length>24e3&&s>1;)s=Math.max(1,Math.floor(s/2)),r=JSON.stringify({...a,returned:s,records:o.slice(0,s),truncated:`Only ${s} of ${o.length} fit; ask for fewer fields or a smaller limit.`},null,1);return r}var Lt=new Set(["id","_id","created_at","updated_at","deleted_at","created_by","updated_by"]);function pe(e){if(!e||typeof e!="object"||Array.isArray(e))return{error:"`data` must be an object of field values."};let t=Object.entries(e);if(t.length===0)return{error:"`data` has no fields to write."};if(t.length>100)return{error:"`data` has more than 100 fields."};let n=t.map(([a])=>a).filter(J);if(n.length>0)return{error:`${n.join(", ")} look like credentials, which the agent may not set. Ask the user to change them in Saturn.`};let o=t.map(([a])=>a).filter(a=>Lt.has(a)||a.startsWith("__"));return o.length>0?{error:`${o.join(", ")} are managed by the instance and cannot be written.`}:{data:Object.fromEntries(t)}}function fe(e){return typeof e=="number"&&Number.isSafeInteger(e)?String(e):typeof e!="string"||!e.trim()||e.length>200||e==="."||e===".."?null:encodeURIComponent(e)}var Dt=new Set(["Workflow","WorkflowTrigger","ResourceDetail","SaturnUIComponent","Dashboard","UserDashboard","Menu","ResourceView","Permission","UserGroup","Lookup","LookupCategory","Upload","ResourceLog","AttachmentGroup","Attachment_type","EvaluationCriteria"]);function ge(e,t){return t===null?"Could not read this instance's catalog of core resources, so no record was changed. Try again.":t.has(e)&&!Dt.has(e)?`${e} is a core Saturn platform resource; its records are not changed by the agent. Reading them is fine. Ask the user to change it in Saturn.`:null}var Mt=new Set(["_permissions_","field_restrictions","id","created_at","updated_at"]);function Me(e){return Object.fromEntries(Object.entries(e).filter(([t,n])=>!Mt.has(t)&&n!==""&&n!==null&&n!==void 0&&!(Array.isArray(n)&&n.length===0)&&!(n&&typeof n=="object"&&!Array.isArray(n)&&Object.keys(n).length===0)))}function Ut(e){return e.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z")}function me(e,t,n,o){let a=decodeURIComponent(t).replace(/[^A-Za-z0-9_-]/g,"_").slice(0,100);return`${e}.${a}.${n}.${Ut(o)}.json`}function E(e){if(typeof e!="string")return null;let t=/^([A-Za-z][A-Za-z0-9_]{0,99})\.([A-Za-z0-9_-]{1,100})\.(pre-update|pre-delete|pre-restore)\.(\d{8}T\d{6}Z)\.json$/.exec(e);return t?{resource:t[1],id:t[2],tag:t[3],stamp:t[4]}:null}function I(e){return!!e&&typeof e=="object"&&!Array.isArray(e)&&Object.keys(e).length>0&&e.id!==void 0}function m(e){return Array.isArray(e)?e:[]}function d(e){return typeof e=="string"&&e.length>0?e:null}function he(e){return typeof e=="number"&&Number.isFinite(e)?e:null}function b(e){let t=e.replace(/[_-]+/g," ").trim();return t.charAt(0).toUpperCase()+t.slice(1)}var we={property_updater:{into:"properties",key:"resource_property",value:"value"}};function Wt(e,t){let n=e?we[e]:void 0;return n&&(t===n.key||t===n.value)?n:null}function Bt(e,t){let n=e?we[e]:void 0;if(!n)return t;let o=(d(t[n.key])??"").trim();if(o==="")return t;let a=t[n.into],r=a&&typeof a=="object"&&!Array.isArray(a)?{...a}:{};r[o]=t[n.value]??"";let s={...t,[n.into]:r};return delete s[n.key],delete s[n.value],s}var Vt=`<!DOCTYPE html>
+/*
+ * sonover-code — the extension's MCP server (Node): JSON-RPC over stdio, giving an AI CLI the saturn_* tools.
+ *
+ * Shipped by the original 0.1.1 build as a minified esbuild bundle; made readable here:
+ * formatted, the app code's variables named and commented, icons named after themselves.
+ * Library code (React, lucide-react, tailwind-merge, …) is marked by "──── Library: … ────"
+ * comments and left as it was, names minified; "──── App: … ────" starts this extension's code.
+ * build.mjs minifies this file into the package; package.sh proves (tools/same-code.mjs) that
+ * the minified file is the same program. Rename with tools/rename.mjs, not by hand.
+ */
+"use strict";
+
+// ResponseTooLargeError (minified: z) — Error: a response was bigger than the size cap.
+// Next, NO_BODY_STATUSES (minified: Nt): HTTP statuses that never carry a body.
+var ResponseTooLargeError = class extends Error {
+    constructor(limitBytes) {
+      super(`The server's response was larger than ${Math.round(limitBytes / (1024 * 1024))} MB, so it was not read.`), this.name = "ResponseTooLargeError";
+    }
+  },
+  NO_BODY_STATUSES = new Set([101, 204, 205, 304]);
+// capResponseSize (minified: j) — Wraps a fetch Response so reading more than the cap (50 MB by default) fails.
+function capResponseSize(response, maxBytes = 52428800) {
+  let declaredLength = Number(response.headers.get("content-length"));
+  // A declared length over the cap fails at once, before anything is read.
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) throw response.body?.cancel().catch(() => {}), new ResponseTooLargeError(maxBytes);
+  if (!response.body || NO_BODY_STATUSES.has(response.status)) return response;
+  // Otherwise count the bytes as they stream and fail once past the cap.
+  let received = 0,
+    limitedBody = response.body.pipeThrough(new TransformStream({
+      transform(chunk, controller) {
+        if (received += chunk.byteLength, received > maxBytes) {
+          controller.error(new ResponseTooLargeError(maxBytes));
+          return;
+        }
+        controller.enqueue(chunk);
+      }
+    }));
+  return new Response(limitedBody, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  });
+}
+// readline (minified: xt) — ──── App: Node requires; helpers: step counting, workflow/step search and ranking, secret-key detection, resource route names, record list query/format/trim, record data validation, core-resource checks, backup file names, operator param mapping (property_updater) ────
+// readline (minified: xt) — Node modules: readline (minified: xt) reads the JSON-RPC messages from stdin line by line;
+// net (minified: $t) is the local socket for approval round-trips with the extension; nodeCrypto (minified: Pt) is node:crypto.
+var readline = require("node:readline"),
+  net = require("node:net"),
+  nodeCrypto = require("node:crypto");
+// nonBlankString (minified: _) — The value if it is a string with something other than spaces, else null.
+// Next, arrayOrEmpty (minified: K): the value if it's an array, else [].
+var nonBlankString = value => typeof value == "string" && value.trim() ? value : null,
+  arrayOrEmpty = value => Array.isArray(value) ? value : [];
+// countCommandSteps (minified: v) — Counts the operator steps (type "command") anywhere under a node.
+function countCommandSteps(node) {
+  if (!node || typeof node != "object") return 0;
+  let count = node.type === "command" ? 1 : 0;
+  for (let child of Object.values(node)) if (Array.isArray(child)) for (let item of child) count += countCommandSteps(item);else child && typeof child == "object" && (count += countCommandSteps(child));
+  return count;
+}
+// searchEntries (minified: vt) — A workflow's stages, actions and commands as flat search entries (with workflow id/name, kind, path and step count).
+function searchEntries(workflow) {
+  let workflowId = nonBlankString(workflow?.id) ?? "",
+    workflowName = nonBlankString(workflow?.name) ?? workflowId,
+    base = {
+      workflow_id: workflowId,
+      workflow: workflowName
+    },
+    entries = [];
+  return arrayOrEmpty(workflow?.stages).forEach((stage, stageIndex) => {
+    let stageName = nonBlankString(stage?.stage) ?? "";
+    entries.push({
+      ...base,
+      kind: "stage",
+      stage: null,
+      name: stageName,
+      label: nonBlankString(stage?.label),
+      id: nonBlankString(stage?.id),
+      path: ["stages", stageIndex]
+    }), arrayOrEmpty(stage?.actions).forEach((action, actionIndex) => {
+      entries.push({
+        ...base,
+        kind: "action",
+        stage: stageName,
+        name: nonBlankString(action?.action) ?? "",
+        label: nonBlankString(action?.label),
+        id: nonBlankString(action?.id),
+        path: ["stages", stageIndex, "actions", actionIndex],
+        steps: countCommandSteps(action?.task)
+      });
+    });
+  }), arrayOrEmpty(workflow?.actions).forEach((action, actionIndex) => {
+    entries.push({
+      ...base,
+      kind: "action",
+      stage: null,
+      name: nonBlankString(action?.action) ?? "",
+      label: nonBlankString(action?.label),
+      id: nonBlankString(action?.id),
+      path: ["actions", actionIndex],
+      steps: countCommandSteps(action?.task)
+    });
+  }), arrayOrEmpty(workflow?.commands).forEach((command, commandIndex) => {
+    entries.push({
+      ...base,
+      kind: "command",
+      stage: null,
+      name: nonBlankString(command?.name) ?? "",
+      label: nonBlankString(command?.label),
+      id: nonBlankString(command?.id),
+      path: ["commands", commandIndex],
+      steps: countCommandSteps(command?.command)
+    });
+  }), entries;
+}
+// normalizeSearchText (minified: le) — Lower case, with _ - . and runs of spaces turned into one space (so search ignores them).
+function normalizeSearchText(text) {
+  return text.toLowerCase().replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
+}
+// searchScore (minified: Ft) — How well a search entry matches a query: 3 exact name/label/id, 2 prefix, 1 every word found (or empty query), 0 no match.
+function searchScore(entry, query) {
+  let needle = normalizeSearchText(query);
+  if (!needle) return 1;
+  let names = [entry.name, entry.label ?? "", entry.id ?? ""].map(normalizeSearchText).filter(Boolean);
+  if (names.some(candidate => candidate === needle)) return 3;
+  if (names.some(candidate => candidate.startsWith(needle))) return 2;
+  let haystack = [...names, normalizeSearchText(entry.stage ?? "")].join(" ");
+  return needle.split(" ").every(word => haystack.includes(word)) ? 1 : 0;
+}
+// searchWorkflows (minified: Fe) — The saturn_search_workflows search: entries of the given kinds (optionally one workflow) ranked by searchScore, then by workflow and name; the first 50 hits and the total.
+function searchWorkflows(workflows, query, kinds, workflowId = null) {
+  let ranked = workflows.filter(item => !workflowId || item?.id === workflowId).flatMap(searchEntries).filter(item => !kinds || kinds.length === 0 || kinds.includes(item.kind)).map(item => ({
+    hit: item,
+    score: searchScore(item, query)
+  })).filter(scored => scored.score > 0).sort((scored, other) => other.score - scored.score || scored.hit.workflow.localeCompare(other.hit.workflow) || scored.hit.name.localeCompare(other.hit.name));
+  return {
+    hits: ranked.slice(0, 50).map(scored => scored.hit),
+    total: ranked.length
+  };
+}
+// CREDENTIAL_KEY_RE (minified: It) — Field names that look like credentials; the agent never sees or writes these.
+var CREDENTIAL_KEY_RE = /pass(?:word|wd|code|phrase)?$|^pass|secret|token|api[_-]?key|private[_-]?key|hash|salt|otp|mfa|2fa|totp|credential|session|cookie|authorization|refresh/i;
+// isCredentialKey (minified: J) — Does this field name look like a credential?
+function isCredentialKey(key) {
+  return CREDENTIAL_KEY_RE.test(key);
+}
+// isResourceName (minified: F) — Is this a plausible resource name (a letter, then letters, digits or _; at most 100)?
+function isResourceName(value) {
+  return typeof value == "string" && /^[A-Za-z][A-Za-z0-9_]{0,99}$/.test(value);
+}
+// recordRoutes (minified: G) — The routes a resource's records may live at: SystemLog -> /systemlogs, /systemlog, … (plural forms first).
+function recordRoutes(resource) {
+  if (!isResourceName(resource)) return [];
+  let lower = resource.toLowerCase(),
+    names = [`${lower}s`];
+  lower.endsWith("s") && names.push(lower, `${lower}es`), lower.length > 1 && lower.endsWith("y") && !"aeiou".includes(lower[lower.length - 2]) && names.push(`${lower.slice(0, -1)}ies`), /(x|z|ch|sh)$/.test(lower) && names.push(`${lower}es`), lower.endsWith("person") && names.push(`${lower.slice(0, -6)}people`), names.push(lower);
+  let camel = resource.charAt(0).toLowerCase() + resource.slice(1);
+  return names.push(/[^aeiou]y$/i.test(camel) ? `${camel.slice(0, -1)}ies` : /(s|x|z|ch|sh)$/i.test(camel) ? `${camel}es` : `${camel}s`), [...new Set(names)].map(routeName => `/${routeName}`);
+}
+// isMissingRoute (minified: ue) — 404 or "route not found": try the next route name.
+function isMissingRoute(httpStatus, body) {
+  if (httpStatus === 404) return !0;
+  let message = body && typeof body == "object" ? body.message : void 0;
+  return typeof message == "string" && /route not found/i.test(message);
+}
+// isRouteNotFound (minified: de) — The body says "route not found" (whatever the status).
+function isRouteNotFound(httpStatus, body) {
+  let message = body && typeof body == "object" ? body.message : void 0;
+  return typeof message == "string" && /route not found/i.test(message);
+}
+// recordQuery (minified: Ie) — ?limit=&page=&filter= for a record list.
+function recordQuery(options) {
+  let params = new URLSearchParams();
+  return params.set("limit", String(options.limit)), params.set("page", String(options.page)), options.filter && params.set("filter", options.filter), `?${params.toString()}`;
+}
+// recordsFromBody (minified: Le) — {data, count|total} (or a bare array) -> {records, total}; only object records are kept.
+function recordsFromBody(body) {
+  let records = (Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : []).filter(item => !!item && typeof item == "object" && !Array.isArray(item)),
+    total = typeof body?.count == "number" ? body.count : typeof body?.total == "number" ? body.total : null;
+  return {
+    records: records,
+    total: total
+  };
+}
+// shortenForAgent (minified: x) — A copy of a value for the agent: credential-like keys dropped, strings over 500 characters cut, arrays over 20 items cut, nesting below 4 levels summarised.
+function shortenForAgent(value, depth = 0) {
+  if (typeof value == "string") return value.length > 500 ? `${value.slice(0, 500)}\u2026 (${value.length} chars)` : value;
+  if (!value || typeof value != "object") return value;
+  if (depth >= 4) return Array.isArray(value) ? `[${value.length} items]` : "{\u2026}";
+  if (Array.isArray(value)) {
+    let items = value.slice(0, 20).map(item => shortenForAgent(item, depth + 1));
+    return value.length > 20 ? [...items, `\u2026 ${value.length - 20} more`] : items;
+  }
+  let copy = {};
+  for (let [key, fieldValue] of Object.entries(value)) isCredentialKey(key) || (copy[key] = shortenForAgent(fieldValue, depth + 1));
+  return copy;
+}
+// formatRecordsForAgent (minified: De) — The saturn_list_records tool's answer: the records (only the asked-for fields), shortened, as JSON of at most ~24,000 characters.
+function formatRecordsForAgent(resource, records, options) {
+  let shown = records.slice(0, options.limit).map(record => {
+      if (!options.fields) return shortenForAgent(record);
+      let picked = {};
+      for (let field of ["id", ...options.fields]) field in record && (picked[field] = record[field]);
+      return shortenForAgent(picked);
+    }),
+    header = {
+      resource: resource,
+      page: options.page,
+      returned: shown.length,
+      ...(options.total !== null ? {
+        total: options.total
+      } : {}),
+      note: "Credential-like fields are never included. Long text is shortened."
+    },
+    json = JSON.stringify({
+      ...header,
+      records: shown
+    }, null, 1),
+    count = shown.length;
+  // Too long: halve the number of records until it fits (or one is left).
+  for (; json.length > 24e3 && count > 1;) count = Math.max(1, Math.floor(count / 2)), json = JSON.stringify({
+    ...header,
+    returned: count,
+    records: shown.slice(0, count),
+    truncated: `Only ${count} of ${shown.length} fit; ask for fewer fields or a smaller limit.`
+  }, null, 1);
+  return json;
+}
+// MANAGED_RECORD_FIELDS (minified: Lt) — Fields the instance manages; the agent may not write them.
+var MANAGED_RECORD_FIELDS = new Set(["id", "_id", "created_at", "updated_at", "deleted_at", "created_by", "updated_by"]);
+// checkAgentRecordData (minified: pe) — Checks the `data` the agent wants to write to a record: an object of 1 to 100 fields, no credential-like or managed fields. Returns {data} or {error}.
+function checkAgentRecordData(data) {
+  if (!data || typeof data != "object" || Array.isArray(data)) return {
+    error: "`data` must be an object of field values."
+  };
+  let entries = Object.entries(data);
+  if (entries.length === 0) return {
+    error: "`data` has no fields to write."
+  };
+  if (entries.length > 100) return {
+    error: "`data` has more than 100 fields."
+  };
+  let credentialKeys = entries.map(([key]) => key).filter(isCredentialKey);
+  if (credentialKeys.length > 0) return {
+    error: `${credentialKeys.join(", ")} look like credentials, which the agent may not set. Ask the user to change them in Saturn.`
+  };
+  let managedKeys = entries.map(([key]) => key).filter(key => MANAGED_RECORD_FIELDS.has(key) || key.startsWith("__"));
+  return managedKeys.length > 0 ? {
+    error: `${managedKeys.join(", ")} are managed by the instance and cannot be written.`
+  } : {
+    data: Object.fromEntries(entries)
+  };
+}
+// recordIdForUrl (minified: fe) — A record id the agent gave, encoded for a URL; null if it is empty, too long or "." / "..".
+function recordIdForUrl(id) {
+  return typeof id == "number" && Number.isSafeInteger(id) ? String(id) : typeof id != "string" || !id.trim() || id.length > 200 || id === "." || id === ".." ? null : encodeURIComponent(id);
+}
+// AGENT_WRITABLE_CORE_RESOURCES (minified: Dt) — Core resources whose records the agent may still change.
+var AGENT_WRITABLE_CORE_RESOURCES = new Set(["Workflow", "WorkflowTrigger", "ResourceDetail", "SaturnUIComponent", "Dashboard", "UserDashboard", "Menu", "ResourceView", "Permission", "UserGroup", "Lookup", "LookupCategory", "Upload", "ResourceLog", "AttachmentGroup", "Attachment_type", "EvaluationCriteria"]);
+// coreResourceRefusal (minified: ge) — Why the agent may not change this resource's records (a core platform resource, or the core catalog could not be read); null if it may.
+function coreResourceRefusal(resource, coreResources) {
+  return coreResources === null ? "Could not read this instance's catalog of core resources, so no record was changed. Try again." : coreResources.has(resource) && !AGENT_WRITABLE_CORE_RESOURCES.has(resource) ? `${resource} is a core Saturn platform resource; its records are not changed by the agent. Reading them is fine. Ask the user to change it in Saturn.` : null;
+}
+// RESTORE_SKIPPED_FIELDS (minified: Mt) — Fields left out when a backed-up record is written back.
+var RESTORE_SKIPPED_FIELDS = new Set(["_permissions_", "field_restrictions", "id", "created_at", "updated_at"]);
+// restorableFields (minified: Me) — A backed-up record's fields worth writing back: no managed fields, no empty values.
+function restorableFields(record) {
+  return Object.fromEntries(Object.entries(record).filter(([key, fieldValue]) => !RESTORE_SKIPPED_FIELDS.has(key) && fieldValue !== "" && fieldValue !== null && fieldValue !== void 0 && !(Array.isArray(fieldValue) && fieldValue.length === 0) && !(fieldValue && typeof fieldValue == "object" && !Array.isArray(fieldValue) && Object.keys(fieldValue).length === 0)));
+}
+// compactTimestamp (minified: Ut) — A date as 20260101T120000Z (for backup file names).
+function compactTimestamp(date) {
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+// recordBackupName (minified: me) — The file name of a record backup: <resource>.<id>.<tag>.<timestamp>.json.
+function recordBackupName(resource, id, tag, date) {
+  let safeId = decodeURIComponent(id).replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 100);
+  return `${resource}.${safeId}.${tag}.${compactTimestamp(date)}.json`;
+}
+// parseRecordBackupName (minified: E) — The parts of a record backup file name ({resource, id, tag, stamp}), or null if it is not one.
+function parseRecordBackupName(fileName) {
+  if (typeof fileName != "string") return null;
+  let match = /^([A-Za-z][A-Za-z0-9_]{0,99})\.([A-Za-z0-9_-]{1,100})\.(pre-update|pre-delete|pre-restore)\.(\d{8}T\d{6}Z)\.json$/.exec(fileName);
+  return match ? {
+    resource: match[1],
+    id: match[2],
+    tag: match[3],
+    stamp: match[4]
+  } : null;
+}
+// isFoundRecord (minified: I) — Is this a real record (a non-empty object with an id)?
+function isFoundRecord(record) {
+  return !!record && typeof record == "object" && !Array.isArray(record) && Object.keys(record).length > 0 && record.id !== void 0;
+}
+// asArray (minified: m) — The value if it's an array, else [].
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+// nonEmptyString (minified: d) — The value if it's a non-empty string, else null.
+function nonEmptyString(value) {
+  return typeof value == "string" && value.length > 0 ? value : null;
+}
+// finiteNumber (minified: he) — The value if it's a finite number, else null.
+function finiteNumber(value) {
+  return typeof value == "number" && Number.isFinite(value) ? value : null;
+}
+// humanize (minified: b) — "some_name" -> "Some name"
+function humanize(text) {
+  let spaced = text.replace(/[_-]+/g, " ").trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+// MERGED_PARAMS (minified: we) — property_updater: properties is edited as one map (resource_property / value are merged into it).
+var MERGED_PARAMS = {
+  property_updater: {
+    into: "properties",
+    key: "resource_property",
+    value: "value"
+  }
+};
+// mergedParam (minified: Wt) — The merge rule a param is folded into (so it is hidden as its own param), or null.
+function mergedParam(operator, param) {
+  let merge = operator ? MERGED_PARAMS[operator] : void 0;
+  return merge && (param === merge.key || param === merge.value) ? merge : null;
+}
+// mergeParams (minified: Bt) — Folds merged params into their map (resource_property / value -> properties[key] = value).
+function mergeParams(operator, data) {
+  let merge = operator ? MERGED_PARAMS[operator] : void 0;
+  if (!merge) return data;
+  let mapKey = (nonEmptyString(data[merge.key]) ?? "").trim();
+  if (mapKey === "") return data;
+  let existing = data[merge.into],
+    map = existing && typeof existing == "object" && !Array.isArray(existing) ? {
+      ...existing
+    } : {};
+  map[mapKey] = data[merge.value] ?? "";
+  let merged = {
+    ...data,
+    [merge.into]: map
+  };
+  return delete merged[merge.key], delete merged[merge.value], merged;
+}
+// EMAIL_TEMPLATE_HTML (minified: Vt) — ──── App: HTML preview page template, code-param detection, Resource-name extraction, SVG sanitizer ────
+// EMAIL_TEMPLATE_HTML (minified: Vt) — Default value of an email `message` param: a starter HTML email (table layout, as email clients need).
+// Next, HTML_CONTENT_TEMPLATE (minified: qt): the default of an operator's `html` object param, a starter block of HTML content.
+var EMAIL_TEMPLATE_HTML = `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8">
@@ -32,26 +375,2772 @@
     </table>
   </body>
 </html>
-`,qt=`<div style="font-family:Arial,Helvetica,sans-serif;color:#18181b;">
+`,
+  HTML_CONTENT_TEMPLATE = `<div style="font-family:Arial,Helvetica,sans-serif;color:#18181b;">
   <h1 style="margin:0 0 12px;font-size:20px;line-height:28px;">Heading</h1>
   <p style="margin:0 0 12px;line-height:22px;">
     Hello {{ _resource.name }}, write the content here.
   </p>
 </div>
-`;function Ht(e,t,n,o,a,r){if(/^(code|evaluator|script|fn|function|expression)$/i.test(t)||/^\s*(async\s+)?(function\b|\([^)]*\)\s*=>)/.test(n)||o&&/javascript code to execute/i.test(o))return"javascript";let s=`${r??""} ${o??""}`;return/^html$/i.test(e)&&a==="object"||/^message$/i.test(t)&&a==="object"||/\bhtml\b/i.test(s)?"html":/\bcss\b/i.test(`${t} ${s}`)?"css":/\bjson\b/i.test(s)?"json":null}function Ue(e){if(!e)return null;let t=/new\s+Resource\s*\(\s*[A-Za-z_$][\w$]*\s*,\s*["'`]([A-Za-z0-9_]+)["'`]\s*\)/g,n=[...e.matchAll(t)];return n.length!==1||!/\.\s*list\s*\(/.test(e)||/\.\s*(filter|map|reduce|slice|find|sort)\s*\(/.test(e)||/\bif\s*\(|\?\s*[^:]*:/.test(e)?null:{resource:n[0][1]}}var zt=new Set(["svg","g","path","circle","ellipse","rect","line","polyline","polygon","defs","lineargradient","radialgradient","stop","title","desc","clippath","mask","text","tspan","symbol","use"]),Kt=new Set(["xmlns","xmlns:xlink","version","viewbox","width","height","x","y","x1","y1","x2","y2","cx","cy","r","rx","ry","fx","fy","d","points","transform","fill","stroke","stroke-width","stroke-linecap","stroke-linejoin","stroke-miterlimit","stroke-dasharray","stroke-dashoffset","fill-rule","clip-rule","opacity","fill-opacity","stroke-opacity","offset","stop-color","stop-opacity","gradientunits","gradienttransform","spreadmethod","clip-path","clippathunits","mask","maskunits","preserveaspectratio","id","class","font-size","font-family","font-weight","text-anchor","dominant-baseline","aria-hidden","aria-label","role","focusable","href","xlink:href"]),Jt=/<\s*(script|foreignobject|style|iframe|object|embed|animate|animatetransform|animatemotion|set)\b[\s\S]*?<\s*\/\s*\1\s*>/gi,We=/<(\/?)([a-zA-Z][a-zA-Z0-9:-]*)((?:\s+[^\s"'=<>/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*(\/?)>/y,Gt=/([^\s"'=<>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;function Xt(e,t){return Kt.has(e)?e==="href"||e==="xlink:href"?/^#[A-Za-z0-9_-]+$/.test(t.trim()):(t.match(/url\s*\(([^)]*)\)/gi)??[]).some(o=>!/^url\s*\(\s*['"]?#[A-Za-z0-9_-]+['"]?\s*\)$/i.test(o))?!1:!/javascript:|data:|&#|\\/i.test(t):!1}function Zt(e){let t=d(e);if(!t||!/^\s*<svg[\s>/]/i.test(t))return null;let n=t.replace(Jt,""),o="",a=0;for(;a<n.length;){let r=n.indexOf("<",a),s=n.slice(a,r<0?n.length:r);if(o+=s.replace(/>/g,"&gt;"),r<0)break;We.lastIndex=r;let c=We.exec(n);if(!c)return null;let[i,l,u,p,g]=c,f=u.toLowerCase();if(!zt.has(f))return null;if(l)o+=`</${u}>`;else{let y=[];for(let A of p.matchAll(Gt)){let T=A[1].toLowerCase(),H=A[2]??A[3]??A[4]??"";Xt(T,H)&&y.push(`${A[1]}="${H.replace(/"/g,"&quot;")}"`)}o+=`<${u}${y.length>0?` ${y.join(" ")}`:""}${g?"/":""}>`}a=r+i.length}return o}function He(e){let t=m(Array.isArray(e)?e:e?.data),n=new Map;for(let o of t){let a=d(o?.operator);a&&n.set(a,{operator:a,name:d(o?.name)??b(a),description:d(o?.description),category:d(o?.category),icon:Zt(o?.icon),params:m(o?.params).map(r=>{let s=d(r?.param);if(!s)return null;let c=d(r?.lookup_type),i=d(r?.lookup_reference),l=c==="values"&&i?i.split(",").map(f=>f.trim()).filter(Boolean):Array.isArray(r?.options)?r.options.map(f=>d(f?.value)??d(f?.label)??String(f)):null,u=r?.default===null||r?.default===void 0?"":typeof r.default=="object"?JSON.stringify(r.default,null,2):String(r.default),p=d(r?.description)??d(r?.help_text),g=d(r?.type);return{param:s,label:d(r?.label)??b(s),type:g,required:r?.required===!0,description:p,lookupValues:l&&l.length>0?l:null,lookupKind:c,lookupResource:c==="function"?(()=>{let f=Ue(typeof r?.lookup_reference=="string"?r.lookup_reference:null);return f?{resource:f.resource,valueField:d(r?.lookup_value_field)??"id",labelField:d(r?.lookup_label_field)??"name"}:null})():null,lookupHint:c&&c!=="values"&&c!=="resources"&&!Ue(typeof r?.lookup_reference=="string"?r.lookup_reference:null)?`${c} lookup \u2014 the web app resolves this at runtime; enter a value directly`:null,inputType:d(r?.input_properties?.type),sensitive:r?.sensitive===!0,defaultValue:u||(/^message$/i.test(s)&&g==="object"?Vt:/^html$/i.test(a)&&g==="object"?qt:""),codeLanguage:Ht(a,s,u,p,g,d(r?.label)),mergedInto:Wt(a,s)?.into??null}}).filter(r=>r!==null)})}return n}function ze(e,t){let n=d(e?.operator);return!n||!t?null:t.get(n)??null}function Yt(e,t){let n=ze(e,t);if(n)return n.name;let o=d(e?.name);if(o)return b(o);let a=d(e?.operator);return a?b(a):"Command"}var Be=400,Qt=new Set(["_properties","currentProperty"]);function ke(e){if(!e||typeof e!="object"||Array.isArray(e))return null;let t=e;if(typeof t.html!="string")return null;let n=t.json;return{html:t.html,json:t.json,hasDesignTree:!!n&&typeof n=="object",schemaVersion:typeof n?.schemaVersion=="number"?n.schemaVersion:null,rows:Array.isArray(n?.body?.rows)?n.body.rows.length:null}}function en(e){let t=[e.hasDesignTree?"Designed email":"HTML email"];return e.rows!==null&&t.push(`${e.rows} row${e.rows===1?"":"s"}`),t.push(`${Math.round(e.html.length/1024)} kB of HTML`),e.schemaVersion!==null&&t.push(`Unlayer schema v${e.schemaVersion}`),`${t.join(" \xB7 ")}${e.hasDesignTree?" \u2014 designed in the instance's email designer.":" \u2014 hand-written HTML."}`}function L(e){let t;if(e==null)t="";else if(typeof e=="string")t=e;else if(typeof e=="number"||typeof e=="boolean")t=String(e);else{let n=ke(e);if(n)return{text:en(n),truncated:!1};try{t=JSON.stringify(e,null,2)??""}catch{t="[unserializable]"}}return t.length>Be?{text:t.slice(0,Be),truncated:!0}:{text:t,truncated:!1}}function tn(e){return!e||typeof e!="object"||Array.isArray(e)||ke(e)?null:Object.entries(e).map(([t,n])=>({key:t,value:L(n).text}))}function nn(e,t,n){if(!e||typeof e!="object"||Array.isArray(e))return[];let o=Bt(n,e),a=t?.params??[],r=[],s=new Set,c=(i,l,u,p)=>{if(Qt.has(i)||s.has(i))return;s.add(i);let g=o[i];if(g==null||g==="")return;let{text:f,truncated:y}=L(g);r.push({key:i,label:l,type:u,value:f,entries:tn(g),truncated:y,unknown:p})};for(let i of a)c(i.param,i.label,i.type,!1);for(let i of Object.keys(o))c(i,b(i),null,!0);return r}var be=12;function D(e,t,n,o=0){if(!e||typeof e!="object"||o>be)return null;if(d(e.type)==="if")return Ke(e,t,n,o);let a=[...n,"commands"],r=m(e.commands).map((s,c)=>Z(s,t,[...a,c],o+1)).filter(s=>s!==null);return{kind:"series",label:d(e.type)==="parallel"?"Parallel":"Series",children:r,path:n,childrenPath:a}}function Ke(e,t,n,o){let a=(l,u)=>{if(!l||typeof l!="object")return[];let p=[...n,u],g=d(l.type);if(g===null||g==="series"){let y=D(l,t,p,o+1);return y&&y.kind==="series"?y.children:y?[y]:[]}let f=Z(l,t,p,o+1);return f?[f]:[]},r=d(e.evaluator),s=e.data&&typeof e.data=="object"&&!Array.isArray(e.data)?e.data:{},c=L(s.command),i=d(s.property);return{kind:"if",label:"If",evaluatorKind:r,evaluatorSource:d(s.command)?c.text:null,evaluatorTruncated:c.truncated,condition:i?{property:i,operator:d(s.operator)??"==",value:L(s.value).text}:null,whenTrue:a(e.true,"true"),whenFalse:a(e.false,"false"),path:n,truePath:[...n,"true","commands"],falsePath:[...n,"false","commands"]}}function Z(e,t,n,o=0){if(!e||typeof e!="object"||o>be)return null;let a=d(e.type);if(a==="if")return Ke(e,t,n,o);if(a==="each"){let s=e.command?D(e.command,t,[...n,"command"],o+1):D({type:"series",commands:e.commands},t,n,o+1),c=e.command?[...n,"command","commands"]:[...n,"commands"];return{kind:"each",label:"Each",concurrency:he(e.concurrency),collection:d(e.reference),children:s&&s.kind==="series"?s.children:s?[s]:[],path:n,childrenPath:c}}if(a==="parallel"||a==="series"){let s=[...n,"commands"],c=m(e.commands).map((l,u)=>Z(l,t,[...s,u],o+1)).filter(l=>l!==null),i=d(e.name);return a==="series"?{kind:"series",label:i?b(i):"Series",children:c,path:n,childrenPath:s}:{kind:"parallel",label:i?b(i):"Parallel",concurrency:he(e.concurrency),children:c,path:n,childrenPath:s}}if(a==="reference")return{kind:"reference",label:"Reference",targetId:d(e.reference)??d(e.id),targetName:null,parameterFields:[],parameterValues:wn(e),path:n};let r=ze(e,t);return{kind:"operator",label:Yt(e,t),operator:d(e.operator),delay:he(e.delay),params:nn(e.data,r,d(e.operator)),path:n}}var rn={user_group:{label:"User Group",icon:{__name:"folder",name:"Folder"},kind:"ids"},user:{label:"User",icon:{__name:"user",name:"User"},kind:"ids"},permission:{label:"Permission",icon:{__name:"key",name:"Key"},kind:"ids"},function:{label:"Custom Function",icon:{__name:"document",name:"Document"},kind:"code"}};function on(e){return Object.prototype.hasOwnProperty.call(rn,e)}function sn(e){return m(e?.access_control).map(t=>({method:d(t?.method)??"",label:d(t?.lable)??d(t?.label),data:m(t?.data).map(n=>String(n)).filter(n=>n.length>0),known:on(d(t?.method)??"")}))}function an(e){let t=m(e?.actors);if(t.length===0)return"Everyone";let n=t.map(o=>typeof o=="string"?o:d(o?.label)??d(o?.name)??d(o?.id)).filter(o=>o!==null);return n.length>0?n.join(", "):`${t.length} actor${t.length===1?"":"s"}`}function ye(e){let t=d(e?.key)??"";return{key:t,label:d(e?.label)??(t?b(t):"Field"),type:d(e?.type),inputType:d(e?.input_properties?.type),required:e?.required===!0}}function Je(e,t,n){let o=d(e?.action)??"";return{id:d(e?.id)??o,action:o,label:d(e?.label)??(o?b(o):"Action"),actorLabel:an(e),access:sn(e),isBatchAction:e?.is_batch_action===!0,confirmMessage:d(e?.confirm_message),flow:D(e?.task,t,[...n,"task"]),taskPath:[...n,"task"],form:m(e?.form?.fields).map(ye)}}function cn(e,t,n){let o=d(e?.stage)??"";return{stage:o,label:d(e?.label)??(o?b(o):"Stage"),color:d(e?.color),actions:m(e?.actions).map((a,r)=>Je(a,t,[...n,"actions",r]))}}function ln(e){return e&&typeof e=="object"&&!Array.isArray(e)&&Array.isArray(e.fields)?e.fields.map(ye):Array.isArray(e)?e.map((t,n)=>{if(typeof t=="string")return{key:t,label:b(t),type:null,inputType:null,required:!1};let o=d(t?.key)??d(t?.param)??d(t?.name)??`param_${n+1}`;return ye({...t,key:o})}):[]}function un(e,t,n){let o=d(e?.name)??"",a=[...n,"command"];return{id:d(e?.id)??o,name:o,label:d(e?.label)??(o?b(o):"Command"),flow:D(e?.command,t,a)??Z(e?.command,t,a),taskPath:a,parameters:ln(e?.parameters),usageCount:0,usages:[]}}function X(e,t){if(e)switch(t(e),e.kind){case"series":case"parallel":case"each":e.children.forEach(n=>X(n,t));break;case"if":e.whenTrue.forEach(n=>X(n,t)),e.whenFalse.forEach(n=>X(n,t));break}}function dn(e,t){let n=e.slice(t.length);for(;n.length>0&&(n[0]==="task"||n[0]==="command");)n.shift();let o=[];for(let a of n)typeof a=="number"?o[o.length-1]=`${o[o.length-1]??""}[${a}]`:o.push(a);return o.join(".")||"the flow"}function pn(e,t){let n=new Map;for(let a of e)a.id&&n.set(a.id,a),a.name&&n.set(a.name,a);let o=new Map;for(let a of t)X(a.flow,r=>{if(r.kind!=="reference"||!r.targetId)return;let s=n.get(r.targetId);if(!s)return;r.targetName=s.name||s.label,r.label=s.label,r.parameterFields=s.parameters;let c=o.get(s.id)??[];c.push({label:a.label,pathLabel:dn(r.path,a.basePath),path:r.path,target:a.target}),o.set(s.id,c)});for(let a of e)a.usages=o.get(a.id)??[],a.usageCount=a.usages.length}function fn(e,t){if(typeof e=="string")return{id:e,label:b(e),detail:null};let n=d(e?.name)??d(e?.event)??d(e?.type);return{id:d(e?.id)??`trigger_${t+1}`,label:d(e?.label)??(n?b(n):`Trigger ${t+1}`),detail:d(e?.description)??d(e?.event)??d(e?.type)}}function Ge(e){let t=m(e?.stages);return{id:d(e?.id)??"",name:d(e?.name)??d(e?.id)??"Untitled workflow",status:d(e?.status),stageCount:t.length,globalActionCount:m(e?.actions).length,stages:t.map(n=>{let o=d(n?.stage)??"";return{stage:o,label:d(n?.label)??(o?b(o):"Stage"),color:d(n?.color)}})}}function Xe(e,t){let n=m(e?.stages).map((r,s)=>cn(r,t,["stages",s])),o=m(e?.actions).map((r,s)=>Je(r,t,["actions",s])),a=m(e?.commands).map((r,s)=>un(r,t,["commands",s]));return pn(a,[...o.map((r,s)=>({flow:r.flow,label:`Global Action: ${r.label}`,basePath:["actions",s],target:{tab:"actions",actionId:r.id}})),...n.flatMap((r,s)=>r.actions.map((c,i)=>({flow:c.flow,label:`Stage ${r.label} / Action ${c.label}`,basePath:["stages",s,"actions",i],target:{tab:"workflow",stage:r.stage,actionId:c.id}}))),...a.map((r,s)=>({flow:r.flow,label:`Command: ${r.label}`,basePath:["commands",s],target:{tab:"commands",commandId:r.id}}))]),{id:d(e?.id)??"",name:d(e?.name)??d(e?.id)??"Untitled workflow",status:d(e?.status),start:d(e?.start),createdAt:d(e?.created_at),updatedAt:d(e?.updated_at),stages:n,actions:o,commands:a,triggers:m(e?.triggers).map(fn)}}function gn(e){return!!e&&typeof e=="object"}function _e(e,t,n){let o={},a=[],r=e?.params??[];for(let i of r){let l=t[i.param]??"",u=i.codeLanguage?l:l.trim();if(Object.prototype.hasOwnProperty.call(o,i.param))continue;let p=u.trim()==="";if(i.mergedInto)continue;if(p&&gn(n?.[i.param])){o[i.param]=n[i.param];continue}if(p){i.required&&a.push({param:i.param,label:i.label,message:"is required"});continue}if(!(i.type==="object"||i.type==="array")&&/\{\{[\s\S]*\}\}/.test(u)){o[i.param]=u;continue}switch(i.type){case"number":{let f=Number(u);Number.isFinite(f)?o[i.param]=f:a.push({param:i.param,label:i.label,message:"must be a number"});break}case"boolean":{let f=u.toLowerCase();["true","false"].includes(f)?o[i.param]=f==="true":a.push({param:i.param,label:i.label,message:"must be true or false"});break}case"object":case"array":{if(i.type==="object"&&i.codeLanguage==="html"&&/^\s*</.test(u)){let f=n?.[i.param],y=ke(f)?{...f}:{};o[i.param]={...y,html:u};break}if(!/^\s*[[{]/.test(u)&&r.filter(f=>f.param===i.param).length>1)continue;try{let f=JSON.parse(u);i.type==="array"!==Array.isArray(f)||f===null||typeof f!="object"?a.push({param:i.param,label:i.label,message:`must be a JSON ${i.type}`}):o[i.param]=f}catch(f){a.push({param:i.param,label:i.label,message:`is not valid JSON \u2014 ${f instanceof Error?f.message:String(f)}`})}break}default:o[i.param]=u}}let s=e?we[e.operator]:void 0,c=s?o[s.into]:void 0;s&&c&&typeof c=="object"&&!Array.isArray(c)&&(o._properties=Object.entries(c).map(([i,l])=>({editing:!1,key:i,value:l})));for(let i of Object.keys(t))!r.some(l=>l.param===i)&&(t[i]??"").trim()!==""&&a.push({param:i,label:i,message:"is not a parameter of this operator"});return{data:o,errors:a}}function Ze(e,t,n){let o={type:"command",operator:e,data:t};return n!==null&&(o.delay=n),o}var mn=new Set(["__proto__","constructor","prototype"]);function Y(e){return Array.isArray(e)&&e.every(t=>typeof t=="number"&&Number.isInteger(t)&&t>=0||typeof t=="string"&&!mn.has(t))}function Ye(e){if(!Y(e))throw new Error("Refusing a path with a non-index number or a reserved key (__proto__, constructor, prototype)")}function M(e,t){if(!Y(t))return;let n=e;for(let o of t){if(n===null||typeof n!="object"||!Object.prototype.hasOwnProperty.call(n,o))return;n=n[o]}return n}function Qe(e,t,n,o){if(t.length===0)throw new Error("Refusing to insert at an empty path");Ye(t);let a=structuredClone(e),r=a;for(let l=0;l<t.length-1;l++){let u=t[l],p=t[l+1];if((r[u]===null||r[u]===void 0)&&(r[u]=typeof p=="number"?[]:{},Array.isArray(r[u])||(r[u].type="series")),r=r[u],r===null||typeof r!="object")throw new Error(`Cannot insert: ${t.slice(0,l+1).join(".")} is not a container`);if(p==="commands"&&!Array.isArray(r.commands)&&r.commands===void 0&&(d(r.type)!==null||r.operator!==void 0)&&d(r.type)!=="series"&&d(r.type)!=="parallel"){let g={...r};for(let f of Object.keys(r))delete r[f];r.type="series",r.commands=[g]}}let s=t[t.length-1];if(!Array.isArray(r[s]))if(r[s]===null||r[s]===void 0)r[s]=[];else throw new Error(`Cannot insert: ${t.join(".")} is not an array`);let c=r[s],i=n===null||n<0||n>c.length?c.length:n;return c.splice(i,0,o),a}var hn=["_permissions_","created_at","updated_at"];function S(e,t){if(!e||typeof e!="object"||Array.isArray(e))throw new Error("Workflow definition must be an object");let n={...e},o=d(n.id);if(o&&o!==t)throw new Error(`Refusing to save: definition id "${o}" does not match ${t}`);for(let a of hn)delete n[a];return n}function Ae(e,t){if(t.length===0)throw new Error("Refusing to address an empty path");Ye(t);let n=e;for(let o=0;o<t.length-1;o++){if(n===null||typeof n!="object"||!Object.prototype.hasOwnProperty.call(n,t[o]))throw new Error(`Path ${t.slice(0,o+1).join(".")} is not a container`);if(n=n[t[o]],n===null||typeof n!="object")throw new Error(`Path ${t.slice(0,o+1).join(".")} is not a container`)}return{parent:n,key:t[t.length-1]}}function Q(e,t){let n=structuredClone(e),{parent:o,key:a}=Ae(n,t);if(Array.isArray(o)){let s=Number(a);if(!Number.isInteger(s)||s<0||s>=o.length)throw new Error(`No command at index ${String(a)}`);let[c]=o.splice(s,1);return{next:n,removed:c}}let r=o[a];if(r===void 0)throw new Error(`Nothing at ${t.join(".")}`);return delete o[a],{next:n,removed:r}}function O(e,t,n){let o=structuredClone(e),{parent:a,key:r}=Ae(o,t);if(Array.isArray(a)){let s=Number(r);if(!Number.isInteger(s)||s<0||s>=a.length)throw new Error(`No command at index ${String(r)}`);return a[s]=n,o}if(a[r]===void 0)throw new Error(`Nothing at ${t.join(".")}`);return a[r]=n,o}function Ve(e,t){return e.length===t.length&&e.every((n,o)=>n===t[o])}function et(e,t,n,o){if(t.length===0)throw new Error("Refusing to move an empty path");let a=t.slice(0,-1),r=Number(t[t.length-1]);if(!Number.isInteger(r))throw new Error("Can only move a command out of an array");if(n.length>=t.length&&Ve(t,n.slice(0,t.length)))throw new Error("Cannot move a step inside itself");let{next:s,removed:c}=Q(e,t),i=o;Ve(a,n)&&i!==null&&i>r&&(i-=1);let{parent:l,key:u}=Ae(s,n);if(!Array.isArray(l?.[u]))if(l?.[u]===void 0||l?.[u]===null)l[u]=[];else throw new Error(`Cannot move: ${n.join(".")} is not an array`);let p=l[u],g=i===null||i<0||i>p.length?p.length:i;return p.splice(g,0,c),s}var qe="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",yn=6;function ee(e){return e.trim().toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,64)}function Re(e){let t=new Set,n=(o,a=0)=>{if(!o||typeof o!="object"||a>20)return;if(Array.isArray(o)){o.forEach(c=>n(c,a+1));return}let r=o,s=d(r.id);s&&t.add(s),Object.values(r).forEach(c=>n(c,a+1))};return n(e),t}function Se(e,t=Math.random){for(let n=0;n<200;n++){let o="";for(let a=0;a<yn;a++)o+=qe[Math.floor(t()*qe.length)];if(!e.has(o))return o}throw new Error("Could not generate an unused id")}function tt(e,t,n){return{stage:t,label:e,color:n,actions:[]}}function nt(e,t,n){return{id:n,action:t,label:e,actors:[],access_control:[],task:{type:"series",commands:[]}}}function rt(e,t,n){return{id:n,name:e,label:t,command:{type:"series",commands:[]},parameters:[]}}function wn(e){let t=e?.parameters;return!t||typeof t!="object"||Array.isArray(t)?[]:"fields"in t||"sections"in t?[]:Object.entries(t).map(([n,o])=>({key:n,value:L(o).text}))}function U(e,t,n){return e?t.includes(e)?{ok:!1,message:`${/^[aeiou]/i.test(n)?"An":"A"} ${n} named "${e}" already exists in this workflow.`}:{ok:!0}:{ok:!1,message:`Enter a name for the ${n}.`}}function N(e,t=0){if(!e||typeof e!="object"||t>be)return 0;if(Array.isArray(e))return e.reduce((a,r)=>a+1+N(r,t+1),0);let n=e,o=0;for(let a of["commands","command","true","false"]){let r=n[a];Array.isArray(r)?o+=r.reduce((s,c)=>s+1+N(c,t+1),0):r&&typeof r=="object"&&(o+=N(r,t+1))}return o}function ot(e,t){let n=m(e?.stages).findIndex(o=>o?.stage===t);return n===-1?null:["stages",n]}function st(e,t){let o=m(e?.actions).findIndex(r=>r?.id===t);if(o!==-1)return["actions",o];let a=m(e?.stages);for(let r=0;r<a.length;r++){let c=m(a[r]?.actions).findIndex(i=>i?.id===t);if(c!==-1)return["stages",r,"actions",c]}return null}function at(e,t){let n=m(e?.commands).findIndex(o=>o?.id===t||o?.name===t);return n===-1?null:["commands",n]}function kn(e,t){let n=[],o=(a,r,s)=>{if(!a||typeof a!="object")return;let c=a;c.type==="reference"&&(c.id===t||c.command===t)&&n.push({owner:r,path:s.join(".")||"the flow"});for(let i of["commands","true","false"]){let l=c[i];Array.isArray(l)&&l.forEach((u,p)=>o(u,r,[...s,`${i}[${p}]`]))}c.command&&typeof c.command=="object"&&o(c.command,r,[...s,"command"])};for(let a of m(e?.actions))o(a?.task,`Global Action: ${a?.label??a?.action??"?"}`,[]);for(let a of m(e?.stages))for(let r of m(a?.actions))o(r?.task,`Stage ${a?.label??a?.stage} / Action ${r?.label??r?.action}`,[]);for(let a of m(e?.commands))o(a?.command,`Command: ${a?.label??a?.name??"?"}`,[]);return n}function it(e,t,n){let o=M(e,n);if(!o||typeof o!="object")throw new Error("That item is no longer there \u2014 reopen the workflow and try again.");let a=String(t==="stage"?o.stage??"":t==="action"?o.action??"":o.name??""),r=d(o.label)??(a||"(unnamed)"),s=t==="stage"?m(o.actions).length:0,i=(t==="stage"?m(o.actions).map(u=>u?.task):[t==="command"?o.command:o.task]).reduce((u,p)=>u+(p?N(p):0),0),l=t==="command"&&typeof o.id=="string"?kn(e,o.id):[];return{kind:t,label:r,machineName:a,nestedActions:s,nestedSteps:i,breaksReferences:l,isEmpty:s===0&&i===0&&l.length===0}}function ct(e){let t=[];e.nestedActions>0&&t.push(`${e.nestedActions} action${e.nestedActions===1?"":"s"}`),e.nestedSteps>0&&t.push(`${e.nestedSteps} step${e.nestedSteps===1?"":"s"}`);let n=t.length>0?`Delete ${e.kind} "${e.label}" and the ${t.join(" and ")} inside it?`:`Delete ${e.kind} "${e.label}"?`;if(e.breaksReferences.length>0){let o=e.breaksReferences.length;n+=` It is referenced ${o} time${o===1?"":"s"} (${e.breaksReferences.slice(0,3).map(a=>a.owner).join(", ")}${o>3?", \u2026":""}), and those references will break.`}else e.kind==="stage"&&(n+=` Any record whose status is "${e.machineName}" will point at a stage that no longer exists.`);return n}function lt(e,t){return Q(e,t).next}function ut(e,t,n,o){let a=M(e,n);if(!a||typeof a!="object"||Array.isArray(a))throw new Error("That item is no longer there \u2014 reopen the workflow and try again.");let r=o.label.trim();if(r.length===0)throw new Error("A name is required.");let s=a,c=t==="stage"?"stage":t==="action"?"action":"name",i={...s,label:r};if(o.machineName!==void 0){let l=o.machineName.trim();if(l.length===0)throw new Error("A machine name is required.");let u=_n(e,t,n),p=U(l,u,t);if(!p.ok)throw new Error(p.message??"That name is already taken.");i[c]=l}if(o.color!==void 0){if(t!=="stage")throw new Error("Only a stage has a colour.");let l=bn(o.color);if(l===null)throw new Error(`"${o.color}" is not a colour \u2014 six hex digits, like #0ea5e9.`);i.color=l}return O(e,n,i)}function bn(e){let t=e.trim();if(t==="")return"";let n=t.replace(/^#/,"").toLowerCase();return/^[0-9a-f]{3}$/.test(n)?`#${n[0]}${n[0]}${n[1]}${n[1]}${n[2]}${n[2]}`:/^[0-9a-f]{6}$/.test(n)?`#${n}`:null}function _n(e,t,n){let o=n.join("."),a=[];return t==="stage"?(m(e?.stages).forEach((r,s)=>{["stages",s].join(".")!==o&&a.push(String(r?.stage??""))}),a):t==="command"?(m(e?.commands).forEach((r,s)=>{["commands",s].join(".")!==o&&a.push(String(r?.name??""))}),a):(m(e?.actions).forEach((r,s)=>{["actions",s].join(".")!==o&&a.push(String(r?.action??""))}),m(e?.stages).forEach((r,s)=>{m(r?.actions).forEach((c,i)=>{["stages",s,"actions",i].join(".")!==o&&a.push(String(c?.action??""))})}),a)}function dt(e){if(!e||typeof e!="object"||Array.isArray(e))return e;let n=e.data;if(n&&typeof n=="object"&&!Array.isArray(n)){let o=n;if("stages"in o||"actions"in o||"commands"in o||"id"in o)return n}return e}var ne=[{name:"saturn_list_workflows",risk:"read",description:"List every workflow on the instance with its id, status, stage count and global action count. Start here \u2014 ids from this list are what the other tools take.",inputSchema:{type:"object",properties:{},required:[],additionalProperties:!1}},{name:"saturn_get_workflow",risk:"read",description:"Read one workflow in full: its stages, each stage's actions, global actions with their flow graphs and form fields, reusable commands with their parameters and usages, and triggers.",inputSchema:{type:"object",properties:{workflow_id:{type:"string",description:"Workflow id from saturn_list_workflows."}},required:["workflow_id"],additionalProperties:!1}},{name:"saturn_get_workflow_raw",risk:"read",description:"Read the untouched server JSON for a workflow. Use when you need a key this extension does not model; prefer saturn_get_workflow otherwise, since the raw document is large.",inputSchema:{type:"object",properties:{workflow_id:{type:"string"}},required:["workflow_id"],additionalProperties:!1}},{name:"saturn_search_workflows",risk:"read",description:`Find stages, actions and reusable commands across this instance's workflows by name, label or id \u2014 e.g. "approval", "send reminder", or an id like "WRIVML". Returns where each is (workflow, stage, path) so you can read or change it. An empty query lists them all.`,inputSchema:{type:"object",properties:{query:{type:"string",description:"Words to look for. Underscores, dashes and case do not matter."},kinds:{type:"array",items:{type:"string",enum:["stage","action","command"]},description:"Only these. Omit for all three."},workflow_id:{type:"string",description:"Only this workflow."}},required:["query"],additionalProperties:!1}},{name:"saturn_list_operators",risk:"read",description:"List the operators this instance offers, with each one's parameter schema. Call before configuring an operator \u2014 never guess a parameter name.",inputSchema:{type:"object",properties:{search:{type:"string",description:"Optional substring filter on name or label."}},required:[],additionalProperties:!1}},{name:"saturn_list_resources",risk:"read",description:"List this instance's resources \u2014 the business-data types like Project, Bid, or Contractor. Use it before reasoning about a resource, rather than assuming one exists from a skill's example.",inputSchema:{type:"object",properties:{search:{type:"string",description:"Optional substring filter on the name."}},required:[],additionalProperties:!1}},{name:"saturn_get_resource",risk:"read",description:"Read one resource's fields: name, label, type, and what a lookup points at. This is the schema, not the records \u2014 no business data is returned.",inputSchema:{type:"object",properties:{resource:{type:"string",description:"Resource name as `saturn_list_resources` reports it."}},required:["resource"],additionalProperties:!1}},{name:"saturn_list_records",risk:"read",asksEachTime:!0,description:"Read records of one resource \u2014 its actual rows, e.g. the Applications or Users \u2014 one page at a time. The user approves each read. Ask for the fields you need and a small limit: credential-like fields are never returned and long text is shortened. Call saturn_get_resource first to learn the field names.",inputSchema:{type:"object",properties:{resource:{type:"string",description:"Resource name as `saturn_list_resources` reports it."},fields:{type:"array",items:{type:"string"},description:"Only these fields (and `id`). Omit for all of them."},filter:{type:"string",description:"Optional filter in Saturn's filter language, as a menu tab uses."},limit:{type:"number",description:`How many, 1 to ${50}. Defaults to ${20}.`},page:{type:"number",description:"Which page, from 1."}},required:["resource"],additionalProperties:!1}},{name:"saturn_create_record",risk:"write",description:"Create one record of a resource. Use when the user asks for it, or when the task needs the record. Call saturn_get_resource first for the field names. Credential-like and instance-managed fields (id, created_at\u2026) cannot be set.",inputSchema:{type:"object",properties:{resource:{type:"string"},data:{type:"object",description:"Field values, by field key."}},required:["resource","data"],additionalProperties:!1}},{name:"saturn_update_record",risk:"write",description:"Change fields of one record. Only the fields in `data` change; the rest are kept. The record is backed up first, and the reply names the backup \u2014 saturn_restore_record puts it back. Core Saturn resources (users and the like) cannot be changed; their configuration artifacts can.",inputSchema:{type:"object",properties:{resource:{type:"string"},id:{type:["string","number"],description:"The record's id."},data:{type:"object",description:"The fields to change, by field key."}},required:["resource","id","data"],additionalProperties:!1}},{name:"saturn_delete_record",risk:"write",description:"Delete one record. Prefer leaving a record unused to deleting it: delete only to undo a record you just created or to remove a test record. It is backed up first; saturn_restore_record brings it back with its id. Say which record and why before calling it.",inputSchema:{type:"object",properties:{resource:{type:"string"},id:{type:["string","number"],description:"The record's id."}},required:["resource","id"],additionalProperties:!1}},{name:"saturn_restore_record",risk:"write",description:"Put a record back as a backup holds it \u2014 after an update or delete that should not have happened, or a change that failed its check. The record's present state is backed up first.",inputSchema:{type:"object",properties:{backup:{type:"string",description:"A backup's file name, as a write or saturn_list_record_backups reports it."}},required:["backup"],additionalProperties:!1}},{name:"saturn_list_record_backups",risk:"read",description:"List record backups for this instance, newest first: what was changed or deleted, and when.",inputSchema:{type:"object",properties:{resource:{type:"string",description:"Only this resource's."}},required:[],additionalProperties:!1}},{name:"saturn_add_operator",risk:"write",description:'Add an operator step to a flow. `path` addresses the container\'s command list, e.g. ["actions",0,"task","commands"]; read the workflow first to get it. Omit `index` to append.',inputSchema:{type:"object",properties:{workflow_id:{type:"string"},path:{type:"array",items:{type:["string","number"]},description:"Path to the container's command array."},operator:{type:"string",description:"Operator machine name."},data:{type:"object",description:"The operator's configuration."},index:{type:"number",description:"Where to insert; appended if omitted."},label:{type:"string"}},required:["workflow_id","path","operator"],additionalProperties:!1}},{name:"saturn_update_operator",risk:"write",description:"Change a step's configuration. Merges into the existing `data`, so keys you do not mention survive \u2014 which is required, since a node carries keys beyond the ones you can see.",inputSchema:{type:"object",properties:{workflow_id:{type:"string"},path:{type:"array",items:{type:["string","number"]},description:"Path to the step itself."},data:{type:"object"},label:{type:"string"}},required:["workflow_id","path","data"],additionalProperties:!1}},{name:"saturn_move_operator",risk:"write",description:"Move a step to another position, within a container or across containers.",inputSchema:{type:"object",properties:{workflow_id:{type:"string"},from:{type:"array",items:{type:["string","number"]}},to_container:{type:"array",items:{type:["string","number"]}},to_index:{type:"number"}},required:["workflow_id","from","to_container","to_index"],additionalProperties:!1}},{name:"saturn_delete_step",risk:"write",description:"Delete a step. Deleting a loop or condition removes everything inside it, so the result reports how many steps went with it.",inputSchema:{type:"object",properties:{workflow_id:{type:"string"},path:{type:"array",items:{type:["string","number"]}}},required:["workflow_id","path"],additionalProperties:!1}},{name:"saturn_create_stage",risk:"write",description:"Add a stage. Its machine name is derived from the label.",inputSchema:{type:"object",properties:{workflow_id:{type:"string"},label:{type:"string"},color:{type:"string",description:"Hex colour, e.g. #0ea5e9."}},required:["workflow_id","label"],additionalProperties:!1}},{name:"saturn_create_action",risk:"write",description:"Add an action, to a stage when `stage` is given or workflow-level otherwise. Starts with an empty flow.",inputSchema:{type:"object",properties:{workflow_id:{type:"string"},label:{type:"string"},stage:{type:"string",description:"Stage machine name; omit for a global action."}},required:["workflow_id","label"],additionalProperties:!1}},{name:"saturn_create_command",risk:"write",description:"Add a reusable command that actions can reference.",inputSchema:{type:"object",properties:{workflow_id:{type:"string"},label:{type:"string"}},required:["workflow_id","label"],additionalProperties:!1}},{name:"task_list",risk:"read",description:"List the current plan: every task, its status, which agent profile runs it, and what it waits on.",inputSchema:{type:"object",properties:{},required:[],additionalProperties:!1}},{name:"task_create",risk:"read",description:"Add a task to the plan. Use this to break a request into steps before doing any of them. `profile_id` chooses which agent runs it \u2014 put read-only steps on a read-only profile and give writing steps one that can write. Creating a task does not run it; the user runs the plan.",inputSchema:{type:"object",properties:{title:{type:"string",description:"One line, imperative."},detail:{type:"string",description:"What doing it involves. This becomes the prompt when the task runs, so write it for an agent starting fresh with no memory of this conversation."},profile_id:{type:"string",description:"Agent profile id from the plan or the picker."},skill_ids:{type:"array",items:{type:"string"}},depends_on:{type:"array",items:{type:"string"},description:"Task ids that must finish first."}},required:["title","detail"],additionalProperties:!1}},{name:"task_update",risk:"read",description:"Change a task: its status, its detail, or the result of running it. Set status to `done` with a `result` when you finish one, or `blocked` with the reason when you cannot.",inputSchema:{type:"object",properties:{task_id:{type:"string"},status:{type:"string",enum:["todo","running","blocked","done","failed"]},title:{type:"string"},detail:{type:"string"},result:{type:"string"}},required:["task_id"],additionalProperties:!1}},{name:"saturn_rename",risk:"write",description:"Rename a stage, action, or command. Changes the display label only unless `machine_name` is given \u2014 a stage's machine name is what a record's status holds and an action's is how a trigger names it, so changing one can break things outside this workflow.",inputSchema:{type:"object",properties:{workflow_id:{type:"string"},kind:{type:"string",enum:["stage","action","command"]},target:{type:"string",description:"Stage machine name, action id, or command id/name."},label:{type:"string"},machine_name:{type:"string",description:"Only set this when the user asked for the machine name to change."}},required:["workflow_id","kind","target","label"],additionalProperties:!1}},{name:"saturn_delete",risk:"write",description:"Delete a stage, action, or command. A stage takes its actions with it. Refuses a command that is still referenced unless `force` is true, and reports where those references are \u2014 deleting one leaves a flow that breaks only when that branch runs.",inputSchema:{type:"object",properties:{workflow_id:{type:"string"},kind:{type:"string",enum:["stage","action","command"]},target:{type:"string"},force:{type:"boolean",description:"Delete even though references would break. Ask the user first."}},required:["workflow_id","kind","target"],additionalProperties:!1}}];function Pe(e){return ne.find(t=>t.name===e)??null}function kt(e){return Pe(e)?.asksEachTime===!0}function re(e){return Pe(e)?.risk==="write"}var xe=6e4;function w(e,t){let n=typeof e=="string"?e:JSON.stringify(e,null,2);return{ok:!0,content:n.length>xe?`${n.slice(0,xe)}
-\u2026 truncated at ${xe} characters.`:n,changed:t}}function h(e){return{ok:!1,content:`Error: ${e}`}}function k(e,t){let n=e[t];if(typeof n!="string"||n.trim().length===0)throw new Error(`\`${t}\` is required and must be a non-empty string.`);return n}function W(e,t){let n=e[t];if(!Array.isArray(n)||n.length===0)throw new Error(`\`${t}\` must be a non-empty path array, e.g. ["actions",0,"task","commands"].`);for(let o of n)if(typeof o!="string"&&typeof o!="number")throw new Error(`\`${t}\` may only contain strings and numbers.`);if(!Y(n))throw new Error(`\`${t}\` may only hold array indexes and ordinary keys \u2014 not __proto__, constructor, or prototype.`);return n}function pt(e){let t={};for(let[n,o]of Object.entries(e))o!=null&&(t[n]=typeof o=="string"?o:JSON.stringify(o));return t}function An(e){let t=m(e?.actions).map(n=>String(n?.action??""));for(let n of m(e?.stages))for(let o of m(n?.actions))t.push(String(o?.action??""));return t}var $e="No task list is available in this session, so tasks cannot be used here.";function ft(e){return Array.isArray(e)?e.filter(t=>typeof t=="string"):[]}function gt(e){let t=e.kind;if(t!=="stage"&&t!=="action"&&t!=="command")throw new Error("`kind` must be one of: stage, action, command.");return t}function mt(e,t,n){switch(t){case"stage":return ot(e,n);case"action":return st(e,n);case"command":return at(e,n)}}function ht(e,t){return`No ${e} matching \`${t}\` (looked it up by ${e==="stage"?"machine name":e==="action"?"id":"id or name"}). Call saturn_get_workflow to see what is there.`}function te(e,t){if(e==null)return{};if(typeof e!="object"||Array.isArray(e))throw new Error(`\`${t}\` must be an object.`);return e}async function Ee(e,t,n,o){if(!Pe(t))return h(`Unknown action \`${t}\`. Available: ${ne.map(s=>s.name).join(", ")}.`);let r=te(n,"arguments");try{switch(t){case"saturn_search_workflows":{let s=typeof r.query=="string"?r.query.slice(0,200):"",c=Array.isArray(r.kinds)?r.kinds.filter(g=>g==="stage"||g==="action"||g==="command"):null,i=typeof r.workflow_id=="string"&&r.workflow_id?r.workflow_id:null,l=i?[{...await e.getWorkflow(i),id:i}]:m((await e.listWorkflows())?.data),{hits:u,total:p}=Fe(l,s,c);return w(p===0?`Nothing matches "${s}"${c?.length?` among ${c.join(", ")}s`:""}. Try fewer words, or saturn_list_workflows.`:{matches:u,...p>u.length?{showing:u.length,total:p,note:"Narrow the query, or pass workflow_id or kinds."}:{}})}case"saturn_list_workflows":{let s=await e.listWorkflows(),c=m(s?.data).map(i=>{let l=Ge(i);return{id:l.id,name:l.name,status:l.status,stages:l.stageCount,global_actions:l.globalActionCount}});return w(c)}case"saturn_get_workflow":{let s=k(r,"workflow_id"),[c,i]=await Promise.all([e.getWorkflow(s),e.listOperators().catch(()=>new Map)]);return w(Xe(c,i))}case"saturn_get_workflow_raw":return w(await e.getWorkflow(k(r,"workflow_id")));case"saturn_list_resources":{let s=await e.listResources(),c=typeof r.search=="string"?r.search.toLowerCase():null,i=c?s.filter(l=>l.toLowerCase().includes(c)):s;return w({count:i.length,of:s.length,resources:i})}case"saturn_list_records":{let s=k(r,"resource");if(!F(s))return h(`"${String(s).slice(0,60)}" is not a resource name. Call saturn_list_resources to see what is.`);let c=Number.isInteger(r.limit)?Math.min(50,Math.max(1,r.limit)):20,i=Number.isInteger(r.page)&&r.page>=1?r.page:1,l=typeof r.filter=="string"&&r.filter.trim()?r.filter.trim().slice(0,2e3):null,u=Array.isArray(r.fields)?r.fields.filter(f=>typeof f=="string"&&!J(f)).slice(0,50):null,{records:p,total:g}=await e.listRecords(s,{limit:c,page:i,filter:l});return w(De(s,p,{limit:c,page:i,total:g,fields:u&&u.length>0?u:null}))}case"saturn_create_record":case"saturn_update_record":case"saturn_delete_record":{let s=k(r,"resource");if(!F(s))return h(`"${String(s).slice(0,60)}" is not a resource name. Call saturn_list_resources to see what is.`);let c=ge(s,await e.listCoreResources().catch(()=>null));if(c)return h(c);if(t==="saturn_create_record"){let f=pe(r.data);if("error"in f)return h(f.error);let y=await e.createRecord(s,f.data);return w({created:x(y),undo:"saturn_delete_record with its id, if it should not exist."})}let i=fe(r.id);if(!i)return h("`id` must be the record's id, a string or a number.");let l=t==="saturn_update_record"?pe(r.data):null;if(l&&"error"in l)return h(l.error);let u=await e.getRecord(s,i);if(!I(u))return h(`${s} ${String(r.id)} was not found. Read the records first.`);let p=me(s,i,t==="saturn_delete_record"?"pre-delete":"pre-update",new Date);if(await e.saveBackup(p,u),t==="saturn_delete_record")return await e.deleteRecord(s,i),I(await e.getRecord(s,i).catch(()=>null))?h(`The instance said ${s} ${String(r.id)} was deleted, but it is still there. Backup: ${p}`):w({deleted:`${s} ${String(r.id)}`,backup:p});let g=await e.updateRecord(s,i,l.data);return w({updated:x(g),changed:Object.keys(l.data),backup:p})}case"saturn_restore_record":{let s=k(r,"backup"),c=E(s);if(!c)return h(`"${s.slice(0,80)}" is not a record backup's name. Call saturn_list_record_backups.`);let i=ge(c.resource,await e.listCoreResources().catch(()=>null));if(i)return h(i);let l=await e.readBackup(s);if(!I(l))return h(`Backup ${s} was not found, or holds no record.`);let u=fe(l.id);if(!u)return h(`Backup ${s} has no usable id.`);let p=Me(l),g=await e.getRecord(c.resource,u).catch(()=>null);if(I(g)){let f=me(c.resource,u,"pre-restore",new Date);return await e.saveBackup(f,g),await e.updateRecord(c.resource,u,p),w({restored:`${c.resource} ${String(l.id)}`,from:s,backup:f})}return await e.createRecord(c.resource,{...p,id:l.id}),w({restored:`${c.resource} ${String(l.id)}`,from:s,recreated:!0})}case"saturn_list_record_backups":{let s=typeof r.resource=="string"&&F(r.resource)?r.resource:null,c=(await e.listBackups()).map(i=>({file:i,parsed:E(i)})).filter(i=>!!i.parsed&&(!s||i.parsed.resource===s)).sort((i,l)=>l.parsed.stamp.localeCompare(i.parsed.stamp)).slice(0,50).map(({file:i,parsed:l})=>({backup:i,resource:l.resource,id:l.id,taken:l.tag,at:l.stamp}));return w(c.length>0?c:"No record backups yet.")}case"saturn_get_resource":{let s=k(r,"resource"),c=await e.getResource(s);return c.fields.length===0?h(`"${s}" has no fields, or is not a resource on this instance. Call saturn_list_resources to see what is.`):w(c)}case"saturn_list_operators":{let s=await e.listOperators(),c=typeof r.search=="string"?r.search.toLowerCase():null,i=[...s.entries()].filter(([l,u])=>!c||l.toLowerCase().includes(c)||(u.name??"").toLowerCase().includes(c)).map(([l,u])=>({operator:l,label:u.name,category:u.category,params:u.params.map(p=>({param:p.param,label:p.label,type:p.type,required:p.required,options:p.lookupValues}))}));return w(i)}case"saturn_add_operator":{let s=k(r,"workflow_id"),c=W(r,"path"),i=k(r,"operator"),[l,u]=await Promise.all([e.getWorkflow(s),e.listOperators().catch(()=>new Map)]),p=u.get(i);if(!p)return h(`\`${i}\` is not an operator on this instance. Call saturn_list_operators to see what is available.`);let g=_e(p,pt(te(r.data,"data")));if(g.errors.length>0)return h(`Invalid values for ${i}: `+g.errors.map(T=>`${T.param} \u2014 ${T.message}`).join("; "));let f=Ze(i,g.data,typeof r.delay=="number"?r.delay:null),y=typeof r.index=="number"?r.index:null,A=Qe(l,c,y,f);return await e.putWorkflow(s,S(A,s)),w(`Added ${i} at ${c.join(".")}${y===null?" (appended)":`[${y}]`}.`,{workflowId:s,summary:`added ${i}`})}case"saturn_update_operator":{let s=k(r,"workflow_id"),c=W(r,"path"),i=await e.getWorkflow(s),l=M(i,c);if(!l||typeof l!="object")return h(`No step at ${c.join(".")}. Re-read the workflow \u2014 paths shift after an edit.`);let u=l,p=await e.listOperators().catch(()=>new Map),g=typeof u.operator=="string"?p.get(u.operator):void 0,f=te(r.data,"data"),y={...u,data:{...te(u.data,"data"),...g?_e(g,pt(f)).data:f},...typeof r.label=="string"?{label:r.label}:{}},A=O(i,c,y);return await e.putWorkflow(s,S(A,s)),w(`Updated ${u.operator??"step"} at ${c.join(".")}: ${Object.keys(f).join(", ")}.`,{workflowId:s,summary:`updated ${u.operator??"a step"}`})}case"saturn_move_operator":{let s=k(r,"workflow_id"),c=W(r,"from"),i=W(r,"to_container"),l=r.to_index;if(typeof l!="number")return h("`to_index` must be a number.");let u=await e.getWorkflow(s),p=et(u,c,i,l);return await e.putWorkflow(s,S(p,s)),w(`Moved ${c.join(".")} to ${i.join(".")}[${l}].`,{workflowId:s,summary:"moved a step"})}case"saturn_delete_step":{let s=k(r,"workflow_id"),c=W(r,"path"),i=await e.getWorkflow(s),l=M(i,c);if(l===void 0)return h(`Nothing at ${c.join(".")}. Re-read the workflow first.`);let u=N(l),p=Q(i,c).next;return await e.putWorkflow(s,S(p,s)),w(`Deleted ${c.join(".")}${u>1?`, and the ${u-1} steps inside it`:""}.`,{workflowId:s,summary:`deleted ${u} step${u===1?"":"s"}`})}case"saturn_create_stage":{let s=k(r,"workflow_id"),c=k(r,"label"),i=await e.getWorkflow(s),l=ee(c),u=m(i?.stages),p=U(l,u.map(f=>String(f?.stage??"")),"stage");if(!p.ok)return h(p.message??"That stage name is already taken.");let g=O(i,["stages"],[...u,tt(c,l,typeof r.color=="string"?r.color:"#64748b")]);return await e.putWorkflow(s,S(g,s)),w(`Created stage \`${l}\` (${c}).`,{workflowId:s,summary:`created stage ${c}`})}case"saturn_create_action":{let s=k(r,"workflow_id"),c=k(r,"label"),i=await e.getWorkflow(s),l=ee(c),u=U(l,An(i),"action");if(!u.ok)return h(u.message??"That action name is already taken.");let p=nt(c,l,Se(Re(i))),g=typeof r.stage=="string"?r.stage:null,f;if(g){let y=m(i?.stages),A=y.findIndex(H=>H?.stage===g);if(A===-1)return h(`No stage \`${g}\`. Read the workflow to see its stages.`);let T=m(y[A]?.actions);f=O(i,["stages",A,"actions"],[...T,p])}else{let y=m(i?.actions);f=O(i,["actions"],[...y,p])}return await e.putWorkflow(s,S(f,s)),w(`Created ${g?`action \`${l}\` on stage \`${g}\``:`global action \`${l}\``}.`,{workflowId:s,summary:`created action ${c}`})}case"saturn_create_command":{let s=k(r,"workflow_id"),c=k(r,"label"),i=await e.getWorkflow(s),l=ee(c),u=m(i?.commands),p=U(l,u.map(f=>String(f?.name??"")),"command");if(!p.ok)return h(p.message??"That command name is already taken.");let g=O(i,["commands"],[...u,rt(l,c,Se(Re(i)))]);return await e.putWorkflow(s,S(g,s)),w(`Created command \`${l}\` (${c}).`,{workflowId:s,summary:`created command ${c}`})}case"task_list":{if(!o)return h($e);let s=await o.list();return w(s.map(c=>({id:c.id,title:c.title,status:c.status,profile:c.profileId,depends_on:c.dependsOn,result:c.result})))}case"task_create":{if(!o)return h($e);let s=await o.create({title:k(r,"title"),detail:k(r,"detail"),profileId:typeof r.profile_id=="string"?r.profile_id:"explain",skillIds:ft(r.skill_ids),dependsOn:ft(r.depends_on)});return w(`Added task ${s.id}: ${s.title} (runs as ${s.profileId}).`)}case"task_update":{if(!o)return h($e);let s=k(r,"task_id"),c={};if(typeof r.status=="string"&&(c.status=r.status),typeof r.title=="string"&&(c.title=r.title),typeof r.detail=="string"&&(c.detail=r.detail),typeof r.result=="string"&&(c.result=r.result),Object.keys(c).length===0)return h("Nothing to change. Pass at least one of status, title, detail, or result.");let i=await o.update(s,c);return i?w(`Task ${s} is now ${i.status}.`):h(`No task ${s}. Call task_list to see the plan.`)}case"saturn_rename":{let s=k(r,"workflow_id"),c=gt(r),i=k(r,"target"),l=await e.getWorkflow(s),u=mt(l,c,i);if(!u)return h(ht(c,i));let p=ut(l,c,u,{label:k(r,"label"),...typeof r.machine_name=="string"?{machineName:r.machine_name}:{}});return await e.putWorkflow(s,S(p,s)),w(`Renamed ${c} to "${String(r.label)}"`+(typeof r.machine_name=="string"?`, machine name now \`${r.machine_name}\`.`:" (machine name unchanged)."),{workflowId:s,summary:`renamed a ${c}`})}case"saturn_delete":{let s=k(r,"workflow_id"),c=gt(r),i=k(r,"target"),l=await e.getWorkflow(s),u=mt(l,c,i);if(!u)return h(ht(c,i));let p=it(l,c,u);if(p.breaksReferences.length>0&&r.force!==!0)return h(`${ct(p)} Tell the user, and pass force: true only if they confirm. References: `+p.breaksReferences.map(y=>`${y.owner} (${y.path})`).join("; "));let g=lt(l,u);await e.putWorkflow(s,S(g,s));let f=[];return p.nestedActions>0&&f.push(`${p.nestedActions} actions`),p.nestedSteps>0&&f.push(`${p.nestedSteps} steps`),w(`Deleted ${c} "${p.label}"`+(f.length>0?` and ${f.join(" and ")}`:"")+"."+(p.kind==="stage"?` Any record whose status is "${p.machineName}" now points at a stage that no longer exists.`:""),{workflowId:s,summary:`deleted ${c} ${p.label}`})}default:return h(`\`${t}\` is not implemented.`)}}catch(s){return h(s instanceof Error?s.message:String(s))}}var se="instance_",Rn="2025-03-26";function Sn(e){return`${se}${e.replace(/[^A-Za-z0-9_-]/g,"_")}`.slice(0,64)}function xn(e,t,n){let o=a=>Array.isArray(a)?a.find(r=>r?.id===n):a;if((t??"").includes("text/event-stream")){for(let a of e.split(/\r?\n\r?\n/)){let r=a.split(/\r?\n/).filter(s=>s.startsWith("data:")).map(s=>s.slice(5).trimStart()).join(`
-`);if(r)try{let s=o(JSON.parse(r));if(s?.id===n)return s}catch{}}return null}try{return o(JSON.parse(e))}catch{return null}}var oe=class{constructor(t,n,o=fetch){this.endpoint=t;this.token=n;this.fetchFn=o}endpoint;token;fetchFn;session=null;seq=0;tools=null;list(){return this.tools??=this.probe().catch(()=>null),this.tools}async find(t){return(await this.list())?.find(n=>n.listedAs===t)??null}async call(t,n){let o=await this.rpc("tools/call",{name:t.name,arguments:n??{}},6e4);if(o?.error)return{ok:!1,text:`The instance refused it: ${String(o.error.message??"error").slice(0,500)}`};let r=(Array.isArray(o?.result?.content)?o.result.content:[]).map(c=>c?.type==="text"&&typeof c.text=="string"?c.text:"").filter(Boolean).join(`
-`),s=r.length>6e4?`${r.slice(0,6e4)}
-\u2026 truncated at 60000 characters.`:r;return{ok:o?.result?.isError!==!0,text:s||"(no output)"}}async probe(){let t=await this.rpc("initialize",{protocolVersion:Rn,capabilities:{},clientInfo:{name:"saturn-vscode",version:"0.1.0"}},5e3);if(!t?.result||typeof t.result!="object")return null;await this.notify("notifications/initialized");let n=await this.rpc("tools/list",{},5e3),o=Array.isArray(n?.result?.tools)?n.result.tools:null;return o?o.filter(a=>typeof a?.name=="string"&&a.name).map(a=>({name:a.name,listedAs:Sn(a.name),description:typeof a.description=="string"?a.description:"",inputSchema:a.inputSchema&&typeof a.inputSchema=="object"?a.inputSchema:{type:"object",properties:{}},readOnly:a.annotations?.readOnlyHint===!0})):null}headers(){return{Authorization:`Bearer ${this.token}`,"Content-Type":"application/json",Accept:"application/json, text/event-stream",...this.session?{"Mcp-Session-Id":this.session}:{}}}async rpc(t,n,o){let a=++this.seq,r=await this.fetchFn(this.endpoint,{method:"POST",headers:this.headers(),body:JSON.stringify({jsonrpc:"2.0",id:a,method:t,params:n}),redirect:"error",signal:AbortSignal.timeout(o)}),s=r.headers.get("mcp-session-id");return s&&(this.session=s),r.ok?xn(await r.text(),r.headers.get("content-type"),a):null}async notify(t){await this.fetchFn(this.endpoint,{method:"POST",headers:this.headers(),body:JSON.stringify({jsonrpc:"2.0",method:t}),redirect:"error",signal:AbortSignal.timeout(5e3)}).catch(()=>{})}};var $=require("node:fs/promises"),Oe=require("node:path");async function bt(e,t,n){if(!e)throw new Error("There is no folder to back the record up to, so it was not changed.");if(!E(t))throw new Error(`Refusing backup name ${t.slice(0,80)}`);await(0,$.mkdir)(e,{recursive:!0,mode:448}),await(0,$.writeFile)((0,Oe.join)(e,t),`${JSON.stringify(n,null,1)}
-`,{mode:384,flag:"wx"})}async function _t(e,t){if(!e||!E(t))return null;try{return JSON.parse(await(0,$.readFile)((0,Oe.join)(e,t),"utf8"))}catch{return null}}async function At(e){if(!e)return[];try{return(await(0,$.readdir)(e)).filter(t=>E(t)!==null)}catch{return[]}}var $n="2024-11-05";function Et(e){let t=process.env[e];return t||(process.stderr.write(`saturn-mcp: ${e} is not set
-`),process.exit(1)),t}var V=Et("SATURN_MCP_URL").replace(/\/+$/,""),q=Et("SATURN_MCP_TOKEN"),B=process.env.SATURN_MCP_ALLOW_WRITES==="1",ae=process.env.SATURN_MCP_PROFILE_WRITES==="1",ie=process.env.SATURN_MCP_ALLOW_READS!=="0",P=process.env.SATURN_MCP_APPROVAL_SOCKET??null,Ot=process.env.SATURN_MCP_AUTO==="1",Ct=process.env.SATURN_MCP_CLI_ASKS==="1",Ce=process.env.SATURN_MCP_BACKUP_DIR||null,Pn=process.env.SATURN_MCP_APPROVAL_SECRET??"";function ce(e,t){return new Promise(n=>{if(!P){n({behavior:"deny",message:"No approval channel is available, so this was declined."});return}let o=(0,Pt.randomUUID)(),a;try{a=(0,$t.connect)(P)}catch{n({behavior:"deny",message:"Could not reach the editor to ask for permission."});return}let r="",s=!1,c=i=>{s||(s=!0,a.destroy(),n(i))};a.setEncoding("utf8"),a.on("connect",()=>{a.write(`${JSON.stringify({id:o,secret:Pn,toolName:e,input:t})}
-`)}),a.on("data",i=>{r+=i;let l=r.split(`
-`);r=l.pop()??"";for(let u of l)if(u.trim())try{let p=JSON.parse(u);p?.id===o&&c(p)}catch{}}),a.on("error",()=>c({behavior:"deny",message:"The editor could not be reached, so this was declined."})),a.on("close",()=>c({behavior:"deny",message:"The approval channel closed before an answer arrived."}))})}var Rt={name:"approve",description:"Internal: asks the user to approve a tool call. Called by the CLI's permission system, not something to invoke directly.",inputSchema:{type:"object",properties:{tool_name:{type:"string"},input:{type:"object"}},required:["tool_name"],additionalProperties:!0}};async function C(e,t){let n=j(await fetch(`${V}${e}`,{signal:AbortSignal.timeout(6e4),...t,redirect:"error",headers:{Authorization:`Bearer ${q}`,"Content-Type":"application/json",Accept:"application/json",...t?.headers??{}}}));if(!n.ok){let o=await n.text().catch(()=>"");throw new Error(`${t?.method??"GET"} ${e} failed: ${n.status} ${n.statusText}`+(o?` \u2014 ${o.slice(0,400)}`:""))}return n.status===204?null:n.json()}var Te=null;async function je(e,t,n,o){for(let a of G(e)){let r=j(await fetch(`${V}/api${a}${n?`/${n}`:""}`,{method:t,signal:AbortSignal.timeout(6e4),redirect:"error",headers:{Authorization:`Bearer ${q}`,"Content-Type":"application/json",Accept:"application/json"},...o?{body:JSON.stringify(o)}:{}})),s=await r.json().catch(()=>null);if(!(n?de(r.status,s):ue(r.status,s))){if(!r.ok||typeof s?.status=="string"&&s.status.toUpperCase()==="FAILURE")throw new Error(`${t} ${e} record failed: ${r.status}${typeof s?.message=="string"?` \u2014 ${s.message}`:""}`);return s?.data??s}}throw new Error(`No record route for ${e} on this instance.`)}var Ne=new oe(`${V}/api/mcp`,q,async(e,t)=>j(await fetch(e,t)));async function En(e,t){let n=r=>({isError:!0,content:[{type:"text",text:r}]});if(!ie)return n("This agent profile has no access to the Saturn instance. Tell the user which profile would, rather than retrying.");let o=await Ne.find(e);if(!o)return n(`The instance has no tool called ${e.slice(se.length)}.`);if(!o.readOnly&&!ae)return n("This agent profile may not change the instance. Describe the change instead, and tell the user that switching to a profile that can change it would apply it.");if(o.readOnly?!Ct&&!Ot:!B){let r=P?await ce(e,t):{behavior:"deny",message:"This needs the user's approval, and there is no way to ask here."};if(r.behavior!=="allow")return n(r.message??"The user declined this.")}try{let r=await Ne.call(o,t);return{isError:!r.ok,content:[{type:"text",text:On(r.text)}]}}catch(r){return n(`The instance's MCP server could not be reached: ${r instanceof Error?r.message:String(r)}`)}}function On(e){try{return JSON.stringify(x(JSON.parse(e)),null,1)}catch{return e}}var St={listWorkflows:()=>C("/api/Workflows"),getWorkflow:async e=>dt(await C(`/api/Workflows/${encodeURIComponent(e)}`)),putWorkflow:(e,t)=>C(`/api/Workflows/${encodeURIComponent(e)}`,{method:"PUT",body:JSON.stringify(t)}),listOperators:async()=>(Te||(Te=He(await C("/api/Operators"))),Te),listResources:async()=>{let e=await C("/api/Resources"),t=Array.isArray(e)?e:e?.data;return Array.isArray(t)?t.map(n=>typeof n=="string"?n:typeof n?.name=="string"?n.name:null).filter(n=>!!n).sort((n,o)=>n.localeCompare(o)):[]},listRecords:async(e,t)=>{for(let n of G(e)){let o=j(await fetch(`${V}/api${n}${Ie(t)}`,{signal:AbortSignal.timeout(6e4),redirect:"error",headers:{Authorization:`Bearer ${q}`,Accept:"application/json"}})),a=await o.json().catch(()=>null);if(!ue(o.status,a)){if(!o.ok)throw new Error(`Read ${e} records failed: ${o.status} ${o.statusText}`);return Le(a)}}throw new Error(`No record route for ${e} on this instance.`)},getRecord:async(e,t)=>{for(let n of G(e)){let o=j(await fetch(`${V}/api${n}/${t}`,{signal:AbortSignal.timeout(6e4),redirect:"error",headers:{Authorization:`Bearer ${q}`,Accept:"application/json"}})),a=await o.json().catch(()=>null);if(!de(o.status,a)){if(o.status===404)return null;if(!o.ok||typeof a?.status=="string"&&a.status.toUpperCase()==="FAILURE")throw new Error(`Read ${e} ${t} failed: ${o.status}`);return a?.data??null}}throw new Error(`No record route for ${e} on this instance.`)},listCoreResources:async()=>{try{let e=await C("/api/resources/catalog");return Array.isArray(e?.data)?new Set(e.data.filter(t=>typeof t=="string")):null}catch{return null}},saveBackup:(e,t)=>bt(Ce,e,t),readBackup:e=>_t(Ce,e),listBackups:()=>At(Ce),createRecord:(e,t)=>je(e,"POST",null,t),updateRecord:(e,t,n)=>je(e,"PUT",t,n),deleteRecord:async(e,t)=>{await je(e,"DELETE",t)},getResource:async e=>{let n=(await C(`/api/Resources/${encodeURIComponent(e)}`))?.data;if(!n||typeof n!="object"||Array.isArray(n))return{resource:e,fields:[]};let o=Object.entries(n).map(([a,r])=>({key:a,label:typeof r?.label=="string"&&r.label?r.label:null,type:typeof r?.type=="string"?r.type:null,reference:typeof r?.map?.reference=="string"&&r.map.reference?r.map.reference:typeof r?.lookup_reference=="string"&&r.lookup_reference?r.lookup_reference:null,source:typeof r?.source=="string"?r.source:null})).sort((a,r)=>a.key.localeCompare(r.key));return{resource:e,fields:o}}};function Tt(e){process.stdout.write(`${JSON.stringify(e)}
-`)}function R(e,t){Tt({jsonrpc:"2.0",id:e,result:t})}function ve(e,t,n){Tt({jsonrpc:"2.0",id:e,error:{code:t,message:n}})}async function Cn(e){switch(e.method){case"initialize":R(e.id,{protocolVersion:$n,capabilities:{tools:{}},serverInfo:{name:"saturn",version:"0.1.0"}});return;case"notifications/initialized":case"initialized":return;case"tools/list":{let t=ie?await Ne.list():null;R(e.id,{tools:[...P?[Rt]:[],...ne.filter(n=>n.name.startsWith("task_")||ie&&(n.risk==="read"||ae&&(B||!!P))).filter(n=>!(t&&n.name==="saturn_list_records")).map(n=>({name:n.name,description:n.risk==="write"?`${n.description}
+`;
+// codeLanguageOf (minified: Ht) — Which code editor a param gets (javascript, html, css or json), guessed from the operator, param name, default value, description, type and label; null for plain text.
+function codeLanguageOf(operator, param, defaultValue, description, type, label) {
+  if (/^(code|evaluator|script|fn|function|expression)$/i.test(param) || /^\s*(async\s+)?(function\b|\([^)]*\)\s*=>)/.test(defaultValue) || description && /javascript code to execute/i.test(description)) return "javascript";
+  let hints = `${label ?? ""} ${description ?? ""}`;
+  return /^html$/i.test(operator) && type === "object" || /^message$/i.test(param) && type === "object" || /\bhtml\b/i.test(hints) ? "html" : /\bcss\b/i.test(`${param} ${hints}`) ? "css" : /\bjson\b/i.test(hints) ? "json" : null;
+}
+// simpleResourceLookup (minified: Ue) — Recognises a lookup function that only lists one resource (`new Resource(x, "Name")` … `.list(`) and returns {resource}; null if it does anything more (filters, maps, conditions).
+function simpleResourceLookup(source) {
+  if (!source) return null;
+  let pattern = /new\s+Resource\s*\(\s*[A-Za-z_$][\w$]*\s*,\s*["'`]([A-Za-z0-9_]+)["'`]\s*\)/g,
+    matches = [...source.matchAll(pattern)];
+  return matches.length !== 1 || !/\.\s*list\s*\(/.test(source) || /\.\s*(filter|map|reduce|slice|find|sort)\s*\(/.test(source) || /\bif\s*\(|\?\s*[^:]*:/.test(source) ? null : {
+    resource: matches[0][1]
+  };
+}
+// SVG_TAGS (minified: zt) — SVG tags allowed in an operator icon. Next: SVG_ATTRIBUTES (minified: Kt), the attributes allowed;
+// SVG_DROPPED_ELEMENTS_RE (minified: Jt), elements removed with everything inside them (scripts, styles, embedded content, animation);
+// SVG_TAG_RE (minified: We), one tag with its attributes (sticky, matched at a given index);
+// SVG_ATTRIBUTE_RE (minified: Gt), one attribute and its value (double-quoted, single-quoted or bare).
+var SVG_TAGS = new Set(["svg", "g", "path", "circle", "ellipse", "rect", "line", "polyline", "polygon", "defs", "lineargradient", "radialgradient", "stop", "title", "desc", "clippath", "mask", "text", "tspan", "symbol", "use"]),
+  SVG_ATTRIBUTES = new Set(["xmlns", "xmlns:xlink", "version", "viewbox", "width", "height", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "fx", "fy", "d", "points", "transform", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "fill-rule", "clip-rule", "opacity", "fill-opacity", "stroke-opacity", "offset", "stop-color", "stop-opacity", "gradientunits", "gradienttransform", "spreadmethod", "clip-path", "clippathunits", "mask", "maskunits", "preserveaspectratio", "id", "class", "font-size", "font-family", "font-weight", "text-anchor", "dominant-baseline", "aria-hidden", "aria-label", "role", "focusable", "href", "xlink:href"]),
+  SVG_DROPPED_ELEMENTS_RE = /<\s*(script|foreignobject|style|iframe|object|embed|animate|animatetransform|animatemotion|set)\b[\s\S]*?<\s*\/\s*\1\s*>/gi,
+  SVG_TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9:-]*)((?:\s+[^\s"'=<>/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*(\/?)>/y,
+  SVG_ATTRIBUTE_RE = /([^\s"'=<>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+// safeSvgAttribute (minified: Xt) — Is this SVG attribute safe to keep: on the allowlist, href only to #ids, url() only to #ids, no javascript:, data:, entities or backslashes.
+function safeSvgAttribute(attribute, attributeValue) {
+  return SVG_ATTRIBUTES.has(attribute) ? attribute === "href" || attribute === "xlink:href" ? /^#[A-Za-z0-9_-]+$/.test(attributeValue.trim()) : (attributeValue.match(/url\s*\(([^)]*)\)/gi) ?? []).some(urlRef => !/^url\s*\(\s*['"]?#[A-Za-z0-9_-]+['"]?\s*\)$/i.test(urlRef)) ? !1 : !/javascript:|data:|&#|\\/i.test(attributeValue) : !1;
+}
+// sanitizeSvgIcon (minified: Zt) — An operator's SVG icon rebuilt with only allowed tags and attributes (no scripts or external references); null if it isn't a plain SVG.
+function sanitizeSvgIcon(icon) {
+  let svg = nonEmptyString(icon);
+  if (!svg || !/^\s*<svg[\s>/]/i.test(svg)) return null;
+  let stripped = svg.replace(SVG_DROPPED_ELEMENTS_RE, ""),
+    output = "",
+    position = 0;
+  // Walk the markup: text between tags is copied (with > escaped), each tag is rebuilt from its allowed attributes; any unknown or malformed tag rejects the whole icon.
+  for (; position < stripped.length;) {
+    let tagStart = stripped.indexOf("<", position),
+      text = stripped.slice(position, tagStart < 0 ? stripped.length : tagStart);
+    if (output += text.replace(/>/g, "&gt;"), tagStart < 0) break;
+    SVG_TAG_RE.lastIndex = tagStart;
+    let tagMatch = SVG_TAG_RE.exec(stripped);
+    if (!tagMatch) return null;
+    let [whole, closing, tagName, attributes, selfClosing] = tagMatch,
+      lowerTag = tagName.toLowerCase();
+    if (!SVG_TAGS.has(lowerTag)) return null;
+    if (closing) output += `</${tagName}>`;else {
+      let kept = [];
+      for (let attributeMatch of attributes.matchAll(SVG_ATTRIBUTE_RE)) {
+        let attributeName = attributeMatch[1].toLowerCase(),
+          attributeValue = attributeMatch[2] ?? attributeMatch[3] ?? attributeMatch[4] ?? "";
+        safeSvgAttribute(attributeName, attributeValue) && kept.push(`${attributeMatch[1]}="${attributeValue.replace(/"/g, "&quot;")}"`);
+      }
+      output += `<${tagName}${kept.length > 0 ? ` ${kept.join(" ")}` : ""}${selfClosing ? "/" : ""}>`;
+    }
+    position = tagStart + whole.length;
+  }
+  return output;
+}
+// operatorCatalog (minified: He) — ──── App: Workflow view model: operators catalogue, step summaries/labels, email/HTML value summaries, flow tree (series/parallel/each/if), stages/actions/commands/form fields views, params to data, path-safe get/insert/remove/move edits, id generation, stage/action/command builders, find/rename/delete helpers ────
+// operatorCatalog (minified: He) — Operator list -> Map(operator -> {name, description, category, icon, params}), each param with its label, type, lookups, default and code language.
+function operatorCatalog(body) {
+  let operators = asArray(Array.isArray(body) ? body : body?.data),
+    catalog = new Map();
+  for (let entry of operators) {
+    let operatorName = nonEmptyString(entry?.operator);
+    operatorName && catalog.set(operatorName, {
+      operator: operatorName,
+      name: nonEmptyString(entry?.name) ?? humanize(operatorName),
+      description: nonEmptyString(entry?.description),
+      category: nonEmptyString(entry?.category),
+      icon: sanitizeSvgIcon(entry?.icon),
+      params: asArray(entry?.params).map(rawParam => {
+        let paramName = nonEmptyString(rawParam?.param);
+        if (!paramName) return null;
+        let lookupKind = nonEmptyString(rawParam?.lookup_type),
+          lookupReference = nonEmptyString(rawParam?.lookup_reference),
+          lookupValues = lookupKind === "values" && lookupReference ? lookupReference.split(",").map(option => option.trim()).filter(Boolean) : Array.isArray(rawParam?.options) ? rawParam.options.map(option => nonEmptyString(option?.value) ?? nonEmptyString(option?.label) ?? String(option)) : null,
+          defaultText = rawParam?.default === null || rawParam?.default === void 0 ? "" : typeof rawParam.default == "object" ? JSON.stringify(rawParam.default, null, 2) : String(rawParam.default),
+          description = nonEmptyString(rawParam?.description) ?? nonEmptyString(rawParam?.help_text),
+          type = nonEmptyString(rawParam?.type);
+        return {
+          param: paramName,
+          label: nonEmptyString(rawParam?.label) ?? humanize(paramName),
+          type: type,
+          required: rawParam?.required === !0,
+          description: description,
+          lookupValues: lookupValues && lookupValues.length > 0 ? lookupValues : null,
+          lookupKind: lookupKind,
+          // A lookup function that just lists one resource becomes a resource lookup (value / label fields).
+          lookupResource: lookupKind === "function" ? (() => {
+            let lookup = simpleResourceLookup(typeof rawParam?.lookup_reference == "string" ? rawParam.lookup_reference : null);
+            return lookup ? {
+              resource: lookup.resource,
+              valueField: nonEmptyString(rawParam?.lookup_value_field) ?? "id",
+              labelField: nonEmptyString(rawParam?.lookup_label_field) ?? "name"
+            } : null;
+          })() : null,
+          lookupHint: lookupKind && lookupKind !== "values" && lookupKind !== "resources" && !simpleResourceLookup(typeof rawParam?.lookup_reference == "string" ? rawParam.lookup_reference : null) ? `${lookupKind} lookup \u2014 the web app resolves this at runtime; enter a value directly` : null,
+          inputType: nonEmptyString(rawParam?.input_properties?.type),
+          sensitive: rawParam?.sensitive === !0,
+          defaultValue: defaultText || (/^message$/i.test(paramName) && type === "object" ? EMAIL_TEMPLATE_HTML : /^html$/i.test(operatorName) && type === "object" ? HTML_CONTENT_TEMPLATE : ""),
+          codeLanguage: codeLanguageOf(operatorName, paramName, defaultText, description, type, nonEmptyString(rawParam?.label)),
+          mergedInto: mergedParam(operatorName, paramName)?.into ?? null
+        };
+      }).filter(paramView => paramView !== null)
+    });
+  }
+  return catalog;
+}
+// catalogEntry (minified: ze) — The operator catalog entry for a step.
+function catalogEntry(step, catalog) {
+  let operatorName = nonEmptyString(step?.operator);
+  return !operatorName || !catalog ? null : catalog.get(operatorName) ?? null;
+}
+// stepTitle (minified: Yt) — A step's title (operator name, else its own name, else "Command").
+function stepTitle(step, catalog) {
+  let entry = catalogEntry(step, catalog);
+  if (entry) return entry.name;
+  let stepName = nonEmptyString(step?.name);
+  if (stepName) return humanize(stepName);
+  let operatorName = nonEmptyString(step?.operator);
+  return operatorName ? humanize(operatorName) : "Command";
+}
+// PREVIEW_MAX_CHARS (minified: Be) — Longest preview text shown for a param value; next, step data keys never listed as params.
+var PREVIEW_MAX_CHARS = 400,
+  HIDDEN_DATA_KEYS = new Set(["_properties", "currentProperty"]);
+// emailValue (minified: ke) — An email-designer value ({html, json}) -> {html, json, hasDesignTree, schemaVersion, rows}; null for anything else.
+function emailValue(value) {
+  if (!value || typeof value != "object" || Array.isArray(value)) return null;
+  let candidate = value;
+  if (typeof candidate.html != "string") return null;
+  let designTree = candidate.json;
+  return {
+    html: candidate.html,
+    json: candidate.json,
+    hasDesignTree: !!designTree && typeof designTree == "object",
+    schemaVersion: typeof designTree?.schemaVersion == "number" ? designTree.schemaVersion : null,
+    rows: Array.isArray(designTree?.body?.rows) ? designTree.body.rows.length : null
+  };
+}
+// emailSummary (minified: en) — One line describing an email value (designed or hand-written, rows, size).
+function emailSummary(email) {
+  let parts = [email.hasDesignTree ? "Designed email" : "HTML email"];
+  return email.rows !== null && parts.push(`${email.rows} row${email.rows === 1 ? "" : "s"}`), parts.push(`${Math.round(email.html.length / 1024)} kB of HTML`), email.schemaVersion !== null && parts.push(`Unlayer schema v${email.schemaVersion}`), `${parts.join(" \xB7 ")}${email.hasDesignTree ? " \u2014 designed in the instance's email designer." : " \u2014 hand-written HTML."}`;
+}
+// previewText (minified: L) — A value as preview text, cut to PREVIEW_MAX_CHARS ({text, truncated}); email values are summarised.
+function previewText(value) {
+  let text;
+  if (value == null) text = "";else if (typeof value == "string") text = value;else if (typeof value == "number" || typeof value == "boolean") text = String(value);else {
+    let email = emailValue(value);
+    if (email) return {
+      text: emailSummary(email),
+      truncated: !1
+    };
+    try {
+      text = JSON.stringify(value, null, 2) ?? "";
+    } catch {
+      text = "[unserializable]";
+    }
+  }
+  return text.length > PREVIEW_MAX_CHARS ? {
+    text: text.slice(0, PREVIEW_MAX_CHARS),
+    truncated: !0
+  } : {
+    text: text,
+    truncated: !1
+  };
+}
+// mapEntries (minified: tn) — An object's entries as {key, value} preview rows; null for non-objects and email values.
+function mapEntries(value) {
+  return !value || typeof value != "object" || Array.isArray(value) || emailValue(value) ? null : Object.entries(value).map(([key, entryValue]) => ({
+    key: key,
+    value: previewText(entryValue).text
+  }));
+}
+// paramViews (minified: nn) — An operator step's data -> its parameter rows: the operator's params first, then any other keys (marked unknown); empty values are skipped.
+function paramViews(data, operatorEntry, operator) {
+  if (!data || typeof data != "object" || Array.isArray(data)) return [];
+  let values = mergeParams(operator, data),
+    params = operatorEntry?.params ?? [],
+    rows = [],
+    seen = new Set(),
+    addRow = (key, label, type, unknown) => {
+      if (HIDDEN_DATA_KEYS.has(key) || seen.has(key)) return;
+      seen.add(key);
+      let rawValue = values[key];
+      if (rawValue == null || rawValue === "") return;
+      let {
+        text: text,
+        truncated: truncated
+      } = previewText(rawValue);
+      rows.push({
+        key: key,
+        label: label,
+        type: type,
+        value: text,
+        entries: mapEntries(rawValue),
+        truncated: truncated,
+        unknown: unknown
+      });
+    };
+  for (let param of params) addRow(param.param, param.label, param.type, !1);
+  for (let dataKey of Object.keys(values)) addRow(dataKey, humanize(dataKey), null, !0);
+  return rows;
+}
+// MAX_STEP_DEPTH (minified: be) — Deepest step nesting the flow views follow.
+var MAX_STEP_DEPTH = 12;
+// seriesView (minified: D) — A series (or parallel) of steps -> its flow view; an If node goes to ifView.
+function seriesView(node, catalog, path, depth = 0) {
+  if (!node || typeof node != "object" || depth > MAX_STEP_DEPTH) return null;
+  if (nonEmptyString(node.type) === "if") return ifView(node, catalog, path, depth);
+  let childrenPath = [...path, "commands"],
+    children = asArray(node.commands).map((child, index) => stepView(child, catalog, [...childrenPath, index], depth + 1)).filter(child => child !== null);
+  return {
+    kind: "series",
+    label: nonEmptyString(node.type) === "parallel" ? "Parallel" : "Series",
+    children: children,
+    path: path,
+    childrenPath: childrenPath
+  };
+}
+// ifView (minified: Ke) — An If step -> its flow view (evaluator, condition, true / false branches).
+function ifView(node, catalog, path, depth) {
+  let branch = (branchNode, branchKey) => {
+      if (!branchNode || typeof branchNode != "object") return [];
+      let branchPath = [...path, branchKey],
+        branchType = nonEmptyString(branchNode.type);
+      if (branchType === null || branchType === "series") {
+        let series = seriesView(branchNode, catalog, branchPath, depth + 1);
+        return series && series.kind === "series" ? series.children : series ? [series] : [];
+      }
+      let single = stepView(branchNode, catalog, branchPath, depth + 1);
+      return single ? [single] : [];
+    },
+    evaluatorKind = nonEmptyString(node.evaluator),
+    ifData = node.data && typeof node.data == "object" && !Array.isArray(node.data) ? node.data : {},
+    evaluatorPreview = previewText(ifData.command),
+    property = nonEmptyString(ifData.property);
+  return {
+    kind: "if",
+    label: "If",
+    evaluatorKind: evaluatorKind,
+    evaluatorSource: nonEmptyString(ifData.command) ? evaluatorPreview.text : null,
+    evaluatorTruncated: evaluatorPreview.truncated,
+    condition: property ? {
+      property: property,
+      operator: nonEmptyString(ifData.operator) ?? "==",
+      value: previewText(ifData.value).text
+    } : null,
+    whenTrue: branch(node.true, "true"),
+    whenFalse: branch(node.false, "false"),
+    path: path,
+    truePath: [...path, "true", "commands"],
+    falsePath: [...path, "false", "commands"]
+  };
+}
+// stepView (minified: Z) — One step (operator, if, each, parallel, series, reference) -> its flow view.
+function stepView(step, catalog, path, depth = 0) {
+  if (!step || typeof step != "object" || depth > MAX_STEP_DEPTH) return null;
+  let stepType = nonEmptyString(step.type);
+  // Each: its body is `command` (a series) or, in older definitions, its own `commands`.
+  if (stepType === "if") return ifView(step, catalog, path, depth);
+  if (stepType === "each") {
+    let body = step.command ? seriesView(step.command, catalog, [...path, "command"], depth + 1) : seriesView({
+        type: "series",
+        commands: step.commands
+      }, catalog, path, depth + 1),
+      childrenPath = step.command ? [...path, "command", "commands"] : [...path, "commands"];
+    return {
+      kind: "each",
+      label: "Each",
+      concurrency: finiteNumber(step.concurrency),
+      collection: nonEmptyString(step.reference),
+      children: body && body.kind === "series" ? body.children : body ? [body] : [],
+      path: path,
+      childrenPath: childrenPath
+    };
+  }
+  if (stepType === "parallel" || stepType === "series") {
+    let childrenPath = [...path, "commands"],
+      children = asArray(step.commands).map((child, index) => stepView(child, catalog, [...childrenPath, index], depth + 1)).filter(child => child !== null),
+      stepName = nonEmptyString(step.name);
+    return stepType === "series" ? {
+      kind: "series",
+      label: stepName ? humanize(stepName) : "Series",
+      children: children,
+      path: path,
+      childrenPath: childrenPath
+    } : {
+      kind: "parallel",
+      label: stepName ? humanize(stepName) : "Parallel",
+      concurrency: finiteNumber(step.concurrency),
+      children: children,
+      path: path,
+      childrenPath: childrenPath
+    };
+  }
+  // A reference calls a reusable command; its name and parameters are filled in by linkCommandUsages.
+  if (stepType === "reference") return {
+    kind: "reference",
+    label: "Reference",
+    targetId: nonEmptyString(step.reference) ?? nonEmptyString(step.id),
+    targetName: null,
+    parameterFields: [],
+    parameterValues: referenceParamEntries(step),
+    path: path
+  };
+  let entry = catalogEntry(step, catalog);
+  return {
+    kind: "operator",
+    label: stepTitle(step, catalog),
+    operator: nonEmptyString(step.operator),
+    delay: finiteNumber(step.delay),
+    params: paramViews(step.data, entry, nonEmptyString(step.operator)),
+    path: path
+  };
+}
+// ACCESS_METHODS (minified: rn) — The access-control methods the extension knows, with the label, icon and value kind (ids or code).
+var ACCESS_METHODS = {
+  user_group: {
+    label: "User Group",
+    icon: {
+      __name: "folder",
+      name: "Folder"
+    },
+    kind: "ids"
+  },
+  user: {
+    label: "User",
+    icon: {
+      __name: "user",
+      name: "User"
+    },
+    kind: "ids"
+  },
+  permission: {
+    label: "Permission",
+    icon: {
+      __name: "key",
+      name: "Key"
+    },
+    kind: "ids"
+  },
+  function: {
+    label: "Custom Function",
+    icon: {
+      __name: "document",
+      name: "Document"
+    },
+    kind: "code"
+  }
+};
+// isKnownAccessMethod (minified: on) — Is it one of the methods in ACCESS_METHODS?
+function isKnownAccessMethod(method) {
+  return Object.prototype.hasOwnProperty.call(ACCESS_METHODS, method);
+}
+// accessRules (minified: sn) — An action's access_control rules -> {method, label, data, known}. Saturn stores the label as `lable`.
+function accessRules(action) {
+  return asArray(action?.access_control).map(rule => ({
+    method: nonEmptyString(rule?.method) ?? "",
+    label: nonEmptyString(rule?.lable) ?? nonEmptyString(rule?.label),
+    data: asArray(rule?.data).map(item => String(item)).filter(item => item.length > 0),
+    known: isKnownAccessMethod(nonEmptyString(rule?.method) ?? "")
+  }));
+}
+// actorSummary (minified: an) — Who can run an action, as text: its actors, else "Everyone".
+function actorSummary(action) {
+  let actors = asArray(action?.actors);
+  if (actors.length === 0) return "Everyone";
+  let names = actors.map(actor => typeof actor == "string" ? actor : nonEmptyString(actor?.label) ?? nonEmptyString(actor?.name) ?? nonEmptyString(actor?.id)).filter(actor => actor !== null);
+  return names.length > 0 ? names.join(", ") : `${actors.length} actor${actors.length === 1 ? "" : "s"}`;
+}
+// formFieldView (minified: ye) — A form field -> {key, label, type, inputType, required}.
+function formFieldView(field) {
+  let key = nonEmptyString(field?.key) ?? "";
+  return {
+    key: key,
+    label: nonEmptyString(field?.label) ?? (key ? humanize(key) : "Field"),
+    type: nonEmptyString(field?.type),
+    inputType: nonEmptyString(field?.input_properties?.type),
+    required: field?.required === !0
+  };
+}
+// actionView (minified: Je) — An action -> its view (label, actors, access, form, flow).
+function actionView(action, catalog, path) {
+  let actionName = nonEmptyString(action?.action) ?? "";
+  return {
+    id: nonEmptyString(action?.id) ?? actionName,
+    action: actionName,
+    label: nonEmptyString(action?.label) ?? (actionName ? humanize(actionName) : "Action"),
+    actorLabel: actorSummary(action),
+    access: accessRules(action),
+    isBatchAction: action?.is_batch_action === !0,
+    confirmMessage: nonEmptyString(action?.confirm_message),
+    flow: seriesView(action?.task, catalog, [...path, "task"]),
+    taskPath: [...path, "task"],
+    form: asArray(action?.form?.fields).map(formFieldView)
+  };
+}
+// stageView (minified: cn) — A stage -> its view (label, colour, actions).
+function stageView(stage, catalog, path) {
+  let stageName = nonEmptyString(stage?.stage) ?? "";
+  return {
+    stage: stageName,
+    label: nonEmptyString(stage?.label) ?? (stageName ? humanize(stageName) : "Stage"),
+    color: nonEmptyString(stage?.color),
+    actions: asArray(stage?.actions).map((action, index) => actionView(action, catalog, [...path, "actions", index]))
+  };
+}
+// commandParameterFields (minified: ln) — A command's parameters (a form with fields, or a list of names / field objects) -> form field views.
+function commandParameterFields(parameters) {
+  return parameters && typeof parameters == "object" && !Array.isArray(parameters) && Array.isArray(parameters.fields) ? parameters.fields.map(formFieldView) : Array.isArray(parameters) ? parameters.map((parameter, index) => {
+    if (typeof parameter == "string") return {
+      key: parameter,
+      label: humanize(parameter),
+      type: null,
+      inputType: null,
+      required: !1
+    };
+    let key = nonEmptyString(parameter?.key) ?? nonEmptyString(parameter?.param) ?? nonEmptyString(parameter?.name) ?? `param_${index + 1}`;
+    return formFieldView({
+      ...parameter,
+      key: key
+    });
+  }) : [];
+}
+// commandView (minified: un) — A command -> its view (label, flow, parameters); usages are filled in by linkCommandUsages.
+function commandView(command, catalog, path) {
+  let commandName = nonEmptyString(command?.name) ?? "",
+    taskPath = [...path, "command"];
+  return {
+    id: nonEmptyString(command?.id) ?? commandName,
+    name: commandName,
+    label: nonEmptyString(command?.label) ?? (commandName ? humanize(commandName) : "Command"),
+    flow: seriesView(command?.command, catalog, taskPath) ?? stepView(command?.command, catalog, taskPath),
+    taskPath: taskPath,
+    parameters: commandParameterFields(command?.parameters),
+    usageCount: 0,
+    usages: []
+  };
+}
+// walkFlow (minified: X) — Calls visit on a flow node and on every node under it.
+function walkFlow(node, visit) {
+  if (node) switch (visit(node), node.kind) {
+    case "series":
+    case "parallel":
+    case "each":
+      node.children.forEach(child => walkFlow(child, visit));
+      break;
+    case "if":
+      node.whenTrue.forEach(child => walkFlow(child, visit)), node.whenFalse.forEach(child => walkFlow(child, visit));
+      break;
+  }
+}
+// relativePathLabel (minified: dn) — A step path relative to its action or command, as text (e.g. commands[0].true), for the usage list.
+function relativePathLabel(path, basePath) {
+  let rest = path.slice(basePath.length);
+  for (; rest.length > 0 && (rest[0] === "task" || rest[0] === "command");) rest.shift();
+  let parts = [];
+  for (let part of rest) typeof part == "number" ? parts[parts.length - 1] = `${parts[parts.length - 1] ?? ""}[${part}]` : parts.push(part);
+  return parts.join(".") || "the flow";
+}
+// linkCommandUsages (minified: pn) — Fills in each reference step with its command's name, label and parameter fields, and records on each command where it is used (usages, usageCount).
+function linkCommandUsages(commands, flows) {
+  let byKey = new Map();
+  for (let command of commands) command.id && byKey.set(command.id, command), command.name && byKey.set(command.name, command);
+  let usages = new Map();
+  for (let owner of flows) walkFlow(owner.flow, node => {
+    if (node.kind !== "reference" || !node.targetId) return;
+    let command = byKey.get(node.targetId);
+    if (!command) return;
+    node.targetName = command.name || command.label, node.label = command.label, node.parameterFields = command.parameters;
+    let list = usages.get(command.id) ?? [];
+    list.push({
+      label: owner.label,
+      pathLabel: relativePathLabel(node.path, owner.basePath),
+      path: node.path,
+      target: owner.target
+    }), usages.set(command.id, list);
+  });
+  for (let command of commands) command.usages = usages.get(command.id) ?? [], command.usageCount = command.usages.length;
+}
+// triggerView (minified: fn) — A trigger (a name, or an object) -> {id, label, detail}.
+function triggerView(trigger, index) {
+  if (typeof trigger == "string") return {
+    id: trigger,
+    label: humanize(trigger),
+    detail: null
+  };
+  let triggerName = nonEmptyString(trigger?.name) ?? nonEmptyString(trigger?.event) ?? nonEmptyString(trigger?.type);
+  return {
+    id: nonEmptyString(trigger?.id) ?? `trigger_${index + 1}`,
+    label: nonEmptyString(trigger?.label) ?? (triggerName ? humanize(triggerName) : `Trigger ${index + 1}`),
+    detail: nonEmptyString(trigger?.description) ?? nonEmptyString(trigger?.event) ?? nonEmptyString(trigger?.type)
+  };
+}
+// workflowSummary (minified: Ge) — One row of the workflows list (id, name, status, counts, stages).
+function workflowSummary(workflow) {
+  let stages = asArray(workflow?.stages);
+  return {
+    id: nonEmptyString(workflow?.id) ?? "",
+    name: nonEmptyString(workflow?.name) ?? nonEmptyString(workflow?.id) ?? "Untitled workflow",
+    status: nonEmptyString(workflow?.status),
+    stageCount: stages.length,
+    globalActionCount: asArray(workflow?.actions).length,
+    stages: stages.map(stage => {
+      let stageName = nonEmptyString(stage?.stage) ?? "";
+      return {
+        stage: stageName,
+        label: nonEmptyString(stage?.label) ?? (stageName ? humanize(stageName) : "Stage"),
+        color: nonEmptyString(stage?.color)
+      };
+    })
+  };
+}
+// workflowView (minified: Xe) — A workflow definition -> its full view model (stages, global actions, commands with usages, triggers).
+function workflowView(workflow, catalog) {
+  let stages = asArray(workflow?.stages).map((stage, index) => stageView(stage, catalog, ["stages", index])),
+    actions = asArray(workflow?.actions).map((action, index) => actionView(action, catalog, ["actions", index])),
+    commands = asArray(workflow?.commands).map((command, index) => commandView(command, catalog, ["commands", index]));
+  return linkCommandUsages(commands, [...actions.map((action, index) => ({
+    flow: action.flow,
+    label: `Global Action: ${action.label}`,
+    basePath: ["actions", index],
+    target: {
+      tab: "actions",
+      actionId: action.id
+    }
+  })), ...stages.flatMap((stage, stageIndex) => stage.actions.map((action, actionIndex) => ({
+    flow: action.flow,
+    label: `Stage ${stage.label} / Action ${action.label}`,
+    basePath: ["stages", stageIndex, "actions", actionIndex],
+    target: {
+      tab: "workflow",
+      stage: stage.stage,
+      actionId: action.id
+    }
+  }))), ...commands.map((command, index) => ({
+    flow: command.flow,
+    label: `Command: ${command.label}`,
+    basePath: ["commands", index],
+    target: {
+      tab: "commands",
+      commandId: command.id
+    }
+  }))]), {
+    id: nonEmptyString(workflow?.id) ?? "",
+    name: nonEmptyString(workflow?.name) ?? nonEmptyString(workflow?.id) ?? "Untitled workflow",
+    status: nonEmptyString(workflow?.status),
+    start: nonEmptyString(workflow?.start),
+    createdAt: nonEmptyString(workflow?.created_at),
+    updatedAt: nonEmptyString(workflow?.updated_at),
+    stages: stages,
+    actions: actions,
+    commands: commands,
+    triggers: asArray(workflow?.triggers).map(triggerView)
+  };
+}
+// isObjectLike (minified: gn) — Is it a non-null object?
+function isObjectLike(value) {
+  return !!value && typeof value == "object";
+}
+// paramsToData (minified: _e) — The text values given for an operator's params -> the step's data (types, JSON, required checks), plus errors; an empty value keeps the stored one.
+function paramsToData(entry, values, stored) {
+  let data = {},
+    errors = [],
+    params = entry?.params ?? [];
+  for (let param of params) {
+    let raw = values[param.param] ?? "",
+      text = param.codeLanguage ? raw : raw.trim();
+    if (Object.prototype.hasOwnProperty.call(data, param.param)) continue;
+    let isEmpty = text.trim() === "";
+    // Empty but an object is stored (e.g. a map): keep the stored value.
+    if (param.mergedInto) continue;
+    if (isEmpty && isObjectLike(stored?.[param.param])) {
+      data[param.param] = stored[param.param];
+      continue;
+    }
+    if (isEmpty) {
+      param.required && errors.push({
+        param: param.param,
+        label: param.label,
+        message: "is required"
+      });
+      continue;
+    }
+    // A {{ template }} in a non-JSON param is stored as text, unconverted.
+    if (!(param.type === "object" || param.type === "array") && /\{\{[\s\S]*\}\}/.test(text)) {
+      data[param.param] = text;
+      continue;
+    }
+    switch (param.type) {
+      case "number":
+        {
+          let num = Number(text);
+          Number.isFinite(num) ? data[param.param] = num : errors.push({
+            param: param.param,
+            label: param.label,
+            message: "must be a number"
+          });
+          break;
+        }
+      case "boolean":
+        {
+          let lower = text.toLowerCase();
+          ["true", "false"].includes(lower) ? data[param.param] = lower === "true" : errors.push({
+            param: param.param,
+            label: param.label,
+            message: "must be true or false"
+          });
+          break;
+        }
+      case "object":
+      case "array":
+        {
+          // HTML for an email param keeps the stored designer JSON alongside the new html.
+          if (param.type === "object" && param.codeLanguage === "html" && /^\s*</.test(text)) {
+            let storedValue = stored?.[param.param],
+              base = emailValue(storedValue) ? {
+                ...storedValue
+              } : {};
+            data[param.param] = {
+              ...base,
+              html: text
+            };
+            break;
+          }
+          // A non-JSON value for a param listed twice belongs to the other entry.
+          if (!/^\s*[[{]/.test(text) && params.filter(other => other.param === param.param).length > 1) continue;
+          try {
+            let parsed = JSON.parse(text);
+            param.type === "array" !== Array.isArray(parsed) || parsed === null || typeof parsed != "object" ? errors.push({
+              param: param.param,
+              label: param.label,
+              message: `must be a JSON ${param.type}`
+            }) : data[param.param] = parsed;
+          } catch (error) {
+            errors.push({
+              param: param.param,
+              label: param.label,
+              message: `is not valid JSON \u2014 ${error instanceof Error ? error.message : String(error)}`
+            });
+          }
+          break;
+        }
+      default:
+        data[param.param] = text;
+    }
+  }
+  // property_updater: also write _properties (the web app's editing rows) from properties.
+  let merge = entry ? MERGED_PARAMS[entry.operator] : void 0,
+    map = merge ? data[merge.into] : void 0;
+  merge && map && typeof map == "object" && !Array.isArray(map) && (data._properties = Object.entries(map).map(([key, mapValue]) => ({
+    editing: !1,
+    key: key,
+    value: mapValue
+  })));
+  // Values for keys the operator doesn't have are errors.
+  for (let key of Object.keys(values)) !params.some(param => param.param === key) && (values[key] ?? "").trim() !== "" && errors.push({
+    param: key,
+    label: key,
+    message: "is not a parameter of this operator"
+  });
+  return {
+    data: data,
+    errors: errors
+  };
+}
+// newOperatorStep (minified: Ze) — {type: "command", operator, data, delay?}
+function newOperatorStep(operator, data, delay) {
+  let step = {
+    type: "command",
+    operator: operator,
+    data: data
+  };
+  return delay !== null && (step.delay = delay), step;
+}
+// RESERVED_PATH_KEYS (minified: mn) — Keys a path may never contain (prototype pollution).
+var RESERVED_PATH_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+// isSafePath (minified: Y) — Is a path only array indexes and ordinary keys (no __proto__, constructor or prototype)?
+function isSafePath(path) {
+  return Array.isArray(path) && path.every(part => typeof part == "number" && Number.isInteger(part) && part >= 0 || typeof part == "string" && !RESERVED_PATH_KEYS.has(part));
+}
+// assertSafePath (minified: Ye) — Throws unless the path is safe (see isSafePath).
+function assertSafePath(path) {
+  if (!isSafePath(path)) throw new Error("Refusing a path with a non-index number or a reserved key (__proto__, constructor, prototype)");
+}
+// getAt (minified: M) — The value at a path in a definition (undefined if missing or the path is unsafe).
+function getAt(root, path) {
+  if (!isSafePath(path)) return;
+  let current = root;
+  for (let key of path) {
+    if (current === null || typeof current != "object" || !Object.prototype.hasOwnProperty.call(current, key)) return;
+    current = current[key];
+  }
+  return current;
+}
+// insertAt (minified: Qe) — A copy with an item inserted into the array at a path (at index, or at the end); missing containers on the way are created.
+function insertAt(root, path, index, item) {
+  if (path.length === 0) throw new Error("Refusing to insert at an empty path");
+  assertSafePath(path);
+  let copy = structuredClone(root),
+    current = copy;
+  for (let partIndex = 0; partIndex < path.length - 1; partIndex++) {
+    let key = path[partIndex],
+      nextKey = path[partIndex + 1];
+    // A missing container is created (an array before an index, else a series).
+    if ((current[key] === null || current[key] === void 0) && (current[key] = typeof nextKey == "number" ? [] : {}, Array.isArray(current[key]) || (current[key].type = "series")), current = current[key], current === null || typeof current != "object") throw new Error(`Cannot insert: ${path.slice(0, partIndex + 1).join(".")} is not a container`);
+    // Inserting into the `commands` of a single step wraps that step in a series first.
+    if (nextKey === "commands" && !Array.isArray(current.commands) && current.commands === void 0 && (nonEmptyString(current.type) !== null || current.operator !== void 0) && nonEmptyString(current.type) !== "series" && nonEmptyString(current.type) !== "parallel") {
+      let original = {
+        ...current
+      };
+      for (let field of Object.keys(current)) delete current[field];
+      current.type = "series", current.commands = [original];
+    }
+  }
+  let lastKey = path[path.length - 1];
+  if (!Array.isArray(current[lastKey])) if (current[lastKey] === null || current[lastKey] === void 0) current[lastKey] = [];else throw new Error(`Cannot insert: ${path.join(".")} is not an array`);
+  let list = current[lastKey],
+    at = index === null || index < 0 || index > list.length ? list.length : index;
+  return list.splice(at, 0, item), copy;
+}
+// SERVER_FIELDS (minified: hn) — Fields the server manages; removed from a definition before it is saved.
+var SERVER_FIELDS = ["_permissions_", "created_at", "updated_at"];
+// checkDefinitionForSave (minified: S) — A copy of a definition ready to save: an object for this workflow id, without server-managed fields.
+function checkDefinitionForSave(definition, workflowId) {
+  if (!definition || typeof definition != "object" || Array.isArray(definition)) throw new Error("Workflow definition must be an object");
+  let copy = {
+      ...definition
+    },
+    definitionId = nonEmptyString(copy.id);
+  if (definitionId && definitionId !== workflowId) throw new Error(`Refusing to save: definition id "${definitionId}" does not match ${workflowId}`);
+  for (let field of SERVER_FIELDS) delete copy[field];
+  return copy;
+}
+// parentOf (minified: Ae) — The parent object / array and key of a path (throws if a container on the way is missing).
+function parentOf(root, path) {
+  if (path.length === 0) throw new Error("Refusing to address an empty path");
+  assertSafePath(path);
+  let current = root;
+  for (let partIndex = 0; partIndex < path.length - 1; partIndex++) {
+    if (current === null || typeof current != "object" || !Object.prototype.hasOwnProperty.call(current, path[partIndex])) throw new Error(`Path ${path.slice(0, partIndex + 1).join(".")} is not a container`);
+    if (current = current[path[partIndex]], current === null || typeof current != "object") throw new Error(`Path ${path.slice(0, partIndex + 1).join(".")} is not a container`);
+  }
+  return {
+    parent: current,
+    key: path[path.length - 1]
+  };
+}
+// removeAt (minified: Q) — A copy with the item at a path removed: {next, removed}.
+function removeAt(root, path) {
+  let copy = structuredClone(root),
+    {
+      parent: parent,
+      key: key
+    } = parentOf(copy, path);
+  if (Array.isArray(parent)) {
+    let index = Number(key);
+    if (!Number.isInteger(index) || index < 0 || index >= parent.length) throw new Error(`No command at index ${String(key)}`);
+    let [removed] = parent.splice(index, 1);
+    return {
+      next: copy,
+      removed: removed
+    };
+  }
+  let removedValue = parent[key];
+  if (removedValue === void 0) throw new Error(`Nothing at ${path.join(".")}`);
+  return delete parent[key], {
+    next: copy,
+    removed: removedValue
+  };
+}
+// setAt (minified: O) — A copy of the definition with the value at a path replaced.
+function setAt(root, path, replacement) {
+  let copy = structuredClone(root),
+    {
+      parent: parent,
+      key: key
+    } = parentOf(copy, path);
+  if (Array.isArray(parent)) {
+    let index = Number(key);
+    if (!Number.isInteger(index) || index < 0 || index >= parent.length) throw new Error(`No command at index ${String(key)}`);
+    return parent[index] = replacement, copy;
+  }
+  if (parent[key] === void 0) throw new Error(`Nothing at ${path.join(".")}`);
+  return parent[key] = replacement, copy;
+}
+// samePath (minified: Ve) — Do two paths have the same parts?
+function samePath(left, right) {
+  return left.length === right.length && left.every((part, index) => part === right[index]);
+}
+// moveStep (minified: et) — Moves a step from one path to another array (refuses moving it into itself).
+function moveStep(root, fromPath, toPath, toIndex) {
+  if (fromPath.length === 0) throw new Error("Refusing to move an empty path");
+  let fromParent = fromPath.slice(0, -1),
+    fromIndex = Number(fromPath[fromPath.length - 1]);
+  if (!Number.isInteger(fromIndex)) throw new Error("Can only move a command out of an array");
+  if (toPath.length >= fromPath.length && samePath(fromPath, toPath.slice(0, fromPath.length))) throw new Error("Cannot move a step inside itself");
+  let {
+      next: next,
+      removed: moved
+    } = removeAt(root, fromPath),
+    index = toIndex;
+  // Moving later in the same list: the index shifts once the step is taken out.
+  samePath(fromParent, toPath) && index !== null && index > fromIndex && (index -= 1);
+  let {
+    parent: parent,
+    key: key
+  } = parentOf(next, toPath);
+  if (!Array.isArray(parent?.[key])) if (parent?.[key] === void 0 || parent?.[key] === null) parent[key] = [];else throw new Error(`Cannot move: ${toPath.join(".")} is not an array`);
+  let list = parent[key],
+    at = index === null || index < 0 || index > list.length ? list.length : index;
+  return list.splice(at, 0, moved), next;
+}
+// ID_ALPHABET (minified: qe) — Characters and length of generated step, action and command ids.
+var ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  ID_LENGTH = 6;
+// toMachineName (minified: ee) — A label -> a machine name (lower case, underscores, at most 64 characters).
+function toMachineName(label) {
+  return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 64);
+}
+// collectIds (minified: Re) — Every `id` string in a definition (searched up to 20 levels deep).
+function collectIds(root) {
+  let ids = new Set(),
+    visit = (node, depth = 0) => {
+      if (!node || typeof node != "object" || depth > 20) return;
+      if (Array.isArray(node)) {
+        node.forEach(child => visit(child, depth + 1));
+        return;
+      }
+      let obj = node,
+        id = nonEmptyString(obj.id);
+      id && ids.add(id), Object.values(obj).forEach(child => visit(child, depth + 1));
+    };
+  return visit(root), ids;
+}
+// unusedId (minified: Se) — A random 6-character id that isn't in `used` (200 tries).
+function unusedId(used, random = Math.random) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    let id = "";
+    for (let charIndex = 0; charIndex < ID_LENGTH; charIndex++) id += ID_ALPHABET[Math.floor(random() * ID_ALPHABET.length)];
+    if (!used.has(id)) return id;
+  }
+  throw new Error("Could not generate an unused id");
+}
+// newStage (minified: tt) — A new, empty stage.
+function newStage(label, stage, color) {
+  return {
+    stage: stage,
+    label: label,
+    color: color,
+    actions: []
+  };
+}
+// newAction (minified: nt) — A new, empty action (no actors, no access rules, an empty series task).
+function newAction(label, action, id) {
+  return {
+    id: id,
+    action: action,
+    label: label,
+    actors: [],
+    access_control: [],
+    task: {
+      type: "series",
+      commands: []
+    }
+  };
+}
+// newCommand (minified: rt) — A new, empty command (an empty series, no parameters).
+function newCommand(commandName, label, id) {
+  return {
+    id: id,
+    name: commandName,
+    label: label,
+    command: {
+      type: "series",
+      commands: []
+    },
+    parameters: []
+  };
+}
+// referenceParamEntries (minified: wn) — A reference step's stored parameter values as {key, value} rows; none when `parameters` is a form definition.
+function referenceParamEntries(step) {
+  let parameters = step?.parameters;
+  return !parameters || typeof parameters != "object" || Array.isArray(parameters) ? [] : "fields" in parameters || "sections" in parameters ? [] : Object.entries(parameters).map(([key, paramValue]) => ({
+    key: key,
+    value: previewText(paramValue).text
+  }));
+}
+// checkNewName (minified: U) — Checks a new stage / action / command name is given and not already used: {ok, message?}.
+function checkNewName(newName, taken, kind) {
+  return newName ? taken.includes(newName) ? {
+    ok: !1,
+    message: `${/^[aeiou]/i.test(kind) ? "An" : "A"} ${kind} named "${newName}" already exists in this workflow.`
+  } : {
+    ok: !0
+  } : {
+    ok: !1,
+    message: `Enter a name for the ${kind}.`
+  };
+}
+// countNestedSteps (minified: N) — Counts the steps under a flow node (branches and loop bodies included), down to the depth limit.
+function countNestedSteps(node, depth = 0) {
+  if (!node || typeof node != "object" || depth > MAX_STEP_DEPTH) return 0;
+  if (Array.isArray(node)) return node.reduce((sum, child) => sum + 1 + countNestedSteps(child, depth + 1), 0);
+  let container = node,
+    count = 0;
+  for (let key of ["commands", "command", "true", "false"]) {
+    let branch = container[key];
+    Array.isArray(branch) ? count += branch.reduce((sum, child) => sum + 1 + countNestedSteps(child, depth + 1), 0) : branch && typeof branch == "object" && (count += countNestedSteps(branch, depth + 1));
+  }
+  return count;
+}
+// findStagePath (minified: ot) — The path of the stage with this machine name, or null.
+function findStagePath(definition, stageName) {
+  let index = asArray(definition?.stages).findIndex(stage => stage?.stage === stageName);
+  return index === -1 ? null : ["stages", index];
+}
+// findActionPath (minified: st) — The path of the action with this id, global or under a stage, or null.
+function findActionPath(definition, actionId) {
+  let index = asArray(definition?.actions).findIndex(action => action?.id === actionId);
+  if (index !== -1) return ["actions", index];
+  let stages = asArray(definition?.stages);
+  for (let stageIndex = 0; stageIndex < stages.length; stageIndex++) {
+    let actionIndex = asArray(stages[stageIndex]?.actions).findIndex(action => action?.id === actionId);
+    if (actionIndex !== -1) return ["stages", stageIndex, "actions", actionIndex];
+  }
+  return null;
+}
+// findCommandPath (minified: at) — The path of the reusable command with this id (or name), or null.
+function findCommandPath(definition, commandId) {
+  let index = asArray(definition?.commands).findIndex(command => command?.id === commandId || command?.name === commandId);
+  return index === -1 ? null : ["commands", index];
+}
+// findCommandReferences (minified: kn) — Every reference step that points at a command, with where it is (for delete warnings).
+function findCommandReferences(definition, commandId) {
+  let references = [],
+    visit = (node, owner, pathParts) => {
+      if (!node || typeof node != "object") return;
+      let step = node;
+      step.type === "reference" && (step.id === commandId || step.command === commandId) && references.push({
+        owner: owner,
+        path: pathParts.join(".") || "the flow"
+      });
+      for (let key of ["commands", "true", "false"]) {
+        let branch = step[key];
+        Array.isArray(branch) && branch.forEach((child, index) => visit(child, owner, [...pathParts, `${key}[${index}]`]));
+      }
+      step.command && typeof step.command == "object" && visit(step.command, owner, [...pathParts, "command"]);
+    };
+  for (let action of asArray(definition?.actions)) visit(action?.task, `Global Action: ${action?.label ?? action?.action ?? "?"}`, []);
+  for (let stage of asArray(definition?.stages)) for (let action of asArray(stage?.actions)) visit(action?.task, `Stage ${stage?.label ?? stage?.stage} / Action ${action?.label ?? action?.action}`, []);
+  for (let command of asArray(definition?.commands)) visit(command?.command, `Command: ${command?.label ?? command?.name ?? "?"}`, []);
+  return references;
+}
+// deletionImpact (minified: it) — What deleting a stage / action / command would take with it: nested actions and steps, and references that would break.
+function deletionImpact(definition, kind, path) {
+  let item = getAt(definition, path);
+  if (!item || typeof item != "object") throw new Error("That item is no longer there \u2014 reopen the workflow and try again.");
+  let machineName = String(kind === "stage" ? item.stage ?? "" : kind === "action" ? item.action ?? "" : item.name ?? ""),
+    label = nonEmptyString(item.label) ?? (machineName || "(unnamed)"),
+    nestedActions = kind === "stage" ? asArray(item.actions).length : 0,
+    nestedSteps = (kind === "stage" ? asArray(item.actions).map(entry => entry?.task) : [kind === "command" ? item.command : item.task]).reduce((entry, flow) => entry + (flow ? countNestedSteps(flow) : 0), 0),
+    breaksReferences = kind === "command" && typeof item.id == "string" ? findCommandReferences(definition, item.id) : [];
+  return {
+    kind: kind,
+    label: label,
+    machineName: machineName,
+    nestedActions: nestedActions,
+    nestedSteps: nestedSteps,
+    breaksReferences: breaksReferences,
+    isEmpty: nestedActions === 0 && nestedSteps === 0 && breaksReferences.length === 0
+  };
+}
+// deletionConfirmText (minified: ct) — The confirmation question for deleting a stage / action / command, from its deletionImpact.
+function deletionConfirmText(impact) {
+  let parts = [];
+  impact.nestedActions > 0 && parts.push(`${impact.nestedActions} action${impact.nestedActions === 1 ? "" : "s"}`), impact.nestedSteps > 0 && parts.push(`${impact.nestedSteps} step${impact.nestedSteps === 1 ? "" : "s"}`);
+  let text = parts.length > 0 ? `Delete ${impact.kind} "${impact.label}" and the ${parts.join(" and ")} inside it?` : `Delete ${impact.kind} "${impact.label}"?`;
+  if (impact.breaksReferences.length > 0) {
+    let count = impact.breaksReferences.length;
+    text += ` It is referenced ${count} time${count === 1 ? "" : "s"} (${impact.breaksReferences.slice(0, 3).map(reference => reference.owner).join(", ")}${count > 3 ? ", \u2026" : ""}), and those references will break.`;
+  } else impact.kind === "stage" && (text += ` Any record whose status is "${impact.machineName}" will point at a stage that no longer exists.`);
+  return text;
+}
+// removeItemAt (minified: lt) — The definition without the item at a path.
+function removeItemAt(definition, path) {
+  return removeAt(definition, path).next;
+}
+// renameItemAt (minified: ut) — Renames a stage / action / command (label, and optionally machine name and stage colour); returns the new definition.
+function renameItemAt(definition, kind, path, changes) {
+  let item = getAt(definition, path);
+  if (!item || typeof item != "object" || Array.isArray(item)) throw new Error("That item is no longer there \u2014 reopen the workflow and try again.");
+  let label = changes.label.trim();
+  if (label.length === 0) throw new Error("A name is required.");
+  let current = item,
+    nameKey = kind === "stage" ? "stage" : kind === "action" ? "action" : "name",
+    renamed = {
+      ...current,
+      label: label
+    };
+  if (changes.machineName !== void 0) {
+    let machineName = changes.machineName.trim();
+    if (machineName.length === 0) throw new Error("A machine name is required.");
+    let siblings = siblingMachineNames(definition, kind, path),
+      check = checkNewName(machineName, siblings, kind);
+    if (!check.ok) throw new Error(check.message ?? "That name is already taken.");
+    renamed[nameKey] = machineName;
+  }
+  if (changes.color !== void 0) {
+    if (kind !== "stage") throw new Error("Only a stage has a colour.");
+    let colour = normalizeHexColour(changes.color);
+    if (colour === null) throw new Error(`"${changes.color}" is not a colour \u2014 six hex digits, like #0ea5e9.`);
+    renamed.color = colour;
+  }
+  return setAt(definition, path, renamed);
+}
+// normalizeHexColour (minified: bn) — "#abc" / "0EA5E9" -> "#aabbcc" / "#0ea5e9"; "" stays ""; anything else is null.
+function normalizeHexColour(input) {
+  let trimmed = input.trim();
+  if (trimmed === "") return "";
+  let hex = trimmed.replace(/^#/, "").toLowerCase();
+  return /^[0-9a-f]{3}$/.test(hex) ? `#${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}` : /^[0-9a-f]{6}$/.test(hex) ? `#${hex}` : null;
+}
+// siblingMachineNames (minified: _n) — The machine names of the other items of the same kind (to check a rename against).
+function siblingMachineNames(definition, kind, path) {
+  let pathKey = path.join("."),
+    names = [];
+  return kind === "stage" ? (asArray(definition?.stages).forEach((stage, index) => {
+    ["stages", index].join(".") !== pathKey && names.push(String(stage?.stage ?? ""));
+  }), names) : kind === "command" ? (asArray(definition?.commands).forEach((command, index) => {
+    ["commands", index].join(".") !== pathKey && names.push(String(command?.name ?? ""));
+  }), names) : (asArray(definition?.actions).forEach((action, index) => {
+    ["actions", index].join(".") !== pathKey && names.push(String(action?.action ?? ""));
+  }), asArray(definition?.stages).forEach((stage, stageIndex) => {
+    asArray(stage?.actions).forEach((action, actionIndex) => {
+      ["stages", stageIndex, "actions", actionIndex].join(".") !== pathKey && names.push(String(action?.action ?? ""));
+    });
+  }), names);
+}
+// unwrapWorkflow (minified: dt) — The workflow definition out of a GET /Workflows/<id> response (the body, or its `data`).
+function unwrapWorkflow(body) {
+  if (!body || typeof body != "object" || Array.isArray(body)) return body;
+  let inner = body.data;
+  if (inner && typeof inner == "object" && !Array.isArray(inner)) {
+    let candidate = inner;
+    if ("stages" in candidate || "actions" in candidate || "commands" in candidate || "id" in candidate) return inner;
+  }
+  return body;
+}
+// SATURN_TOOLS (minified: ne) — ──── App: MCP tool catalogue (saturn_* tools with risk levels and descriptions) and argument/result helpers ────
+// SATURN_TOOLS (minified: ne) — The MCP tools this server offers: name, risk ("read" or "write"; asksEachTime = approved per call), description and JSON input schema.
+var SATURN_TOOLS = [{
+  name: "saturn_list_workflows",
+  risk: "read",
+  description: "List every workflow on the instance with its id, status, stage count and global action count. Start here \u2014 ids from this list are what the other tools take.",
+  inputSchema: {
+    type: "object",
+    properties: {},
+    required: [],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_get_workflow",
+  risk: "read",
+  description: "Read one workflow in full: its stages, each stage's actions, global actions with their flow graphs and form fields, reusable commands with their parameters and usages, and triggers.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      workflow_id: {
+        type: "string",
+        description: "Workflow id from saturn_list_workflows."
+      }
+    },
+    required: ["workflow_id"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_get_workflow_raw",
+  risk: "read",
+  description: "Read the untouched server JSON for a workflow. Use when you need a key this extension does not model; prefer saturn_get_workflow otherwise, since the raw document is large.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      workflow_id: {
+        type: "string"
+      }
+    },
+    required: ["workflow_id"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_search_workflows",
+  risk: "read",
+  description: `Find stages, actions and reusable commands across this instance's workflows by name, label or id \u2014 e.g. "approval", "send reminder", or an id like "WRIVML". Returns where each is (workflow, stage, path) so you can read or change it. An empty query lists them all.`,
+  inputSchema: {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description: "Words to look for. Underscores, dashes and case do not matter."
+      },
+      kinds: {
+        type: "array",
+        items: {
+          type: "string",
+          enum: ["stage", "action", "command"]
+        },
+        description: "Only these. Omit for all three."
+      },
+      workflow_id: {
+        type: "string",
+        description: "Only this workflow."
+      }
+    },
+    required: ["query"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_list_operators",
+  risk: "read",
+  description: "List the operators this instance offers, with each one's parameter schema. Call before configuring an operator \u2014 never guess a parameter name.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      search: {
+        type: "string",
+        description: "Optional substring filter on name or label."
+      }
+    },
+    required: [],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_list_resources",
+  risk: "read",
+  description: "List this instance's resources \u2014 the business-data types like Project, Bid, or Contractor. Use it before reasoning about a resource, rather than assuming one exists from a skill's example.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      search: {
+        type: "string",
+        description: "Optional substring filter on the name."
+      }
+    },
+    required: [],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_get_resource",
+  risk: "read",
+  description: "Read one resource's fields: name, label, type, and what a lookup points at. This is the schema, not the records \u2014 no business data is returned.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      resource: {
+        type: "string",
+        description: "Resource name as `saturn_list_resources` reports it."
+      }
+    },
+    required: ["resource"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_list_records",
+  risk: "read",
+  asksEachTime: !0,
+  description: "Read records of one resource \u2014 its actual rows, e.g. the Applications or Users \u2014 one page at a time. The user approves each read. Ask for the fields you need and a small limit: credential-like fields are never returned and long text is shortened. Call saturn_get_resource first to learn the field names.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      resource: {
+        type: "string",
+        description: "Resource name as `saturn_list_resources` reports it."
+      },
+      fields: {
+        type: "array",
+        items: {
+          type: "string"
+        },
+        description: "Only these fields (and `id`). Omit for all of them."
+      },
+      filter: {
+        type: "string",
+        description: "Optional filter in Saturn's filter language, as a menu tab uses."
+      },
+      limit: {
+        type: "number",
+        description: `How many, 1 to ${50}. Defaults to ${20}.`
+      },
+      page: {
+        type: "number",
+        description: "Which page, from 1."
+      }
+    },
+    required: ["resource"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_create_record",
+  risk: "write",
+  description: "Create one record of a resource. Use when the user asks for it, or when the task needs the record. Call saturn_get_resource first for the field names. Credential-like and instance-managed fields (id, created_at\u2026) cannot be set.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      resource: {
+        type: "string"
+      },
+      data: {
+        type: "object",
+        description: "Field values, by field key."
+      }
+    },
+    required: ["resource", "data"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_update_record",
+  risk: "write",
+  description: "Change fields of one record. Only the fields in `data` change; the rest are kept. The record is backed up first, and the reply names the backup \u2014 saturn_restore_record puts it back. Core Saturn resources (users and the like) cannot be changed; their configuration artifacts can.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      resource: {
+        type: "string"
+      },
+      id: {
+        type: ["string", "number"],
+        description: "The record's id."
+      },
+      data: {
+        type: "object",
+        description: "The fields to change, by field key."
+      }
+    },
+    required: ["resource", "id", "data"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_delete_record",
+  risk: "write",
+  description: "Delete one record. Prefer leaving a record unused to deleting it: delete only to undo a record you just created or to remove a test record. It is backed up first; saturn_restore_record brings it back with its id. Say which record and why before calling it.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      resource: {
+        type: "string"
+      },
+      id: {
+        type: ["string", "number"],
+        description: "The record's id."
+      }
+    },
+    required: ["resource", "id"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_restore_record",
+  risk: "write",
+  description: "Put a record back as a backup holds it \u2014 after an update or delete that should not have happened, or a change that failed its check. The record's present state is backed up first.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      backup: {
+        type: "string",
+        description: "A backup's file name, as a write or saturn_list_record_backups reports it."
+      }
+    },
+    required: ["backup"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_list_record_backups",
+  risk: "read",
+  description: "List record backups for this instance, newest first: what was changed or deleted, and when.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      resource: {
+        type: "string",
+        description: "Only this resource's."
+      }
+    },
+    required: [],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_add_operator",
+  risk: "write",
+  description: 'Add an operator step to a flow. `path` addresses the container\'s command list, e.g. ["actions",0,"task","commands"]; read the workflow first to get it. Omit `index` to append.',
+  inputSchema: {
+    type: "object",
+    properties: {
+      workflow_id: {
+        type: "string"
+      },
+      path: {
+        type: "array",
+        items: {
+          type: ["string", "number"]
+        },
+        description: "Path to the container's command array."
+      },
+      operator: {
+        type: "string",
+        description: "Operator machine name."
+      },
+      data: {
+        type: "object",
+        description: "The operator's configuration."
+      },
+      index: {
+        type: "number",
+        description: "Where to insert; appended if omitted."
+      },
+      label: {
+        type: "string"
+      }
+    },
+    required: ["workflow_id", "path", "operator"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_update_operator",
+  risk: "write",
+  description: "Change a step's configuration. Merges into the existing `data`, so keys you do not mention survive \u2014 which is required, since a node carries keys beyond the ones you can see.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      workflow_id: {
+        type: "string"
+      },
+      path: {
+        type: "array",
+        items: {
+          type: ["string", "number"]
+        },
+        description: "Path to the step itself."
+      },
+      data: {
+        type: "object"
+      },
+      label: {
+        type: "string"
+      }
+    },
+    required: ["workflow_id", "path", "data"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_move_operator",
+  risk: "write",
+  description: "Move a step to another position, within a container or across containers.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      workflow_id: {
+        type: "string"
+      },
+      from: {
+        type: "array",
+        items: {
+          type: ["string", "number"]
+        }
+      },
+      to_container: {
+        type: "array",
+        items: {
+          type: ["string", "number"]
+        }
+      },
+      to_index: {
+        type: "number"
+      }
+    },
+    required: ["workflow_id", "from", "to_container", "to_index"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_delete_step",
+  risk: "write",
+  description: "Delete a step. Deleting a loop or condition removes everything inside it, so the result reports how many steps went with it.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      workflow_id: {
+        type: "string"
+      },
+      path: {
+        type: "array",
+        items: {
+          type: ["string", "number"]
+        }
+      }
+    },
+    required: ["workflow_id", "path"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_create_stage",
+  risk: "write",
+  description: "Add a stage. Its machine name is derived from the label.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      workflow_id: {
+        type: "string"
+      },
+      label: {
+        type: "string"
+      },
+      color: {
+        type: "string",
+        description: "Hex colour, e.g. #0ea5e9."
+      }
+    },
+    required: ["workflow_id", "label"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_create_action",
+  risk: "write",
+  description: "Add an action, to a stage when `stage` is given or workflow-level otherwise. Starts with an empty flow.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      workflow_id: {
+        type: "string"
+      },
+      label: {
+        type: "string"
+      },
+      stage: {
+        type: "string",
+        description: "Stage machine name; omit for a global action."
+      }
+    },
+    required: ["workflow_id", "label"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_create_command",
+  risk: "write",
+  description: "Add a reusable command that actions can reference.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      workflow_id: {
+        type: "string"
+      },
+      label: {
+        type: "string"
+      }
+    },
+    required: ["workflow_id", "label"],
+    additionalProperties: !1
+  }
+}, {
+  name: "task_list",
+  risk: "read",
+  description: "List the current plan: every task, its status, which agent profile runs it, and what it waits on.",
+  inputSchema: {
+    type: "object",
+    properties: {},
+    required: [],
+    additionalProperties: !1
+  }
+}, {
+  name: "task_create",
+  risk: "read",
+  description: "Add a task to the plan. Use this to break a request into steps before doing any of them. `profile_id` chooses which agent runs it \u2014 put read-only steps on a read-only profile and give writing steps one that can write. Creating a task does not run it; the user runs the plan.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      title: {
+        type: "string",
+        description: "One line, imperative."
+      },
+      detail: {
+        type: "string",
+        description: "What doing it involves. This becomes the prompt when the task runs, so write it for an agent starting fresh with no memory of this conversation."
+      },
+      profile_id: {
+        type: "string",
+        description: "Agent profile id from the plan or the picker."
+      },
+      skill_ids: {
+        type: "array",
+        items: {
+          type: "string"
+        }
+      },
+      depends_on: {
+        type: "array",
+        items: {
+          type: "string"
+        },
+        description: "Task ids that must finish first."
+      }
+    },
+    required: ["title", "detail"],
+    additionalProperties: !1
+  }
+}, {
+  name: "task_update",
+  risk: "read",
+  description: "Change a task: its status, its detail, or the result of running it. Set status to `done` with a `result` when you finish one, or `blocked` with the reason when you cannot.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      task_id: {
+        type: "string"
+      },
+      status: {
+        type: "string",
+        enum: ["todo", "running", "blocked", "done", "failed"]
+      },
+      title: {
+        type: "string"
+      },
+      detail: {
+        type: "string"
+      },
+      result: {
+        type: "string"
+      }
+    },
+    required: ["task_id"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_rename",
+  risk: "write",
+  description: "Rename a stage, action, or command. Changes the display label only unless `machine_name` is given \u2014 a stage's machine name is what a record's status holds and an action's is how a trigger names it, so changing one can break things outside this workflow.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      workflow_id: {
+        type: "string"
+      },
+      kind: {
+        type: "string",
+        enum: ["stage", "action", "command"]
+      },
+      target: {
+        type: "string",
+        description: "Stage machine name, action id, or command id/name."
+      },
+      label: {
+        type: "string"
+      },
+      machine_name: {
+        type: "string",
+        description: "Only set this when the user asked for the machine name to change."
+      }
+    },
+    required: ["workflow_id", "kind", "target", "label"],
+    additionalProperties: !1
+  }
+}, {
+  name: "saturn_delete",
+  risk: "write",
+  description: "Delete a stage, action, or command. A stage takes its actions with it. Refuses a command that is still referenced unless `force` is true, and reports where those references are \u2014 deleting one leaves a flow that breaks only when that branch runs.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      workflow_id: {
+        type: "string"
+      },
+      kind: {
+        type: "string",
+        enum: ["stage", "action", "command"]
+      },
+      target: {
+        type: "string"
+      },
+      force: {
+        type: "boolean",
+        description: "Delete even though references would break. Ask the user first."
+      }
+    },
+    required: ["workflow_id", "kind", "target"],
+    additionalProperties: !1
+  }
+}];
+// findAgentTool (minified: Pe) — The tool with this name from the tool catalogue, or null.
+function findAgentTool(toolName) {
+  return SATURN_TOOLS.find(tool => tool.name === toolName) ?? null;
+}
+// toolAsksEachTime (minified: kt) — Whether a tool must be approved on every call, even when the user granted it "always".
+function toolAsksEachTime(toolName) {
+  return findAgentTool(toolName)?.asksEachTime === !0;
+}
+// isWriteTool (minified: re) — Whether a tool changes the instance (risk "write").
+function isWriteTool(toolName) {
+  return findAgentTool(toolName)?.risk === "write";
+}
+// toolResultMaxChars (minified: xe) — Tool results longer than this many characters are cut.
+var toolResultMaxChars = 6e4;
+// toolSuccess (minified: w) — A successful tool result: the text, or the value as pretty JSON, truncated.
+// `changed` ({workflowId, summary}) tells the caller what the tool wrote.
+function toolSuccess(value, changed) {
+  let text = typeof value == "string" ? value : JSON.stringify(value, null, 2);
+  return {
+    ok: !0,
+    content: text.length > toolResultMaxChars ? `${text.slice(0, toolResultMaxChars)}
+\u2026 truncated at ${toolResultMaxChars} characters.` : text,
+    changed: changed
+  };
+}
+// toolFailure (minified: h) — A failed tool result carrying the error message.
+function toolFailure(message) {
+  return {
+    ok: !1,
+    content: `Error: ${message}`
+  };
+}
+// requireStringArg (minified: k) — A required non-empty string argument; throws a message for the agent otherwise.
+function requireStringArg(args, key) {
+  let value = args[key];
+  if (typeof value != "string" || value.trim().length === 0) throw new Error(`\`${key}\` is required and must be a non-empty string.`);
+  return value;
+}
+// requirePathArg (minified: W) — A required definition path argument: a non-empty array of strings and numbers, with no prototype keys.
+function requirePathArg(args, key) {
+  let path = args[key];
+  if (!Array.isArray(path) || path.length === 0) throw new Error(`\`${key}\` must be a non-empty path array, e.g. ["actions",0,"task","commands"].`);
+  for (let segment of path) if (typeof segment != "string" && typeof segment != "number") throw new Error(`\`${key}\` may only contain strings and numbers.`);
+  if (!isSafePath(path)) throw new Error(`\`${key}\` may only hold array indexes and ordinary keys \u2014 not __proto__, constructor, or prototype.`);
+  return path;
+}
+// stringifyArgValues (minified: pt) — Operator values from the agent as strings (objects as JSON), dropping null ones, as the params-to-data mapping takes them.
+function stringifyArgValues(values) {
+  let result = {};
+  for (let [key, value] of Object.entries(values)) value != null && (result[key] = typeof value == "string" ? value : JSON.stringify(value));
+  return result;
+}
+// actionNamesOf (minified: An) — Machine names of all of a workflow's actions, global and on every stage.
+function actionNamesOf(workflow) {
+  let names = asArray(workflow?.actions).map(action => String(action?.action ?? ""));
+  for (let stage of asArray(workflow?.stages)) for (let stageAction of asArray(stage?.actions)) names.push(String(stageAction?.action ?? ""));
+  return names;
+}
+// noTaskListMessage (minified: $e) — The answer to a task_* tool when the session has no task list.
+var noTaskListMessage = "No task list is available in this session, so tasks cannot be used here.";
+// stringArray (minified: ft) — The strings in a value that should be an array of strings ([] otherwise).
+function stringArray(value) {
+  return Array.isArray(value) ? value.filter(item => typeof item == "string") : [];
+}
+// requireKindArg (minified: gt) — The `kind` argument, checked to be stage, action or command.
+function requireKindArg(args) {
+  let kind = args.kind;
+  if (kind !== "stage" && kind !== "action" && kind !== "command") throw new Error("`kind` must be one of: stage, action, command.");
+  return kind;
+}
+// findWorkflowPart (minified: mt) — Finds the stage (by machine name), action (by id) or command (by id or name) that saturn_rename / saturn_delete target; returns its path or null.
+function findWorkflowPart(workflow, kind, target) {
+  switch (kind) {
+    case "stage":
+      return findStagePath(workflow, target);
+    case "action":
+      return findActionPath(workflow, target);
+    case "command":
+      return findCommandPath(workflow, target);
+  }
+}
+// partNotFoundMessage (minified: ht) — The error when findWorkflowPart finds nothing, saying how that kind is looked up.
+function partNotFoundMessage(kind, target) {
+  return `No ${kind} matching \`${target}\` (looked it up by ${kind === "stage" ? "machine name" : kind === "action" ? "id" : "id or name"}). Call saturn_get_workflow to see what is there.`;
+}
+// optionalObjectArg (minified: te) — An optional object argument: {} when missing; throws if it is not a plain object.
+function optionalObjectArg(value, label) {
+  if (value == null) return {};
+  if (typeof value != "object" || Array.isArray(value)) throw new Error(`\`${label}\` must be an object.`);
+  return value;
+}
+// runAgentTool (minified: Ee) — ──── App: Tool dispatcher (runs each saturn_* action against the instance) ────
+// runAgentTool (minified: Ee) — Runs one saturn_* / task_* tool call against the instance (through the backend, saturnBackend here) and the optional task list.
+// Never throws: every failure becomes a toolFailure result. Workflow writes PUT the whole definition after it is checked for saving.
+async function runAgentTool(backend, toolName, args, taskList) {
+  if (!findAgentTool(toolName)) return toolFailure(`Unknown action \`${toolName}\`. Available: ${SATURN_TOOLS.map(tool => tool.name).join(", ")}.`);
+  let input = optionalObjectArg(args, "arguments");
+  try {
+    switch (toolName) {
+      // Searches stage/action/command names across workflows (or one).
+      case "saturn_search_workflows":
+        {
+          let query = typeof input.query == "string" ? input.query.slice(0, 200) : "",
+            kinds = Array.isArray(input.kinds) ? input.kinds.filter(kind => kind === "stage" || kind === "action" || kind === "command") : null,
+            workflowId = typeof input.workflow_id == "string" && input.workflow_id ? input.workflow_id : null,
+            workflows = workflowId ? [{
+              ...(await backend.getWorkflow(workflowId)),
+              id: workflowId
+            }] : asArray((await backend.listWorkflows())?.data),
+            {
+              hits: hits,
+              total: total
+            } = searchWorkflows(workflows, query, kinds);
+          return toolSuccess(total === 0 ? `Nothing matches "${query}"${kinds?.length ? ` among ${kinds.join(", ")}s` : ""}. Try fewer words, or saturn_list_workflows.` : {
+            matches: hits,
+            ...(total > hits.length ? {
+              showing: hits.length,
+              total: total,
+              note: "Narrow the query, or pass workflow_id or kinds."
+            } : {})
+          });
+        }
+      // One summary row per workflow.
+      case "saturn_list_workflows":
+        {
+          let response = await backend.listWorkflows(),
+            rows = asArray(response?.data).map(workflow => {
+              let summary = workflowSummary(workflow);
+              return {
+                id: summary.id,
+                name: summary.name,
+                status: summary.status,
+                stages: summary.stageCount,
+                global_actions: summary.globalActionCount
+              };
+            });
+          return toolSuccess(rows);
+        }
+      // One workflow as the view model, with operator names resolved when the operator list loads.
+      case "saturn_get_workflow":
+        {
+          let workflowId = requireStringArg(input, "workflow_id"),
+            [workflow, operators] = await Promise.all([backend.getWorkflow(workflowId), backend.listOperators().catch(() => new Map())]);
+          return toolSuccess(workflowView(workflow, operators));
+        }
+      // The workflow definition exactly as the instance stores it.
+      case "saturn_get_workflow_raw":
+        return toolSuccess(await backend.getWorkflow(requireStringArg(input, "workflow_id")));
+      // Resource names, optionally filtered.
+      case "saturn_list_resources":
+        {
+          let resources = await backend.listResources(),
+            search = typeof input.search == "string" ? input.search.toLowerCase() : null,
+            matching = search ? resources.filter(resourceName => resourceName.toLowerCase().includes(search)) : resources;
+          return toolSuccess({
+            count: matching.length,
+            of: resources.length,
+            resources: matching
+          });
+        }
+      // A page of records (1-50, default 20), shaped for the agent: credential-like fields dropped, long text cut; `fields` may not name credential-like fields.
+      case "saturn_list_records":
+        {
+          let resource = requireStringArg(input, "resource");
+          if (!isResourceName(resource)) return toolFailure(`"${String(resource).slice(0, 60)}" is not a resource name. Call saturn_list_resources to see what is.`);
+          let limit = Number.isInteger(input.limit) ? Math.min(50, Math.max(1, input.limit)) : 20,
+            page = Number.isInteger(input.page) && input.page >= 1 ? input.page : 1,
+            filter = typeof input.filter == "string" && input.filter.trim() ? input.filter.trim().slice(0, 2e3) : null,
+            fields = Array.isArray(input.fields) ? input.fields.filter(field => typeof field == "string" && !isCredentialKey(field)).slice(0, 50) : null,
+            {
+              records: records,
+              total: total
+            } = await backend.listRecords(resource, {
+              limit: limit,
+              page: page,
+              filter: filter
+            });
+          return toolSuccess(formatRecordsForAgent(resource, records, {
+            limit: limit,
+            page: page,
+            total: total,
+            fields: fields && fields.length > 0 ? fields : null
+          }));
+        }
+      // Record writes: core resources are refused; the record is backed up before an update or delete,
+      // and a delete is checked by reading the record back.
+      case "saturn_create_record":
+      case "saturn_update_record":
+      case "saturn_delete_record":
+        {
+          let resource = requireStringArg(input, "resource");
+          if (!isResourceName(resource)) return toolFailure(`"${String(resource).slice(0, 60)}" is not a resource name. Call saturn_list_resources to see what is.`);
+          let refusal = coreResourceRefusal(resource, await backend.listCoreResources().catch(() => null));
+          if (refusal) return toolFailure(refusal);
+          if (toolName === "saturn_create_record") {
+            let checked = checkAgentRecordData(input.data);
+            if ("error" in checked) return toolFailure(checked.error);
+            let created = await backend.createRecord(resource, checked.data);
+            return toolSuccess({
+              created: shortenForAgent(created),
+              undo: "saturn_delete_record with its id, if it should not exist."
+            });
+          }
+          let recordId = recordIdForUrl(input.id);
+          if (!recordId) return toolFailure("`id` must be the record's id, a string or a number.");
+          let update = toolName === "saturn_update_record" ? checkAgentRecordData(input.data) : null;
+          if (update && "error" in update) return toolFailure(update.error);
+          let current = await backend.getRecord(resource, recordId);
+          if (!isFoundRecord(current)) return toolFailure(`${resource} ${String(input.id)} was not found. Read the records first.`);
+          let backupName = recordBackupName(resource, recordId, toolName === "saturn_delete_record" ? "pre-delete" : "pre-update", new Date());
+          // Delete: back up, remove, then read back to confirm it is gone.
+          if (await backend.saveBackup(backupName, current), toolName === "saturn_delete_record") return await backend.deleteRecord(resource, recordId), isFoundRecord(await backend.getRecord(resource, recordId).catch(() => null)) ? toolFailure(`The instance said ${resource} ${String(input.id)} was deleted, but it is still there. Backup: ${backupName}`) : toolSuccess({
+            deleted: `${resource} ${String(input.id)}`,
+            backup: backupName
+          });
+          let updated = await backend.updateRecord(resource, recordId, update.data);
+          return toolSuccess({
+            updated: shortenForAgent(updated),
+            changed: Object.keys(update.data),
+            backup: backupName
+          });
+        }
+      // Puts a backed-up record back: updates it if it still exists (backing up its present state first), else recreates it with its id.
+      case "saturn_restore_record":
+        {
+          let backupName = requireStringArg(input, "backup"),
+            parsed = parseRecordBackupName(backupName);
+          if (!parsed) return toolFailure(`"${backupName.slice(0, 80)}" is not a record backup's name. Call saturn_list_record_backups.`);
+          let refusal = coreResourceRefusal(parsed.resource, await backend.listCoreResources().catch(() => null));
+          if (refusal) return toolFailure(refusal);
+          let backup = await backend.readBackup(backupName);
+          if (!isFoundRecord(backup)) return toolFailure(`Backup ${backupName} was not found, or holds no record.`);
+          let recordId = recordIdForUrl(backup.id);
+          if (!recordId) return toolFailure(`Backup ${backupName} has no usable id.`);
+          let data = restorableFields(backup),
+            current = await backend.getRecord(parsed.resource, recordId).catch(() => null);
+          if (isFoundRecord(current)) {
+            let preRestoreBackup = recordBackupName(parsed.resource, recordId, "pre-restore", new Date());
+            return await backend.saveBackup(preRestoreBackup, current), await backend.updateRecord(parsed.resource, recordId, data), toolSuccess({
+              restored: `${parsed.resource} ${String(backup.id)}`,
+              from: backupName,
+              backup: preRestoreBackup
+            });
+          }
+          return await backend.createRecord(parsed.resource, {
+            ...data,
+            id: backup.id
+          }), toolSuccess({
+            restored: `${parsed.resource} ${String(backup.id)}`,
+            from: backupName,
+            recreated: !0
+          });
+        }
+      // The newest 50 record backups, parsed from their file names.
+      case "saturn_list_record_backups":
+        {
+          let resource = typeof input.resource == "string" && isResourceName(input.resource) ? input.resource : null,
+            backups = (await backend.listBackups()).map(file => ({
+              file: file,
+              parsed: parseRecordBackupName(file)
+            })).filter(entry => !!entry.parsed && (!resource || entry.parsed.resource === resource)).sort((entry, other) => other.parsed.stamp.localeCompare(entry.parsed.stamp)).slice(0, 50).map(({
+              file: file,
+              parsed: parsed
+            }) => ({
+              backup: file,
+              resource: parsed.resource,
+              id: parsed.id,
+              taken: parsed.tag,
+              at: parsed.stamp
+            }));
+          return toolSuccess(backups.length > 0 ? backups : "No record backups yet.");
+        }
+      // A resource's field schema (no records).
+      case "saturn_get_resource":
+        {
+          let resource = requireStringArg(input, "resource"),
+            schema = await backend.getResource(resource);
+          return schema.fields.length === 0 ? toolFailure(`"${resource}" has no fields, or is not a resource on this instance. Call saturn_list_resources to see what is.`) : toolSuccess(schema);
+        }
+      // Operators with their parameter schemas, optionally filtered by name or label.
+      case "saturn_list_operators":
+        {
+          let operators = await backend.listOperators(),
+            search = typeof input.search == "string" ? input.search.toLowerCase() : null,
+            rows = [...operators.entries()].filter(([operatorName, operator]) => !search || operatorName.toLowerCase().includes(search) || (operator.name ?? "").toLowerCase().includes(search)).map(([operatorName, operator]) => ({
+              operator: operatorName,
+              label: operator.name,
+              category: operator.category,
+              params: operator.params.map(param => ({
+                param: param.param,
+                label: param.label,
+                type: param.type,
+                required: param.required,
+                options: param.lookupValues
+              }))
+            }));
+          return toolSuccess(rows);
+        }
+      // Inserts a new operator step; its values are checked against the operator's parameters first.
+      case "saturn_add_operator":
+        {
+          let workflowId = requireStringArg(input, "workflow_id"),
+            containerPath = requirePathArg(input, "path"),
+            operatorName = requireStringArg(input, "operator"),
+            [workflow, operators] = await Promise.all([backend.getWorkflow(workflowId), backend.listOperators().catch(() => new Map())]),
+            operator = operators.get(operatorName);
+          if (!operator) return toolFailure(`\`${operatorName}\` is not an operator on this instance. Call saturn_list_operators to see what is available.`);
+          let converted = paramsToData(operator, stringifyArgValues(optionalObjectArg(input.data, "data")));
+          if (converted.errors.length > 0) return toolFailure(`Invalid values for ${operatorName}: ` + converted.errors.map(problem => `${problem.param} \u2014 ${problem.message}`).join("; "));
+          let step = newOperatorStep(operatorName, converted.data, typeof input.delay == "number" ? input.delay : null),
+            index = typeof input.index == "number" ? input.index : null,
+            updated = insertAt(workflow, containerPath, index, step);
+          return await backend.putWorkflow(workflowId, checkDefinitionForSave(updated, workflowId)), toolSuccess(`Added ${operatorName} at ${containerPath.join(".")}${index === null ? " (appended)" : `[${index}]`}.`, {
+            workflowId: workflowId,
+            summary: `added ${operatorName}`
+          });
+        }
+      // Merges new values into a step's data (keys not mentioned survive) and optionally sets its label.
+      case "saturn_update_operator":
+        {
+          let workflowId = requireStringArg(input, "workflow_id"),
+            stepPath = requirePathArg(input, "path"),
+            workflow = await backend.getWorkflow(workflowId),
+            found = getAt(workflow, stepPath);
+          if (!found || typeof found != "object") return toolFailure(`No step at ${stepPath.join(".")}. Re-read the workflow \u2014 paths shift after an edit.`);
+          let step = found,
+            operators = await backend.listOperators().catch(() => new Map()),
+            operator = typeof step.operator == "string" ? operators.get(step.operator) : void 0,
+            changes = optionalObjectArg(input.data, "data"),
+            updatedStep = {
+              ...step,
+              data: {
+                ...optionalObjectArg(step.data, "data"),
+                ...(operator ? paramsToData(operator, stringifyArgValues(changes)).data : changes)
+              },
+              ...(typeof input.label == "string" ? {
+                label: input.label
+              } : {})
+            },
+            updated = setAt(workflow, stepPath, updatedStep);
+          return await backend.putWorkflow(workflowId, checkDefinitionForSave(updated, workflowId)), toolSuccess(`Updated ${step.operator ?? "step"} at ${stepPath.join(".")}: ${Object.keys(changes).join(", ")}.`, {
+            workflowId: workflowId,
+            summary: `updated ${step.operator ?? "a step"}`
+          });
+        }
+      // Moves a step to an index in another (or the same) container.
+      case "saturn_move_operator":
+        {
+          let workflowId = requireStringArg(input, "workflow_id"),
+            fromPath = requirePathArg(input, "from"),
+            toContainer = requirePathArg(input, "to_container"),
+            toIndex = input.to_index;
+          if (typeof toIndex != "number") return toolFailure("`to_index` must be a number.");
+          let workflow = await backend.getWorkflow(workflowId),
+            updated = moveStep(workflow, fromPath, toContainer, toIndex);
+          return await backend.putWorkflow(workflowId, checkDefinitionForSave(updated, workflowId)), toolSuccess(`Moved ${fromPath.join(".")} to ${toContainer.join(".")}[${toIndex}].`, {
+            workflowId: workflowId,
+            summary: "moved a step"
+          });
+        }
+      // Deletes a step and reports how many nested steps went with it.
+      case "saturn_delete_step":
+        {
+          let workflowId = requireStringArg(input, "workflow_id"),
+            stepPath = requirePathArg(input, "path"),
+            workflow = await backend.getWorkflow(workflowId),
+            step = getAt(workflow, stepPath);
+          if (step === void 0) return toolFailure(`Nothing at ${stepPath.join(".")}. Re-read the workflow first.`);
+          let removedCount = countNestedSteps(step),
+            updated = removeAt(workflow, stepPath).next;
+          return await backend.putWorkflow(workflowId, checkDefinitionForSave(updated, workflowId)), toolSuccess(`Deleted ${stepPath.join(".")}${removedCount > 1 ? `, and the ${removedCount - 1} steps inside it` : ""}.`, {
+            workflowId: workflowId,
+            summary: `deleted ${removedCount} step${removedCount === 1 ? "" : "s"}`
+          });
+        }
+      // Adds a stage whose machine name comes from the label; refuses a taken name.
+      case "saturn_create_stage":
+        {
+          let workflowId = requireStringArg(input, "workflow_id"),
+            label = requireStringArg(input, "label"),
+            workflow = await backend.getWorkflow(workflowId),
+            machineName = toMachineName(label),
+            stages = asArray(workflow?.stages),
+            check = checkNewName(machineName, stages.map(stage => String(stage?.stage ?? "")), "stage");
+          if (!check.ok) return toolFailure(check.message ?? "That stage name is already taken.");
+          let updated = setAt(workflow, ["stages"], [...stages, newStage(label, machineName, typeof input.color == "string" ? input.color : "#64748b")]);
+          return await backend.putWorkflow(workflowId, checkDefinitionForSave(updated, workflowId)), toolSuccess(`Created stage \`${machineName}\` (${label}).`, {
+            workflowId: workflowId,
+            summary: `created stage ${label}`
+          });
+        }
+      // Adds an action to a stage or as a global action, with a fresh unused id; refuses a taken machine name.
+      case "saturn_create_action":
+        {
+          let workflowId = requireStringArg(input, "workflow_id"),
+            label = requireStringArg(input, "label"),
+            workflow = await backend.getWorkflow(workflowId),
+            machineName = toMachineName(label),
+            check = checkNewName(machineName, actionNamesOf(workflow), "action");
+          if (!check.ok) return toolFailure(check.message ?? "That action name is already taken.");
+          let action = newAction(label, machineName, unusedId(collectIds(workflow))),
+            stageName = typeof input.stage == "string" ? input.stage : null,
+            updated;
+          if (stageName) {
+            let stages = asArray(workflow?.stages),
+              stageIndex = stages.findIndex(stage => stage?.stage === stageName);
+            if (stageIndex === -1) return toolFailure(`No stage \`${stageName}\`. Read the workflow to see its stages.`);
+            let stageActions = asArray(stages[stageIndex]?.actions);
+            updated = setAt(workflow, ["stages", stageIndex, "actions"], [...stageActions, action]);
+          } else {
+            let actions = asArray(workflow?.actions);
+            updated = setAt(workflow, ["actions"], [...actions, action]);
+          }
+          return await backend.putWorkflow(workflowId, checkDefinitionForSave(updated, workflowId)), toolSuccess(`Created ${stageName ? `action \`${machineName}\` on stage \`${stageName}\`` : `global action \`${machineName}\``}.`, {
+            workflowId: workflowId,
+            summary: `created action ${label}`
+          });
+        }
+      // Adds a reusable command; refuses a taken name.
+      case "saturn_create_command":
+        {
+          let workflowId = requireStringArg(input, "workflow_id"),
+            label = requireStringArg(input, "label"),
+            workflow = await backend.getWorkflow(workflowId),
+            machineName = toMachineName(label),
+            commands = asArray(workflow?.commands),
+            check = checkNewName(machineName, commands.map(command => String(command?.name ?? "")), "command");
+          if (!check.ok) return toolFailure(check.message ?? "That command name is already taken.");
+          let updated = setAt(workflow, ["commands"], [...commands, newCommand(machineName, label, unusedId(collectIds(workflow)))]);
+          return await backend.putWorkflow(workflowId, checkDefinitionForSave(updated, workflowId)), toolSuccess(`Created command \`${machineName}\` (${label}).`, {
+            workflowId: workflowId,
+            summary: `created command ${label}`
+          });
+        }
+      // Task-list tools work on the session's plan, not on the instance (none is passed by this server, so they answer noTaskListMessage).
+      case "task_list":
+        {
+          if (!taskList) return toolFailure(noTaskListMessage);
+          let tasks = await taskList.list();
+          return toolSuccess(tasks.map(task => ({
+            id: task.id,
+            title: task.title,
+            status: task.status,
+            profile: task.profileId,
+            depends_on: task.dependsOn,
+            result: task.result
+          })));
+        }
+      case "task_create":
+        {
+          if (!taskList) return toolFailure(noTaskListMessage);
+          let task = await taskList.create({
+            title: requireStringArg(input, "title"),
+            detail: requireStringArg(input, "detail"),
+            profileId: typeof input.profile_id == "string" ? input.profile_id : "explain",
+            skillIds: stringArray(input.skill_ids),
+            dependsOn: stringArray(input.depends_on)
+          });
+          return toolSuccess(`Added task ${task.id}: ${task.title} (runs as ${task.profileId}).`);
+        }
+      case "task_update":
+        {
+          if (!taskList) return toolFailure(noTaskListMessage);
+          let taskId = requireStringArg(input, "task_id"),
+            patch = {};
+          if (typeof input.status == "string" && (patch.status = input.status), typeof input.title == "string" && (patch.title = input.title), typeof input.detail == "string" && (patch.detail = input.detail), typeof input.result == "string" && (patch.result = input.result), Object.keys(patch).length === 0) return toolFailure("Nothing to change. Pass at least one of status, title, detail, or result.");
+          let updated = await taskList.update(taskId, patch);
+          return updated ? toolSuccess(`Task ${taskId} is now ${updated.status}.`) : toolFailure(`No task ${taskId}. Call task_list to see the plan.`);
+        }
+      // Renames a stage, action or command's label, and its machine name only when asked.
+      case "saturn_rename":
+        {
+          let workflowId = requireStringArg(input, "workflow_id"),
+            kind = requireKindArg(input),
+            target = requireStringArg(input, "target"),
+            workflow = await backend.getWorkflow(workflowId),
+            found = findWorkflowPart(workflow, kind, target);
+          if (!found) return toolFailure(partNotFoundMessage(kind, target));
+          let updated = renameItemAt(workflow, kind, found, {
+            label: requireStringArg(input, "label"),
+            ...(typeof input.machine_name == "string" ? {
+              machineName: input.machine_name
+            } : {})
+          });
+          return await backend.putWorkflow(workflowId, checkDefinitionForSave(updated, workflowId)), toolSuccess(`Renamed ${kind} to "${String(input.label)}"` + (typeof input.machine_name == "string" ? `, machine name now \`${input.machine_name}\`.` : " (machine name unchanged)."), {
+            workflowId: workflowId,
+            summary: `renamed a ${kind}`
+          });
+        }
+      // Deletes a stage, action or command; refuses to break references to a command unless force is true.
+      case "saturn_delete":
+        {
+          let workflowId = requireStringArg(input, "workflow_id"),
+            kind = requireKindArg(input),
+            target = requireStringArg(input, "target"),
+            workflow = await backend.getWorkflow(workflowId),
+            found = findWorkflowPart(workflow, kind, target);
+          if (!found) return toolFailure(partNotFoundMessage(kind, target));
+          let impact = deletionImpact(workflow, kind, found);
+          if (impact.breaksReferences.length > 0 && input.force !== !0) return toolFailure(`${deletionConfirmText(impact)} Tell the user, and pass force: true only if they confirm. References: ` + impact.breaksReferences.map(reference => `${reference.owner} (${reference.path})`).join("; "));
+          let updated = removeItemAt(workflow, found);
+          await backend.putWorkflow(workflowId, checkDefinitionForSave(updated, workflowId));
+          let extras = [];
+          return impact.nestedActions > 0 && extras.push(`${impact.nestedActions} actions`), impact.nestedSteps > 0 && extras.push(`${impact.nestedSteps} steps`), toolSuccess(`Deleted ${kind} "${impact.label}"` + (extras.length > 0 ? ` and ${extras.join(" and ")}` : "") + "." + (impact.kind === "stage" ? ` Any record whose status is "${impact.machineName}" now points at a stage that no longer exists.` : ""), {
+            workflowId: workflowId,
+            summary: `deleted ${kind} ${impact.label}`
+          });
+        }
+      default:
+        return toolFailure(`\`${toolName}\` is not implemented.`);
+    }
+  } catch (error) {
+    return toolFailure(error instanceof Error ? error.message : String(error));
+  }
+}
+// instanceToolPrefix (minified: se) — ──── App: Client for the instance's own /api/mcp endpoint (JSON-RPC session, tool proxying) and record backup read/write on disk ────
+// instanceToolPrefix (minified: se) — Prefix of the names under which the instance's own MCP tools are listed.
+// instanceMcpProtocolVersion (minified: Rn): the MCP protocol version sent when connecting to the instance's own /api/mcp endpoint.
+var instanceToolPrefix = "instance_",
+  instanceMcpProtocolVersion = "2025-03-26";
+// instanceToolListedName (minified: Sn) — The name an instance tool is listed under here: the prefix plus its name made safe, at most 64 characters.
+function instanceToolListedName(toolName) {
+  return `${instanceToolPrefix}${toolName.replace(/[^A-Za-z0-9_-]/g, "_")}`.slice(0, 64);
+}
+// parseRpcReply (minified: xn) — Finds the JSON-RPC reply with this id in a response body, plain JSON or a text/event-stream of `data:` lines; null when there is none.
+function parseRpcReply(body, contentType, requestId) {
+  let pickReply = payload => Array.isArray(payload) ? payload.find(message => message?.id === requestId) : payload;
+  if ((contentType ?? "").includes("text/event-stream")) {
+    for (let block of body.split(/\r?\n\r?\n/)) {
+      let data = block.split(/\r?\n/).filter(blockLine => blockLine.startsWith("data:")).map(blockLine => blockLine.slice(5).trimStart()).join(`
+`);
+      if (data) try {
+        let reply = pickReply(JSON.parse(data));
+        if (reply?.id === requestId) return reply;
+      } catch {}
+    }
+    return null;
+  }
+  try {
+    return pickReply(JSON.parse(body));
+  } catch {
+    return null;
+  }
+}
+// InstanceMcpClient (minified: oe) — Client for the instance's own MCP server (/api/mcp): JSON-RPC over HTTP POST, keeping the Mcp-Session-Id it is given.
+var InstanceMcpClient = class {
+  constructor(endpoint, token, fetchFn = fetch) {
+    this.endpoint = endpoint;
+    this.token = token;
+    this.fetchFn = fetchFn;
+  }
+  endpoint;
+  token;
+  fetchFn;
+  session = null;
+  seq = 0;
+  tools = null;
+  // The instance's tools, probed once and cached (null if the probe fails).
+  list() {
+    return this.tools ??= this.probe().catch(() => null), this.tools;
+  }
+  // The instance tool listed under this name, or null.
+  async find(listedName) {
+    return (await this.list())?.find(tool => tool.listedAs === listedName) ?? null;
+  }
+  // Calls an instance tool (60 s timeout); returns {ok, text} with the text parts joined and cut at 60,000 characters.
+  async call(tool, args) {
+    let reply = await this.rpc("tools/call", {
+      name: tool.name,
+      arguments: args ?? {}
+    }, 6e4);
+    if (reply?.error) return {
+      ok: !1,
+      text: `The instance refused it: ${String(reply.error.message ?? "error").slice(0, 500)}`
+    };
+    let text = (Array.isArray(reply?.result?.content) ? reply.result.content : []).map(part => part?.type === "text" && typeof part.text == "string" ? part.text : "").filter(Boolean).join(`
+`),
+      shown = text.length > 6e4 ? `${text.slice(0, 6e4)}
+\u2026 truncated at 60000 characters.` : text;
+    return {
+      ok: reply?.result?.isError !== !0,
+      text: shown || "(no output)"
+    };
+  }
+  // Initializes a session with the instance and lists its tools, each with its listed name and whether it is read-only; null when it has no MCP server.
+  async probe() {
+    let initReply = await this.rpc("initialize", {
+      protocolVersion: instanceMcpProtocolVersion,
+      capabilities: {},
+      clientInfo: {
+        name: "saturn-vscode",
+        version: "0.1.0"
+      }
+    }, 5e3);
+    if (!initReply?.result || typeof initReply.result != "object") return null;
+    await this.notify("notifications/initialized");
+    let listReply = await this.rpc("tools/list", {}, 5e3),
+      tools = Array.isArray(listReply?.result?.tools) ? listReply.result.tools : null;
+    return tools ? tools.filter(tool => typeof tool?.name == "string" && tool.name).map(tool => ({
+      name: tool.name,
+      listedAs: instanceToolListedName(tool.name),
+      description: typeof tool.description == "string" ? tool.description : "",
+      inputSchema: tool.inputSchema && typeof tool.inputSchema == "object" ? tool.inputSchema : {
+        type: "object",
+        properties: {}
+      },
+      readOnly: tool.annotations?.readOnlyHint === !0
+    })) : null;
+  }
+  // Request headers: the bearer token, JSON / event-stream accept, and the session id once known.
+  headers() {
+    return {
+      Authorization: `Bearer ${this.token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      ...(this.session ? {
+        "Mcp-Session-Id": this.session
+      } : {})
+    };
+  }
+  // Sends one JSON-RPC request and returns its reply (null on an HTTP error); remembers a session id from the response.
+  async rpc(method, params, timeoutMs) {
+    let requestId = ++this.seq,
+      response = await this.fetchFn(this.endpoint, {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: requestId,
+          method: method,
+          params: params
+        }),
+        redirect: "error",
+        signal: AbortSignal.timeout(timeoutMs)
+      }),
+      sessionId = response.headers.get("mcp-session-id");
+    return sessionId && (this.session = sessionId), response.ok ? parseRpcReply(await response.text(), response.headers.get("content-type"), requestId) : null;
+  }
+  // Sends a JSON-RPC notification, ignoring failures.
+  async notify(method) {
+    await this.fetchFn(this.endpoint, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: method
+      }),
+      redirect: "error",
+      signal: AbortSignal.timeout(5e3)
+    }).catch(() => {});
+  }
+};
+var fsPromises = require("node:fs/promises"),
+  nodePath = require("node:path");
+// writeRecordBackup (minified: bt) — Writes a backup of a record about to be changed, as an owner-only file (folder 0700, file 0600) that never overwrites another.
+// Refuses names that are not backup file names (<resource>.<id>.<tag>.<stamp>.json).
+async function writeRecordBackup(backupDir, fileName, record) {
+  if (!backupDir) throw new Error("There is no folder to back the record up to, so it was not changed.");
+  if (!parseRecordBackupName(fileName)) throw new Error(`Refusing backup name ${fileName.slice(0, 80)}`);
+  await (0, fsPromises.mkdir)(backupDir, {
+    recursive: !0,
+    mode: 448
+  }), await (0, fsPromises.writeFile)((0, nodePath.join)(backupDir, fileName), `${JSON.stringify(record, null, 1)}
+`, {
+    mode: 384,
+    flag: "wx"
+  });
+}
+// readRecordBackup (minified: _t) — Reads one backup file back, or null when it is missing, unreadable or not a backup file name.
+async function readRecordBackup(backupDir, fileName) {
+  if (!backupDir || !parseRecordBackupName(fileName)) return null;
+  try {
+    return JSON.parse(await (0, fsPromises.readFile)((0, nodePath.join)(backupDir, fileName), "utf8"));
+  } catch {
+    return null;
+  }
+}
+// listRecordBackups (minified: At) — Lists the backup file names in the backup folder (empty when there is none).
+async function listRecordBackups(backupDir) {
+  if (!backupDir) return [];
+  try {
+    return (await (0, fsPromises.readdir)(backupDir)).filter(fileName => parseRecordBackupName(fileName) !== null);
+  } catch {
+    return [];
+  }
+}
+// mcpProtocolVersion (minified: $n) — ──── App: Server main: env config (SATURN_MCP_URL/TOKEN/...), approval round-trip over local socket, Saturn REST requests, instance tool proxy, host API table, JSON-RPC 2.0 over stdio (initialize, tools/list, tools/call, ...), readline loop ────
+// mcpProtocolVersion (minified: $n) — MCP protocol version this server answers `initialize` with.
+var mcpProtocolVersion = "2024-11-05";
+// requireEnv (minified: Et) — The value of a required environment variable; exits the process with a message when it is not set.
+function requireEnv(varName) {
+  let value = process.env[varName];
+  return value || (process.stderr.write(`saturn-mcp: ${varName} is not set
+`), process.exit(1)), value;
+}
+// saturnUrl (minified: V) — Configuration from the environment the extension starts this server with:
+// saturnUrl (minified: V) / saturnToken (q): the instance's base URL (SATURN_MCP_URL, trailing slashes removed) and bearer token (SATURN_MCP_TOKEN).
+// writesWithoutAsking (B): SATURN_MCP_ALLOW_WRITES=1, write tools run without asking ("let the agent act without asking").
+// profileCanWrite (ae): SATURN_MCP_PROFILE_WRITES=1, the agent profile may change the instance at all.
+// profileCanRead (ie): SATURN_MCP_ALLOW_READS (on unless 0), the agent profile may reach the instance at all.
+// approvalSocketPath (P): SATURN_MCP_APPROVAL_SOCKET, the editor's local socket for asking the user; null when there is none.
+// autoApprove (Ot): SATURN_MCP_AUTO=1, auto mode, so reads that ask each time do not ask.
+// cliAsks (Ct): SATURN_MCP_CLI_ASKS=1, the CLI's permission system already asks for reads.
+// recordBackupDir (Ce): SATURN_MCP_BACKUP_DIR, where record backups go; null when unset (record writes are then refused).
+// approvalSecret (Pn): SATURN_MCP_APPROVAL_SECRET, sent with each approval request so the editor knows it is this server.
+var saturnUrl = requireEnv("SATURN_MCP_URL").replace(/\/+$/, ""),
+  saturnToken = requireEnv("SATURN_MCP_TOKEN"),
+  writesWithoutAsking = process.env.SATURN_MCP_ALLOW_WRITES === "1",
+  profileCanWrite = process.env.SATURN_MCP_PROFILE_WRITES === "1",
+  profileCanRead = process.env.SATURN_MCP_ALLOW_READS !== "0",
+  approvalSocketPath = process.env.SATURN_MCP_APPROVAL_SOCKET ?? null,
+  autoApprove = process.env.SATURN_MCP_AUTO === "1",
+  cliAsks = process.env.SATURN_MCP_CLI_ASKS === "1",
+  recordBackupDir = process.env.SATURN_MCP_BACKUP_DIR || null,
+  approvalSecret = process.env.SATURN_MCP_APPROVAL_SECRET ?? "";
+// askApproval (minified: ce) — Asks the user to approve a tool call over the approval socket: sends {id, secret, toolName, input} as a JSON line and resolves
+// with the editor's reply for that id ({behavior: "allow" | "deny", message?, updatedInput?}). Any failure resolves as a deny.
+function askApproval(toolName, input) {
+  return new Promise(resolve => {
+    if (!approvalSocketPath) {
+      resolve({
+        behavior: "deny",
+        message: "No approval channel is available, so this was declined."
+      });
+      return;
+    }
+    let requestId = (0, nodeCrypto.randomUUID)(),
+      socket;
+    try {
+      socket = (0, net.connect)(approvalSocketPath);
+    } catch {
+      resolve({
+        behavior: "deny",
+        message: "Could not reach the editor to ask for permission."
+      });
+      return;
+    }
+    // A buffer for partial reply lines, and finish(), which settles once: closes the socket and resolves with the first answer.
+    let buffer = "",
+      settled = !1,
+      finish = answer => {
+        settled || (settled = !0, socket.destroy(), resolve(answer));
+      };
+    // Replies come as JSON lines; keep a partial line in the buffer until the rest arrives.
+    socket.setEncoding("utf8"), socket.on("connect", () => {
+      socket.write(`${JSON.stringify({
+        id: requestId,
+        secret: approvalSecret,
+        toolName: toolName,
+        input: input
+      })}
+`);
+    }), socket.on("data", chunk => {
+      buffer += chunk;
+      let lines = buffer.split(`
+`);
+      buffer = lines.pop() ?? "";
+      for (let line of lines) if (line.trim()) try {
+        let reply = JSON.parse(line);
+        reply?.id === requestId && finish(reply);
+      } catch {}
+    }), socket.on("error", () => finish({
+      behavior: "deny",
+      message: "The editor could not be reached, so this was declined."
+    })), socket.on("close", () => finish({
+      behavior: "deny",
+      message: "The approval channel closed before an answer arrived."
+    }));
+  });
+}
+// approveTool (minified: Rt) — The internal `approve` tool, listed when there is an approval socket: the CLI's permission system calls it to ask the user.
+var approveTool = {
+  name: "approve",
+  description: "Internal: asks the user to approve a tool call. Called by the CLI's permission system, not something to invoke directly.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      tool_name: {
+        type: "string"
+      },
+      input: {
+        type: "object"
+      }
+    },
+    required: ["tool_name"],
+    additionalProperties: !0
+  }
+};
+// saturnFetchJson (minified: C) — A JSON request to the instance (path includes /api) with the bearer token, a 60 s timeout, no redirects and the response size cap;
+// throws with the status and start of the body on failure; null for 204.
+async function saturnFetchJson(apiPath, init) {
+  let response = capResponseSize(await fetch(`${saturnUrl}${apiPath}`, {
+    signal: AbortSignal.timeout(6e4),
+    ...init,
+    redirect: "error",
+    headers: {
+      Authorization: `Bearer ${saturnToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(init?.headers ?? {})
+    }
+  }));
+  if (!response.ok) {
+    let errorText = await response.text().catch(() => "");
+    throw new Error(`${init?.method ?? "GET"} ${apiPath} failed: ${response.status} ${response.statusText}` + (errorText ? ` \u2014 ${errorText.slice(0, 400)}` : ""));
+  }
+  return response.status === 204 ? null : response.json();
+}
+// operatorsCache (minified: Te) — The instance's operators catalogue, loaded once.
+var operatorsCache = null;
+// writeRecordRequest (minified: je) — Creates (POST), updates (PUT) or deletes a record, trying each route name the resource may have until one exists;
+// throws on an HTTP error or a {status: "FAILURE"} body.
+async function writeRecordRequest(resource, method, recordId, body) {
+  for (let route of recordRoutes(resource)) {
+    let response = capResponseSize(await fetch(`${saturnUrl}/api${route}${recordId ? `/${recordId}` : ""}`, {
+        method: method,
+        signal: AbortSignal.timeout(6e4),
+        redirect: "error",
+        headers: {
+          Authorization: `Bearer ${saturnToken}`,
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        ...(body ? {
+          body: JSON.stringify(body)
+        } : {})
+      })),
+      reply = await response.json().catch(() => null);
+    if (!(recordId ? isRouteNotFound(response.status, reply) : isMissingRoute(response.status, reply))) {
+      if (!response.ok || typeof reply?.status == "string" && reply.status.toUpperCase() === "FAILURE") throw new Error(`${method} ${resource} record failed: ${response.status}${typeof reply?.message == "string" ? ` \u2014 ${reply.message}` : ""}`);
+      return reply?.data ?? reply;
+    }
+  }
+  throw new Error(`No record route for ${resource} on this instance.`);
+}
+// instanceMcp (minified: Ne) — The client for the instance's own MCP server, through the response size cap.
+var instanceMcp = new InstanceMcpClient(`${saturnUrl}/api/mcp`, saturnToken, async (requestUrl, init) => capResponseSize(await fetch(requestUrl, init)));
+// callInstanceTool (minified: En) — Runs a call to one of the instance's own MCP tools: checks the profile may read (and write, for a tool that is not read-only),
+// asks the user unless allowed already, then calls it and shortens the result text.
+async function callInstanceTool(listedName, args) {
+  let failure = text => ({
+    isError: !0,
+    content: [{
+      type: "text",
+      text: text
+    }]
+  });
+  if (!profileCanRead) return failure("This agent profile has no access to the Saturn instance. Tell the user which profile would, rather than retrying.");
+  let tool = await instanceMcp.find(listedName);
+  if (!tool) return failure(`The instance has no tool called ${listedName.slice(instanceToolPrefix.length)}.`);
+  if (!tool.readOnly && !profileCanWrite) return failure("This agent profile may not change the instance. Describe the change instead, and tell the user that switching to a profile that can change it would apply it.");
+  // Read-only tools ask unless the CLI asks or auto mode is on; other tools ask unless writes are allowed without asking.
+  if (tool.readOnly ? !cliAsks && !autoApprove : !writesWithoutAsking) {
+    let approval = approvalSocketPath ? await askApproval(listedName, args) : {
+      behavior: "deny",
+      message: "This needs the user's approval, and there is no way to ask here."
+    };
+    if (approval.behavior !== "allow") return failure(approval.message ?? "The user declined this.");
+  }
+  try {
+    let result = await instanceMcp.call(tool, args);
+    return {
+      isError: !result.ok,
+      content: [{
+        type: "text",
+        text: shortenInstanceText(result.text)
+      }]
+    };
+  } catch (error) {
+    return failure(`The instance's MCP server could not be reached: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+// shortenInstanceText (minified: On) — An instance tool's text with JSON shortened for the agent (long text cut); other text unchanged.
+function shortenInstanceText(text) {
+  try {
+    return JSON.stringify(shortenForAgent(JSON.parse(text)), null, 1);
+  } catch {
+    return text;
+  }
+}
+// saturnBackend (minified: St) — The backend the tool dispatcher runs against: Saturn REST calls with this server's token, and the record backups on disk.
+var saturnBackend = {
+  listWorkflows: () => saturnFetchJson("/api/Workflows"),
+  getWorkflow: async workflowId => unwrapWorkflow(await saturnFetchJson(`/api/Workflows/${encodeURIComponent(workflowId)}`)),
+  putWorkflow: (workflowId, definition) => saturnFetchJson(`/api/Workflows/${encodeURIComponent(workflowId)}`, {
+    method: "PUT",
+    body: JSON.stringify(definition)
+  }),
+  listOperators: async () => (operatorsCache || (operatorsCache = operatorCatalog(await saturnFetchJson("/api/Operators"))), operatorsCache),
+  listResources: async () => {
+    let response = await saturnFetchJson("/api/Resources"),
+      list = Array.isArray(response) ? response : response?.data;
+    return Array.isArray(list) ? list.map(entry => typeof entry == "string" ? entry : typeof entry?.name == "string" ? entry.name : null).filter(entry => !!entry).sort((entry, otherEntry) => entry.localeCompare(otherEntry)) : [];
+  },
+  // Tries each route name the resource may have; a route that does not exist moves on to the next.
+  listRecords: async (resource, query) => {
+    for (let route of recordRoutes(resource)) {
+      let response = capResponseSize(await fetch(`${saturnUrl}/api${route}${recordQuery(query)}`, {
+          signal: AbortSignal.timeout(6e4),
+          redirect: "error",
+          headers: {
+            Authorization: `Bearer ${saturnToken}`,
+            Accept: "application/json"
+          }
+        })),
+        body = await response.json().catch(() => null);
+      if (!isMissingRoute(response.status, body)) {
+        if (!response.ok) throw new Error(`Read ${resource} records failed: ${response.status} ${response.statusText}`);
+        return recordsFromBody(body);
+      }
+    }
+    throw new Error(`No record route for ${resource} on this instance.`);
+  },
+  // One record by id, or null when the instance says 404.
+  getRecord: async (resource, recordId) => {
+    for (let route of recordRoutes(resource)) {
+      let response = capResponseSize(await fetch(`${saturnUrl}/api${route}/${recordId}`, {
+          signal: AbortSignal.timeout(6e4),
+          redirect: "error",
+          headers: {
+            Authorization: `Bearer ${saturnToken}`,
+            Accept: "application/json"
+          }
+        })),
+        body = await response.json().catch(() => null);
+      if (!isRouteNotFound(response.status, body)) {
+        if (response.status === 404) return null;
+        if (!response.ok || typeof body?.status == "string" && body.status.toUpperCase() === "FAILURE") throw new Error(`Read ${resource} ${recordId} failed: ${response.status}`);
+        return body?.data ?? null;
+      }
+    }
+    throw new Error(`No record route for ${resource} on this instance.`);
+  },
+  // The names of the instance's core resources (from /api/resources/catalog), or null when it cannot be read.
+  listCoreResources: async () => {
+    try {
+      let response = await saturnFetchJson("/api/resources/catalog");
+      return Array.isArray(response?.data) ? new Set(response.data.filter(item => typeof item == "string")) : null;
+    } catch {
+      return null;
+    }
+  },
+  saveBackup: (fileName, record) => writeRecordBackup(recordBackupDir, fileName, record),
+  readBackup: fileName => readRecordBackup(recordBackupDir, fileName),
+  listBackups: () => listRecordBackups(recordBackupDir),
+  createRecord: (resource, data) => writeRecordRequest(resource, "POST", null, data),
+  updateRecord: (resource, recordId, data) => writeRecordRequest(resource, "PUT", recordId, data),
+  deleteRecord: async (resource, recordId) => {
+    await writeRecordRequest(resource, "DELETE", recordId);
+  },
+  // A resource's fields: key, label, type, referenced resource and source, sorted by key.
+  getResource: async resource => {
+    let fields = (await saturnFetchJson(`/api/Resources/${encodeURIComponent(resource)}`))?.data;
+    if (!fields || typeof fields != "object" || Array.isArray(fields)) return {
+      resource: resource,
+      fields: []
+    };
+    let fieldList = Object.entries(fields).map(([key, field]) => ({
+      key: key,
+      label: typeof field?.label == "string" && field.label ? field.label : null,
+      type: typeof field?.type == "string" ? field.type : null,
+      reference: typeof field?.map?.reference == "string" && field.map.reference ? field.map.reference : typeof field?.lookup_reference == "string" && field.lookup_reference ? field.lookup_reference : null,
+      source: typeof field?.source == "string" ? field.source : null
+    })).sort((left, right) => left.key.localeCompare(right.key));
+    return {
+      resource: resource,
+      fields: fieldList
+    };
+  }
+};
+// writeMessage (minified: Tt) — Writes one JSON-RPC message to stdout as a line.
+function writeMessage(message) {
+  process.stdout.write(`${JSON.stringify(message)}
+`);
+}
+// sendResult (minified: R) — Sends a JSON-RPC result for this request id.
+function sendResult(id, result) {
+  writeMessage({
+    jsonrpc: "2.0",
+    id: id,
+    result: result
+  });
+}
+// sendError (minified: ve) — Sends a JSON-RPC error for this request id.
+function sendError(id, code, message) {
+  writeMessage({
+    jsonrpc: "2.0",
+    id: id,
+    error: {
+      code: code,
+      message: message
+    }
+  });
+}
+// handleRequest (minified: Cn) — Handles one JSON-RPC message from the client (initialize, tools/list, tools/call, ping); unknown methods with an id get -32601.
+async function handleRequest(request) {
+  switch (request.method) {
+    case "initialize":
+      sendResult(request.id, {
+        protocolVersion: mcpProtocolVersion,
+        capabilities: {
+          tools: {}
+        },
+        serverInfo: {
+          name: "saturn",
+          version: "0.1.0"
+        }
+      });
+      return;
+    case "notifications/initialized":
+    case "initialized":
+      return;
+    // Lists the approve tool (when there is an approval socket), the saturn_* / task_* tools this profile may use, and the instance's own tools
+    // (read-only ones always; others only when the profile may write). saturn_list_records is hidden when the instance has its own tools.
+    case "tools/list":
+      {
+        let instanceTools = profileCanRead ? await instanceMcp.list() : null;
+        sendResult(request.id, {
+          tools: [...(approvalSocketPath ? [approveTool] : []), ...SATURN_TOOLS.filter(tool => tool.name.startsWith("task_") || profileCanRead && (tool.risk === "read" || profileCanWrite && (writesWithoutAsking || !!approvalSocketPath))).filter(tool => !(instanceTools && tool.name === "saturn_list_records")).map(tool => ({
+            name: tool.name,
+            description: tool.risk === "write" ? `${tool.description}
 
-Changes the instance.`:n.description,inputSchema:n.inputSchema})),...(t??[]).filter(n=>n.readOnly||ae&&(B||!!P)).map(n=>({name:n.listedAs,description:`From the instance's own MCP server. ${n.description}`+(n.readOnly?`
+Changes the instance.` : tool.description,
+            inputSchema: tool.inputSchema
+          })), ...(instanceTools ?? []).filter(tool => tool.readOnly || profileCanWrite && (writesWithoutAsking || !!approvalSocketPath)).map(tool => ({
+            name: tool.listedAs,
+            description: `From the instance's own MCP server. ${tool.description}` + (tool.readOnly ? `
 
-The user approves each call.`:`
+The user approves each call.` : `
 
-Changes the instance. To change records, use saturn_create_record, saturn_update_record and saturn_delete_record instead: they back the record up first.`),inputSchema:n.inputSchema}))]});return}case"tools/call":{let t=String(e.params?.name??"");if(t===Rt.name){let o=e.params?.arguments??{},a=String(o.tool_name??o.toolName??"a tool"),r=await ce(a,o.input??o.tool_input??o),s={behavior:r.behavior};r.message!==void 0&&(s.message=r.message),r.updatedInput!==void 0&&(s.updatedInput=r.updatedInput),R(e.id,{isError:!1,content:[{type:"text",text:JSON.stringify(s)}]});return}if(t.startsWith(se)){R(e.id,await En(t,e.params?.arguments));return}if(!ie&&t.startsWith("saturn_")){R(e.id,{isError:!0,content:[{type:"text",text:"This agent profile has no access to the Saturn instance. Tell the user which profile would, rather than retrying."}]});return}if(re(t)&&!ae){R(e.id,{isError:!0,content:[{type:"text",text:"This agent profile may not change the instance. Describe the change instead, and tell the user that switching to a profile that can change it would apply it."}]});return}if(kt(t)&&!Ct&&!Ot){let o=P?await ce(t,e.params?.arguments):{behavior:"deny",message:"Reading records needs the user's approval, and there is no way to ask here."};if(o.behavior!=="allow"){R(e.id,{isError:!0,content:[{type:"text",text:o.message??"The user declined reading these records."}]});return}}if(!B&&re(t)&&P){let o=await ce(t,e.params?.arguments);if(o.behavior!=="allow"){R(e.id,{isError:!0,content:[{type:"text",text:o.message??"The user declined this change."}]});return}let a=await Ee(St,t,e.params?.arguments);R(e.id,{isError:!a.ok,content:[{type:"text",text:a.content}]});return}if(!B&&re(t)){R(e.id,{isError:!0,content:[{type:"text",text:'This session is read-only. Describe the change instead, and tell the user to enable "let the agent act without asking" in the chat panel if they want it applied.'}]});return}let n=await Ee(St,t,e.params?.arguments);R(e.id,{isError:!n.ok,content:[{type:"text",text:n.content}]});return}case"ping":R(e.id,{});return;default:e.id!==void 0&&e.id!==null&&ve(e.id,-32601,`Method not found: ${e.method}`);return}}var jt=(0,xt.createInterface)({input:process.stdin});jt.on("line",e=>{let t=e.trim();if(t.length===0)return;let n;try{n=JSON.parse(t)}catch{ve(null,-32700,"Parse error");return}Cn(n).catch(o=>{let a=o instanceof Error?o.message:String(o);n.id!==void 0&&n.id!==null?ve(n.id,-32603,a):process.stderr.write(`saturn-mcp: ${a}
-`)})});jt.on("close",()=>process.exit(0));
+Changes the instance. To change records, use saturn_create_record, saturn_update_record and saturn_delete_record instead: they back the record up first.`),
+            inputSchema: tool.inputSchema
+          }))]
+        });
+        return;
+      }
+    // Runs a tool after the profile and approval checks below.
+    case "tools/call":
+      {
+        let toolName = String(request.params?.name ?? "");
+        // The CLI's permission system asking: forward the question to the editor and return its answer as JSON text.
+        if (toolName === approveTool.name) {
+          let args = request.params?.arguments ?? {},
+            askedTool = String(args.tool_name ?? args.toolName ?? "a tool"),
+            answer = await askApproval(askedTool, args.input ?? args.tool_input ?? args),
+            reply = {
+              behavior: answer.behavior
+            };
+          answer.message !== void 0 && (reply.message = answer.message), answer.updatedInput !== void 0 && (reply.updatedInput = answer.updatedInput), sendResult(request.id, {
+            isError: !1,
+            content: [{
+              type: "text",
+              text: JSON.stringify(reply)
+            }]
+          });
+          return;
+        }
+        // One of the instance's own tools.
+        if (toolName.startsWith(instanceToolPrefix)) {
+          sendResult(request.id, await callInstanceTool(toolName, request.params?.arguments));
+          return;
+        }
+        // A profile without instance access may not run saturn_* tools.
+        if (!profileCanRead && toolName.startsWith("saturn_")) {
+          sendResult(request.id, {
+            isError: !0,
+            content: [{
+              type: "text",
+              text: "This agent profile has no access to the Saturn instance. Tell the user which profile would, rather than retrying."
+            }]
+          });
+          return;
+        }
+        // A profile that may not write gets write tools refused.
+        if (isWriteTool(toolName) && !profileCanWrite) {
+          sendResult(request.id, {
+            isError: !0,
+            content: [{
+              type: "text",
+              text: "This agent profile may not change the instance. Describe the change instead, and tell the user that switching to a profile that can change it would apply it."
+            }]
+          });
+          return;
+        }
+        // Tools that ask each time (record reads) need approval unless the CLI asks or auto mode is on.
+        if (toolAsksEachTime(toolName) && !cliAsks && !autoApprove) {
+          let approval = approvalSocketPath ? await askApproval(toolName, request.params?.arguments) : {
+            behavior: "deny",
+            message: "Reading records needs the user's approval, and there is no way to ask here."
+          };
+          if (approval.behavior !== "allow") {
+            sendResult(request.id, {
+              isError: !0,
+              content: [{
+                type: "text",
+                text: approval.message ?? "The user declined reading these records."
+              }]
+            });
+            return;
+          }
+        }
+        // A write without blanket permission: ask the user, then run it.
+        if (!writesWithoutAsking && isWriteTool(toolName) && approvalSocketPath) {
+          let approval = await askApproval(toolName, request.params?.arguments);
+          if (approval.behavior !== "allow") {
+            sendResult(request.id, {
+              isError: !0,
+              content: [{
+                type: "text",
+                text: approval.message ?? "The user declined this change."
+              }]
+            });
+            return;
+          }
+          let result = await runAgentTool(saturnBackend, toolName, request.params?.arguments);
+          sendResult(request.id, {
+            isError: !result.ok,
+            content: [{
+              type: "text",
+              text: result.content
+            }]
+          });
+          return;
+        }
+        // A write with no way to ask: refused.
+        if (!writesWithoutAsking && isWriteTool(toolName)) {
+          sendResult(request.id, {
+            isError: !0,
+            content: [{
+              type: "text",
+              text: 'This session is read-only. Describe the change instead, and tell the user to enable "let the agent act without asking" in the chat panel if they want it applied.'
+            }]
+          });
+          return;
+        }
+        let result = await runAgentTool(saturnBackend, toolName, request.params?.arguments);
+        sendResult(request.id, {
+          isError: !result.ok,
+          content: [{
+            type: "text",
+            text: result.content
+          }]
+        });
+        return;
+      }
+    case "ping":
+      sendResult(request.id, {});
+      return;
+    default:
+      request.id !== void 0 && request.id !== null && sendError(request.id, -32601, `Method not found: ${request.method}`);
+      return;
+  }
+}
+// stdinLines (minified: jt) — Reads newline-delimited JSON-RPC messages from stdin; a parse error answers -32700, a handler failure -32603 (or stderr for a notification).
+var stdinLines = (0, readline.createInterface)({
+  input: process.stdin
+});
+stdinLines.on("line", line => {
+  let trimmed = line.trim();
+  if (trimmed.length === 0) return;
+  let request;
+  try {
+    request = JSON.parse(trimmed);
+  } catch {
+    sendError(null, -32700, "Parse error");
+    return;
+  }
+  handleRequest(request).catch(error => {
+    let errorMessage = error instanceof Error ? error.message : String(error);
+    request.id !== void 0 && request.id !== null ? sendError(request.id, -32603, errorMessage) : process.stderr.write(`saturn-mcp: ${errorMessage}
+`);
+  });
+});
+stdinLines.on("close", () => process.exit(0));
