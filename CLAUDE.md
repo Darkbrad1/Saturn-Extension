@@ -2,6 +2,16 @@
 
 Guidance for working in this repo. **Keep this file current:** whenever a change adds, removes or renames a file, a host message, a change to the host, a build/test step or a convention described here, update this file in the same commit.
 
+## How to work with me
+
+- **Explain things at a beginner level.** Write it the way you'd explain it to a first-year student: plain words, short sentences, everyday comparisons. Avoid jargon, and when a technical term is needed, say what it means.
+- **Ask me before making product decisions.** If a choice changes how the extension behaves for the user (how a feature works, what happens in an edge case, what something is called), lay out the options, say which one you'd pick and why, and let me choose. Don't decide quietly.
+- **Technical choices are yours.** If a choice doesn't change what the user sees or experiences, go ahead and decide it. Just tell me what you picked.
+- **Write plainly.** Every reply, doc, commit message, code comment and piece of UI text: plain words, no filler, no em dashes, sentence-case headings. Check your writing before sending.
+- **Keep the docs up to date as you go.** Whenever a change affects how something works, how to set it up, or a decision we made, update both files in the same commit:
+  - `CLAUDE.md` (this file): how to work with me, how the code is laid out, and the decisions we've settled.
+  - `README.md`: what the project is, what's new in each version, how to build and install it.
+
 ## What this is
 
 The **sonover-code** VS Code extension (Saturn / Sonover platform) — the whole extension, built from this repo. Current version: **0.3.18** (see `README.md` and `src/changelog.ts`).
@@ -115,6 +125,30 @@ Caveats:
 - The Playwright tests print `PASS` / `FAIL` lines; `npm test` is a placeholder. They read `SHOTS` (screenshot folder, default `shots/`) and `CHROME` (browser path, default the cloud container's) from the environment.
 - The shipped webviews and MCP server are kept readable in `vsix/`; never commit minified copies there (the build minifies).
 - `dist/`, `out/`, `node_modules/`, `reference/` and `shots/` are generated and git-ignored; don't commit them. The `dist/` and `out/` rules are root-only (`/dist/`, `/out/`): `vsix/extension/dist/` holds shipped files and must stay committed.
+
+## Decisions already made
+
+These were settled with me, so don't reopen them without asking.
+
+- **Branches:** all work goes on `dev`; `main` only gets changes when I decide.
+- **The node view is the default** on the Workflows screen. The list view stays, one click away.
+- **No Save button in the node view.** An edit is applied when you're done with it (Enter, clicking away, closing the editor, picking another step). If the instance refuses it, a toast says why.
+- **System Logs and the Logs tab are read-only**, and only ever read the newest 10 logs. The message comes first and is formatted (the JSON inside it pretty-printed).
+- **The code is kept readable.** The host, the shipped screens and the MCP server have real names and comments; bundled libraries are left as they are. The build minifies, and `package.sh` proves the minified files are the same programs.
+- **Each release gets a new version number**, so installing it never clashes with the one already installed.
+- **The repo stays private** (Sonover's licence).
+- **Resources screen:**
+  - The properties are listed down the left in the schema's order. Each shows its name, its key and its type, nothing else.
+  - Dragging a property (or Alt+↑/↓) changes its place in the schema. Search turns dragging off.
+  - The property you pick shows on the right. For now that's Required and the whole definition; more comes from Saturn's own screens (see below).
+  - Saving does exactly what Saturn's own app does: `PUT /api/resources/<name>/schema` with the whole schema. Before writing it re-reads and backs up the definition; after writing it reads it back and checks only what you asked changed. It never sends DELETE.
+  - Nothing is saved until you press Save and confirm.
+
+## For the future (not now)
+
+Ideas to come back to. Don't start them unless asked.
+
+- **More of Saturn's resource editor** in the Resources screen, following the screenshots I'm sending: the **+** button to add a property, and the other settings of a property.
 
 ## Conventions
 
