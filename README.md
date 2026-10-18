@@ -1,4 +1,4 @@
-# sonover-code (v0.3.21)
+# sonover-code (v0.3.22)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,14 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.22 — Resources: several properties at once, a right-click menu, mapped chips
+- Multi-select (Ctrl/Cmd+click, Shift+click; `selected` is a list). `PropertyEditor` takes `items: [{original, draft}]`: a setting with different values shows "Mixed" (switches in the middle, `aria-checked="mixed"`; selects show a Mixed entry), a change goes to every item, and settings marked `single` (label, key, description) are left out. Dragging a picked property or Alt+↑/↓ moves all picked ones as a block (`move(keys, to)`, `nudge`).
+- Right-click menu (`.rs-menu`): Duplicate (below the original, `<key>_copy`, "(copy)" label), Copy settings / Paste settings (a box with a switch per group, all on but General; the key is never pasted; the copy is kept across resources), Copy key(s), Go to <resource>, Delete / Restore. Delete and Backspace in the list delete too. Deleted properties are crossed out until Save; the confirm names them and warns.
+- `save` takes `removes: [key]`: the host leaves them out of the schema (`applyRemoves`), still the one whole-schema PUT, never a DELETE request; the backup keeps them.
+- Mapped chips (`mappedOf`: a dynamic source's `source_definition.reference`, else `map.reference`): blue (`--rs-static`) for a map, purple (`--rs-dynamic`) for a dynamic source, on the chip and the card's bar; Required is a red star. A chip (also next to a Reference setting) opens that resource; the top bar shows the trail with ‹ Back, and Alt+← goes back to the property you came from.
+- Unsaved changes are kept per resource (`works: {resource: {drafts, added, order, deleted}}`), so switching resources no longer waits for Save. Save's confirm lists every resource with changes; they're saved one at a time (a failure stops the rest). Older webview state is carried over.
+- Sections sit in two columns once the page is 1150 px wide or more (a container query). `hosttest-resources.cjs` (39 checks), `test13.mjs` (61), `test14.mjs` (29).
 
 ## New in 0.3.21 — Resources: change a property's key, every type, Visibility higher up
 - General has a Key row (Saturn's "Field"), checked as you type (`edit.kind: "key"`: `KEY_PATTERN`, and not another property's key; a bad key disables Save). A property keeps a fixed id on screen (its key on the instance, or a new one's first key) and shows `shownKey`; new properties are kept as `{id, prop}`.

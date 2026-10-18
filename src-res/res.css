@@ -117,7 +117,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* column 3: one long page, sections as cards (like VS Code / Obsidian settings) */
 .pe-page { flex: 1; min-width: 0; overflow: auto; padding: 14px 22px 0; scroll-behavior: auto; }
-.pe-group { max-width: 860px; margin-bottom: 26px; }
+.pe-page { container-type: inline-size; }
+.pe-group { margin-bottom: 26px; }
+/* sections side by side when the page is wide enough */
+.pe-parts { display: grid; grid-template-columns: 1fr; gap: 0 18px; align-items: start; }
+@container (min-width: 1150px) { .pe-parts { grid-template-columns: 1fr 1fr; } }
 .pe-group-title { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
 .pe-blurb { color: var(--rs-muted); margin: 0 0 12px; font-size: 11px; }
 .pe-part { margin-bottom: 16px; }
@@ -199,3 +203,48 @@ textarea.pe-input { height: auto; padding: 6px 8px; resize: vertical; }
 .nv-hl-pre .token.class-name { color: #4ec9b0; }
 .pe-key { display: flex; flex-direction: column; gap: 4px; width: 100%; }
 .pe-input[aria-invalid="true"] { border-color: var(--rs-error); }
+
+/* the way back after jumping to a mapped resource */
+.rs-trail { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--rs-muted); min-width: 0; overflow: hidden; }
+.rs-crumb { display: inline-flex; align-items: center; gap: 6px; }
+.rs-crumb-here { color: var(--rs-fg); font-weight: 600; }
+
+/* mapped: blue for a static map, purple for a dynamic source */
+:root { --rs-static: #0d99ff; --rs-dynamic: #a259ff; --rs-req: #f24822; }
+.rs-grip.is-static { background: var(--rs-static); }
+.rs-grip.is-dynamic { background: var(--rs-dynamic); }
+.rs-item-end { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex: none; max-width: 45%; }
+.rs-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; line-height: 16px; padding: 0 7px; border-radius: 8px; border: 1px solid; background: transparent; cursor: pointer; }
+.rs-chip.is-static { color: var(--rs-static); border-color: color-mix(in srgb, var(--rs-static) 55%, transparent); background: color-mix(in srgb, var(--rs-static) 12%, transparent); }
+.rs-chip.is-dynamic { color: var(--rs-dynamic); border-color: color-mix(in srgb, var(--rs-dynamic) 55%, transparent); background: color-mix(in srgb, var(--rs-dynamic) 12%, transparent); }
+.rs-chip:hover { filter: brightness(1.25); }
+.pe-ref { display: flex; gap: 6px; align-items: center; width: 100%; }
+.pe-ref .rs-chip { flex: none; line-height: 24px; border-radius: 5px; }
+.rs-req { color: var(--rs-req); margin-left: 3px; font-weight: 700; }
+
+/* picked several, removed ones */
+.rs-item.is-deleted { opacity: .45; }
+.rs-item.is-deleted .rs-item-label, .rs-item.is-deleted .rs-item-key { text-decoration: line-through; }
+.rs-gone { padding: 18px; display: flex; gap: 12px; align-items: center; color: var(--rs-fg-2); }
+.rs-gone p { margin: 0; }
+.pe-many { margin: 0 0 14px; padding: 8px 12px; border-radius: 8px; background: color-mix(in srgb, var(--rs-accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--rs-accent) 40%, transparent); font-size: 11px; color: var(--rs-fg-2); }
+.pe-mixed { margin-left: 8px; font-size: 10px; font-weight: 500; color: var(--rs-changed); border: 1px solid color-mix(in srgb, var(--rs-changed) 50%, transparent); border-radius: 8px; padding: 0 6px; }
+.pe-switch.is-mixed { background: color-mix(in srgb, var(--rs-accent) 45%, #4a4a4a); }
+.pe-switch.is-mixed::after { left: 9px; }
+.rs-confirm-text { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.rs-confirm-note { color: var(--rs-muted); font-size: 11px; }
+.rs-removing { color: var(--rs-error); }
+
+/* right-click menu */
+.rs-menu { position: fixed; z-index: 50; min-width: 210px; padding: 4px; border-radius: 8px; background: var(--rs-panel-2); border: 1px solid var(--rs-edge); box-shadow: 0 8px 24px rgba(0, 0, 0, .45); display: flex; flex-direction: column; }
+.rs-menu button { text-align: left; background: none; border: 0; border-radius: 5px; padding: 6px 10px; cursor: pointer; font-size: 12px; color: var(--rs-fg); }
+.rs-menu button:hover:not(:disabled) { background: var(--rs-accent); color: #fff; }
+.rs-menu button:disabled { color: var(--rs-muted); cursor: default; }
+.rs-menu button.is-danger:hover { background: var(--rs-error); }
+.rs-menu-line { height: 1px; background: var(--rs-line); margin: 4px 6px; }
+
+/* paste box */
+.rs-modal-back { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .5); display: flex; align-items: center; justify-content: center; }
+.rs-modal { width: min(560px, 92vw); max-height: 88vh; overflow: auto; padding: 16px 18px; border-radius: 10px; background: var(--rs-panel); border: 1px solid var(--rs-edge); box-shadow: 0 12px 36px rgba(0, 0, 0, .5); }
+.rs-modal h2 { margin: 0 0 4px; font-size: 14px; }
+.rs-modal .pe-card { margin: 12px 0 6px; }

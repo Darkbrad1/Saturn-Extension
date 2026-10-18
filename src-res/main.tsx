@@ -1,14 +1,17 @@
 // Resources: pick a resource; its properties are listed down the left, in the schema's order
-// (name, key and type), and can be dragged (or moved with Alt+↑/↓) into a new order, and new
-// ones added with +. The one picked shows on the right, with every one of its settings
-// (editor.tsx, spec.ts).
-// The host side is host/resources.js (it reads the resource and saves it the way Saturn's own app
-// does, with a backup and a read-back check). Changes stay here until Save; they survive the tab
-// being hidden (webview state), and the resource can't be switched while some are unsaved.
+// (name, key and type, a chip naming the resource a mapped one points at). Pick one, or several
+// (Ctrl/Cmd+click, Shift+click), and their settings show on the right (editor.tsx, spec.ts); a
+// change goes to every picked property. Drag (or Alt+↑/↓) moves the picked ones together; + adds
+// one; right-click has Duplicate, Copy / Paste settings, Copy key, Go to the mapped resource,
+// Delete / Restore. A chip jumps to the mapped resource and Back (or Alt+←) comes back.
+// The host side is host/resources.js (it reads a resource and saves it the way Saturn's own app
+// does, with a backup and a read-back check). Changes stay here until Save, kept for each resource
+// separately (and in the webview's state); Save saves every resource with changes, one by one.
 import { createRoot } from "react-dom/client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Cards, PropertyEditor, type Field, type Lookups } from "./editor";
-import { KEY_PATTERN, TYPES, diff, keyFrom, newProperty, type Prop } from "./spec";
+import { Cards, PropertyEditor, Switch, type Field, type Lookups } from "./editor";
+import { setAt } from "./editor";
+import { GROUPS, KEY_PATTERN, TYPES, diff, get, keyFrom, newProperty, type Prop } from "./spec";
 import css from "./res.css";
 
 declare function acquireVsCodeApi(): { postMessage: (m: unknown) => void; getState: () => unknown; setState: (s: unknown) => void };
@@ -19,18 +22,36 @@ const send = (type: string, payload: Record<string, unknown> = {}) => vscode.pos
  *  added); shownKey: its key as edited here (a key can be changed before saving). */
 interface Property { key: string; shownKey: string; label: string | null; type: string | null; required: boolean; editable: boolean; definition: unknown }
 interface Added { id: string; prop: Prop }
+/** The unsaved changes to one resource. */
+interface Work {
+  /** property key -> the property as edited here (only the ones that differ from the instance) */
+  drafts: Record<string, Prop>;
+  /** new properties, not on the instance yet */
+  added: Added[];
+  /** every property id in the new order (null: as the instance has it) */
+  order: string[] | null;
+  /** properties to take out when saving */
+  deleted: string[];
+}
+/** Where you were before jumping to another resource. */
+interface Step { resource: string; selected: string[] }
 interface Saved {
   resource?: string | null;
-  /** property key -> the property as edited here (only the ones that differ from the instance) */
+  works?: Record<string, Work>;
+  selected?: string[];
+  group?: string;
+  trail?: Step[];
+  clipboard?: Clip | null;
+  // the first versions kept one resource's changes at the top level
   drafts?: Record<string, Prop>;
-  /** new properties, not on the instance yet */
   added?: Added[];
   order?: string[] | null;
-  selected?: string | null;
-  group?: string;
 }
-type Notice = { kind: "ok" | "error"; text: string; backup?: string; refused?: boolean } | null;
+/** Copied settings: the property they came from. */
+interface Clip { from: string; resource: string; prop: Prop }
+type Notice = { kind: "ok" | "error"; text: string; backup?: string; resource?: string; refused?: boolean } | null;
 
+const EMPTY: Work = { drafts: {}, added: [], order: null, deleted: [] };
 const loadSaved = (): Saved => {
   try {
     return (vscode.getState() as Saved) ?? {};
@@ -40,27 +61,87 @@ const loadSaved = (): Saved => {
 };
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const asProp = (p: Property): Prop => (p.definition && typeof p.definition === "object" && !Array.isArray(p.definition) ? { ...(p.definition as Prop), key: p.key } : { key: p.key });
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
+const isEmpty = (w: Work) => !Object.keys(w.drafts).length && !w.added.length && !w.order && !w.deleted.length;
+
+/** The resource a property points at: a static map (map.reference) or a dynamic source. */
+export function mappedOf(p: Prop): { kind: "static" | "dynamic"; resource: string } | null {
+  const source = get(p, ["source_definition", "reference"]);
+  if (p.source === "dynamic" && typeof source === "string" && source) return { kind: "dynamic", resource: source };
+  const map = get(p, ["map", "reference"]);
+  if (typeof map === "string" && map) return { kind: "static", resource: map };
+  return null;
+}
+
+/** Everything a resource's unsaved changes add up to, as Save sends it. */
+function planOf(properties: Property[] | undefined, work: Work) {
+  const props = properties ?? [];
+  const originals = new Map(props.map((p) => [p.key, asProp(p)]));
+  const deleted = new Set(work.deleted);
+  const live = (key: string) => !deleted.has(key);
+  const all: Property[] = [
+    ...props.map((p) => (work.drafts[p.key] ? viewOf(p.key, work.drafts[p.key], p.editable) : { ...p, shownKey: p.key })),
+    ...work.added.map((a) => viewOf(a.id, a.prop, true)),
+  ];
+  const byKey = new Map(all.map((p) => [p.key, p]));
+  const ordered = work.order ? [...work.order.map((k) => byKey.get(k)!).filter(Boolean), ...all.filter((p) => !work.order!.includes(p.key))] : all;
+  const isNew = (key: string) => work.added.some((a) => a.id === key);
+  const changes = Object.entries(work.drafts).filter(([key]) => live(key) && originals.has(key)).flatMap(([key, draft]) => diff(originals.get(key), draft).map((c) => ({ key, ...c })));
+  const adds = work.added.map((a) => ({ key: String(a.prop.key), property: a.prop }));
+  const removes = work.deleted.filter((k) => originals.has(k));
+  const renames = Object.entries(work.drafts).filter(([key, d]) => live(key) && typeof d.key === "string" && d.key !== key).map(([from, d]) => ({ from, to: String(d.key) }));
+  const instanceOrder = [...props.map((p) => p.key), ...work.added.map((a) => a.id)].filter(live);
+  const kept = ordered.filter((p) => live(p.key));
+  // the order names properties by their key on the instance (new ones by their key as typed)
+  const order = work.order && kept.map((p) => p.key).join("\n") !== instanceOrder.join("\n") ? kept.map((p) => (isNew(p.key) ? p.shownKey : p.key)) : null;
+  // a key that can't be saved (not a valid key, or used twice) stops Save
+  const counts = new Map<string, number>();
+  for (const p of kept) counts.set(p.shownKey, (counts.get(p.shownKey) ?? 0) + 1);
+  const badKey = kept.find((p) => !KEY_PATTERN.test(p.shownKey) || counts.get(p.shownKey)! > 1) ?? null;
+  const changedProps = new Set(changes.map((c) => c.key)).size;
+  const summary = [
+    changes.length ? `${plural(changes.length, "setting")} on ${plural(changedProps, "property", "properties")}` : "",
+    adds.length ? `${plural(adds.length, "new property", "new properties")}` : "",
+    renames.length ? `${plural(renames.length, "new key")}` : "",
+    removes.length ? `${plural(removes.length, "property", "properties")} removed` : "",
+    order ? "the order" : "",
+  ].filter(Boolean);
+  const removedNames = removes.map((k) => byKey.get(k)?.label ?? k);
+  return { all, byKey, originals, ordered, isNew, deleted, changes, adds, removes, renames, order, badKey, summary, removedNames, dirty: summary.length > 0 };
+}
 
 function App() {
   const saved = useMemo(loadSaved, []);
   const [instanceName, setInstanceName] = useState("");
   const [resources, setResources] = useState<string[] | null>(null);
   const [resource, setResource] = useState<string | null>(saved.resource ?? null);
-  const [properties, setProperties] = useState<Property[] | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, Prop>>(saved.drafts ?? {});
-  const [added, setAdded] = useState<Added[]>((saved.added ?? []).map((a) => ("prop" in (a as Added) ? (a as Added) : { id: String((a as unknown as Prop).key), prop: a as unknown as Prop })));
+  // each resource's properties as the instance has them (read when it's opened)
+  const [loaded, setLoaded] = useState<Record<string, Property[]>>({});
+  const [works, setWorks] = useState<Record<string, Work>>(() => {
+    if (saved.works) return saved.works;
+    // carried over from the first versions (one resource's changes)
+    if (saved.resource && (saved.drafts || saved.added || saved.order)) {
+      return { [saved.resource]: { drafts: saved.drafts ?? {}, added: (saved.added ?? []).map((a) => ("prop" in a ? a : { id: String((a as unknown as Prop).key), prop: a as unknown as Prop })), order: saved.order ?? null, deleted: [] } };
+    }
+    return {};
+  });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [query, setQuery] = useState("");
-  // every property key in the new order, while the order is changed here (null: as the instance has it)
-  const [order, setOrder] = useState<string[] | null>(saved.order ?? null);
-  const [selected, setSelected] = useState<string | null>(saved.selected ?? null);
+  const [selected, setSelected] = useState<string[]>(saved.selected ?? []);
+  // where Shift+click selects from
+  const anchor = useRef<string | null>((saved.selected ? saved.selected[saved.selected.length - 1] : null) ?? null);
   const [group, setGroup] = useState(saved.group ?? "general");
-  // drag and drop: the property being dragged, and where it would land (an index in the list)
-  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [trail, setTrail] = useState<Step[]>(saved.trail ?? []);
+  const [clipboard, setClipboard] = useState<Clip | null>(saved.clipboard ?? null);
+  // drag and drop: the properties being dragged, and where they would land (an index in the list)
+  const [dragKeys, setDragKeys] = useState<string[] | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [pasting, setPasting] = useState<Record<string, boolean> | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // the read-only check of what the instance takes (after a refused save)
   const [report, setReport] = useState<string | null>(null);
@@ -72,15 +153,36 @@ function App() {
   const [records, setRecords] = useState<Record<string, [string, string][] | "loading">>({});
   // what was asked for already (asked during render, so not state)
   const asked = useRef(new Set<string>());
+  // the resources still to save, one at a time (each waits for the one before)
+  const queue = useRef<{ resource: string; payload: Record<string, unknown> }[]>([]);
+  const savedCount = useRef(0);
 
   // (in braces: VS Code's setState returns the state, which React would take for a cleanup function)
   useEffect(() => {
-    vscode.setState({ resource, drafts, added, order, selected, group } satisfies Saved);
-  }, [resource, drafts, added, order, selected, group]);
+    vscode.setState({ resource, works, selected, group, trail, clipboard } satisfies Saved);
+  }, [resource, works, selected, group, trail, clipboard]);
+
+  const setWork = (r: string, change: (w: Work) => Work) =>
+    setWorks((before) => {
+      const next = change(before[r] ?? EMPTY);
+      const out = { ...before };
+      if (isEmpty(next)) delete out[r];
+      else out[r] = next;
+      return out;
+    });
+
+  /** Sends the next resource in the queue, or says all were saved. */
+  const sendNext = () => {
+    const next = queue.current.shift();
+    if (next) return send("save", next.payload);
+    setSaving(false);
+    setNotice({ kind: "ok", text: savedCount.current > 1 ? `Saved ${savedCount.current} resources. The instance has the changes, and a backup of each old definition was kept.` : "Saved. The instance has the change, and a backup of the old definition was kept." });
+  };
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const { type, payload } = event.data ?? {};
+      const r: string = payload?.resource;
       switch (type) {
         case "init":
           setInstanceName(payload.instanceName);
@@ -88,39 +190,40 @@ function App() {
           break;
         case "properties":
           setLoading(false);
-          setProperties(payload.properties);
-          // drafts of properties that are gone are dropped; a kept order only still applies if it
-          // names exactly these properties (and the new ones)
-          setDrafts((before) => keepDifferent(before, payload.properties));
-          setOrder((before) => before);
+          setLoaded((before) => ({ ...before, [r]: payload.properties }));
+          // drafts of properties that are gone are dropped
+          setWork(r, (w) => ({ ...w, drafts: keepDifferent(w.drafts, payload.properties), deleted: w.deleted.filter((k) => payload.properties.some((p: Property) => p.key === k)) }));
           break;
         case "saved":
+          setLoaded((before) => ({ ...before, [r]: payload.properties }));
+          setWork(r, () => EMPTY);
+          savedCount.current++;
+          sendNext();
+          break;
         case "restored":
           setSaving(false);
-          setProperties(payload.properties);
-          setDrafts({});
-          setAdded([]);
-          setOrder(null);
-          setNotice({ kind: "ok", text: type === "saved" ? "Saved. The instance has the change, and a backup of the old definition was kept." : "The backup was put back.", backup: payload.backup });
+          setLoaded((before) => ({ ...before, [r]: payload.properties }));
+          setWork(r, () => EMPTY);
+          setNotice({ kind: "ok", text: "The backup was put back." });
           break;
         case "saveMismatch":
+          queue.current = [];
           setSaving(false);
-          setProperties(payload.properties);
+          setLoaded((before) => ({ ...before, [r]: payload.properties }));
           // what's on the instance now is what the screen shows; keep only the changes still to make
-          setDrafts((before) => keepDifferent(before, payload.properties));
-          setAdded((before) => before.filter((a) => !payload.properties.some((q: Property) => q.key === a.prop.key)));
-          setOrder(null);
-          setNotice({ kind: "error", text: payload.message, backup: payload.unchanged ? undefined : payload.backup });
+          setWork(r, (w) => ({ drafts: keepDifferent(w.drafts, payload.properties), added: w.added.filter((a) => !payload.properties.some((q: Property) => q.key === a.prop.key)), order: null, deleted: w.deleted.filter((k) => payload.properties.some((p: Property) => p.key === k)) }));
+          setNotice({ kind: "error", resource: r, text: `${r}: ${payload.message}`, backup: payload.unchanged ? undefined : payload.backup });
           break;
         case "saveFailed":
+          queue.current = [];
           setSaving(false);
-          setNotice({ kind: "error", text: payload.message, refused: /doesn't accept changes/.test(payload.message) });
+          setNotice({ kind: "error", resource: r, text: r ? `${r}: ${payload.message}` : payload.message, refused: /doesn't accept changes/.test(payload.message) });
           break;
         case "fields":
-          setFields((before) => ({ ...before, [payload.resource]: payload.fields }));
+          setFields((before) => ({ ...before, [r]: payload.fields }));
           break;
         case "options":
-          setRecords((before) => ({ ...before, [`${payload.resource}|${payload.value}|${payload.label}`]: payload.options }));
+          setRecords((before) => ({ ...before, [`${r}|${payload.value}|${payload.label}`]: payload.options }));
           break;
         case "probe":
           setProbing(false);
@@ -135,106 +238,206 @@ function App() {
     window.addEventListener("message", onMessage);
     send("init");
     return () => window.removeEventListener("message", onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // load the chosen resource (and again after it's chosen anew)
+  // read the chosen resource (each time it's opened: what the instance has may have changed)
   useEffect(() => {
     if (!resource) return;
     setLoading(true);
-    setProperties(null);
     send("load", { resource });
   }, [resource]);
 
-  // every property, as it is here: the instance's with the edits made, then the new ones
-  const all: Property[] = [
-    ...(properties ?? []).map((p) => (drafts[p.key] ? viewOf(p.key, drafts[p.key], p.editable) : { ...p, shownKey: p.key })),
-    ...added.map((a) => viewOf(a.id, a.prop, true)),
-  ];
-  const byKey = new Map(all.map((p) => [p.key, p]));
-  const originals = new Map((properties ?? []).map((p) => [p.key, asProp(p)]));
-  const ordered = order ? [...order.map((k) => byKey.get(k)!).filter(Boolean), ...all.filter((p) => !order.includes(p.key))] : all;
+  const work = (resource && works[resource]) || EMPTY;
+  const properties = resource ? loaded[resource] : undefined;
+  const plan = planOf(properties, work);
+  const { all, byKey, originals, ordered, isNew, deleted } = plan;
   const q = query.trim().toLowerCase();
   const shown = ordered.filter((p) => !q || p.shownKey.toLowerCase().includes(q) || (p.label ?? "").toLowerCase().includes(q) || (p.type ?? "").toLowerCase().includes(q));
-  const current = (selected && byKey.get(selected)) || null;
-  const isNew = (key: string) => added.some((a) => a.id === key);
+  const picked = selected.map((k) => byKey.get(k)).filter((p): p is Property => !!p);
+  const current = picked[picked.length - 1] ?? null;
   // dragging only on the whole list: in a filtered one "before that one" is ambiguous
   const canMove = !q && !saving;
+  const dirtyResources = Object.keys(works).filter((r) => planOf(loaded[r], works[r]).dirty);
+  const plans = dirtyResources.map((r) => ({ resource: r, plan: planOf(loaded[r], works[r]) }));
+  const badPlan = plans.find((x) => x.plan.badKey);
+  const dirty = plans.length > 0;
+  const requiredCount = all.filter((p) => p.required && !deleted.has(p.key)).length;
 
-  // what Save sends
-  const changes = Object.entries(drafts).flatMap(([key, draft]) => diff(originals.get(key), draft).map((c) => ({ key, ...c })));
-  const changedProps = new Set(changes.map((c) => c.key)).size;
-  const instanceOrder = [...(properties ?? []).map((p) => p.key), ...added.map((a) => a.id)];
-  // the order names properties by their key on the instance (new ones by their key as typed)
-  const orderToSend = order && order.join("\n") !== instanceOrder.join("\n") ? ordered.map((p) => (isNew(p.key) ? p.shownKey : p.key)) : null;
-  // keys changed here: renamed when saving, after everything else
-  const renames = Object.entries(drafts).filter(([key, d]) => typeof d.key === "string" && d.key !== key).map(([from, d]) => ({ from, to: String(d.key) }));
-  // a key that can't be saved (not a valid key, or used twice) stops Save
-  const keyCounts = new Map<string, number>();
-  for (const p of all) keyCounts.set(p.shownKey, (keyCounts.get(p.shownKey) ?? 0) + 1);
-  const badKey = all.find((p) => !KEY_PATTERN.test(p.shownKey) || keyCounts.get(p.shownKey)! > 1);
-  const dirty = changes.length > 0 || added.length > 0 || orderToSend !== null || renames.length > 0;
+  const draftOf = (key: string): Prop => (isNew(key) ? work.added.find((a) => a.id === key)!.prop : work.drafts[key] ?? originals.get(key)!);
+  const originalOf = (key: string): Prop => (isNew(key) ? newProperty(key, byKey.get(key)?.label ?? key, byKey.get(key)?.type ?? "string") : originals.get(key)!);
 
-  /** Moves a property to index `to` of the full list; back to the instance's order clears it. */
-  const move = (key: string, to: number) => {
-    const keys = ordered.map((p) => p.key);
-    const from = keys.indexOf(key);
-    if (from < 0) return;
-    keys.splice(from, 1);
-    keys.splice(Math.max(0, Math.min(keys.length, from < to ? to - 1 : to)), 0, key);
-    setOrder(keys.join("\n") === instanceOrder.join("\n") ? null : keys);
+  /** The properties as edited: kept in drafts while they differ from the instance's. */
+  const edit = (next: Record<string, Prop>) => {
+    if (!resource) return;
+    setNotice(null);
+    setWork(resource, (w) => {
+      const drafts = { ...w.drafts };
+      let added = w.added;
+      for (const [key, prop] of Object.entries(next)) {
+        if (w.added.some((a) => a.id === key)) added = added.map((a) => (a.id === key ? { ...a, prop } : a));
+        else if (same(originals.get(key), prop)) delete drafts[key];
+        else drafts[key] = prop;
+      }
+      return { ...w, drafts, added };
+    });
+  };
+
+  /** Moves properties (keeping their order) to index `to` of the full list. */
+  const move = (keys: string[], to: number) => {
+    if (!resource) return;
+    const list = ordered.map((p) => p.key);
+    const moving = list.filter((k) => keys.includes(k));
+    const before = list.slice(0, to).filter((k) => !moving.includes(k)).length;
+    const rest = list.filter((k) => !moving.includes(k));
+    rest.splice(Math.max(0, Math.min(rest.length, before)), 0, ...moving);
+    const instance = [...(properties ?? []).map((p) => p.key), ...work.added.map((a) => a.id)];
+    setWork(resource, (w) => ({ ...w, order: rest.join("\n") === instance.join("\n") ? null : rest }));
     setNotice(null);
   };
-  const requiredCount = all.filter((p) => p.required).length;
+  /** Moves the picked properties one place up or down, as a block. */
+  const nudge = (up: boolean) => {
+    const list = ordered.map((p) => p.key);
+    const at = selected.map((k) => list.indexOf(k)).filter((i) => i >= 0).sort((a, b) => a - b);
+    if (!at.length) return;
+    move(selected, up ? Math.max(0, at[0] - 1) : Math.min(list.length, at[at.length - 1] + 2));
+  };
 
-  /** The property as edited: kept in drafts while it differs from the instance's. */
-  const edit = (key: string, next: Prop) => {
-    setNotice(null);
-    if (isNew(key)) return setAdded((before) => before.map((a) => (a.id === key ? { ...a, prop: next } : a)));
-    setDrafts((before) => {
-      const out = { ...before };
-      if (same(originals.get(key), next)) delete out[key];
-      else out[key] = next;
-      return out;
-    });
+  /** Click on a property: picks it; Ctrl/Cmd adds or removes it; Shift picks the run from the last one. */
+  const click = (key: string, e: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => {
+    if (e.shiftKey && anchor.current) {
+      const list = shown.map((p) => p.key);
+      const [a, b] = [list.indexOf(anchor.current), list.indexOf(key)].sort((x, y) => x - y);
+      if (a >= 0) return setSelected(list.slice(a, b + 1));
+    }
+    anchor.current = key;
+    if (e.ctrlKey || e.metaKey) return setSelected((before) => (before.includes(key) ? before.filter((k) => k !== key) : [...before, key]));
+    setSelected([key]);
   };
 
   const addError = !adding ? null : !adding.label.trim() ? "Give it a label." : !KEY_PATTERN.test(adding.key) ? "The key needs letters, digits and _, starting with a letter." : all.some((p) => p.shownKey === adding.key) ? `${adding.key} is already a property.` : null;
   const add = () => {
-    if (!adding || addError) return;
+    if (!adding || addError || !resource) return;
     const property = newProperty(adding.key, adding.label.trim(), adding.type);
-    setAdded((before) => [...before, { id: adding.key, prop: property }]);
-    if (order) setOrder([...order, adding.key]);
-    setSelected(adding.key);
+    setWork(resource, (w) => ({ ...w, added: [...w.added, { id: adding.key, prop: property }], order: w.order ? [...w.order, adding.key] : null }));
+    setSelected([adding.key]);
+    anchor.current = adding.key;
     setGroup("general");
     setAdding(null);
     setNotice(null);
   };
 
+  /** A key not used by any property yet: status_copy, status_copy_2, … */
+  const freeKey = (base: string, taken: Set<string>) => {
+    let key = `${base}_copy`;
+    for (let n = 2; taken.has(key); n++) key = `${base}_copy_${n}`;
+    taken.add(key);
+    return key;
+  };
+  const duplicate = () => {
+    if (!resource) return;
+    const taken = new Set(all.map((p) => p.shownKey));
+    const copies: Added[] = [];
+    const after = new Map<string, string>();
+    for (const p of picked.filter((p) => !deleted.has(p.key))) {
+      const key = freeKey(p.shownKey, taken);
+      copies.push({ id: key, prop: { ...clone(draftOf(p.key)), key, label: `${p.label ?? p.shownKey} (copy)` } });
+      after.set(p.key, key);
+    }
+    if (!copies.length) return;
+    // each copy goes right below its original
+    const list = ordered.map((p) => p.key).flatMap((k) => (after.has(k) ? [k, after.get(k)!] : [k]));
+    setWork(resource, (w) => ({ ...w, added: [...w.added, ...copies], order: list }));
+    setSelected(copies.map((c) => c.id));
+    anchor.current = copies[copies.length - 1].id;
+  };
+  const remove = (keys: string[]) => {
+    if (!resource) return;
+    setWork(resource, (w) => {
+      const added = w.added.filter((a) => !keys.includes(a.id));
+      const gone = keys.filter((k) => !w.added.some((a) => a.id === k));
+      return { ...w, added, order: w.order ? w.order.filter((k) => !keys.includes(k) || gone.includes(k)) : null, deleted: [...new Set([...w.deleted, ...gone])] };
+    });
+    setSelected((before) => before.filter((k) => !isNew(k) || !keys.includes(k)));
+  };
+  const restore = (keys: string[]) => resource && setWork(resource, (w) => ({ ...w, deleted: w.deleted.filter((k) => !keys.includes(k)) }));
+  /** Pastes the copied settings of the groups switched on into every picked property. */
+  const paste = (groups: Record<string, boolean>) => {
+    if (!clipboard) return;
+    const paths = GROUPS.filter((g) => groups[g.id]).flatMap((g) => g.parts.flatMap((part) => part.settings.map((s) => s.path))).filter((p) => p[0] !== "key");
+    const next: Record<string, Prop> = {};
+    for (const p of picked.filter((p) => !deleted.has(p.key))) {
+      let draft = draftOf(p.key);
+      for (const path of paths) {
+        const v = get(clipboard.prop, path);
+        draft = setAt(draft, path, v === undefined ? undefined : clone(v), v === undefined);
+      }
+      next[p.key] = draft;
+    }
+    edit(next);
+    setPasting(null);
+  };
+
+  /** Opens another resource, remembering where you were. */
+  const openResource = (r: string) => {
+    if (!resources?.includes(r)) return setNotice({ kind: "error", text: `${r} isn't a resource on this instance.` });
+    if (!resource || r === resource) return;
+    setTrail((before) => [...before, { resource, selected }]);
+    setResource(r);
+    setSelected([]);
+    setQuery("");
+    setMenu(null);
+  };
+  const back = (to = trail.length - 1) => {
+    const step = trail[to];
+    if (!step) return;
+    setTrail((before) => before.slice(0, to));
+    setResource(step.resource);
+    setSelected(step.selected);
+    setQuery("");
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === "ArrowLeft" && trail.length) {
+        e.preventDefault();
+        back();
+      }
+      if (e.key === "Escape") setMenu(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   const discard = () => {
-    setDrafts({});
-    setAdded([]);
-    setOrder(null);
+    setWorks({});
     setConfirming(false);
   };
 
   const save = () => {
-    if (!resource || !dirty) return;
+    if (!dirty || badPlan) return;
     setConfirming(false);
     setSaving(true);
     setNotice(null);
-    send("save", {
-      resource,
-      changes,
-      ...(added.length ? { adds: added.map((a) => ({ key: String(a.prop.key), property: a.prop })) } : {}),
-      ...(renames.length ? { renames } : {}),
-      ...(orderToSend ? { order: orderToSend } : {}),
-    });
+    savedCount.current = 0;
+    queue.current = plans.map(({ resource: r, plan: p }) => ({
+      resource: r,
+      payload: {
+        resource: r,
+        changes: p.changes,
+        ...(p.adds.length ? { adds: p.adds } : {}),
+        ...(p.removes.length ? { removes: p.removes } : {}),
+        ...(p.renames.length ? { renames: p.renames } : {}),
+        ...(p.order ? { order: p.order } : {}),
+      },
+    }));
+    sendNext();
   };
 
   const lookups: Lookups = {
     resources: resources ?? [],
-    own: all.map((p) => ({ key: p.shownKey, label: p.label, type: p.type })),
-    keyTaken: (key) => all.filter((p) => p.key !== selected).some((p) => p.shownKey === key),
+    own: all.filter((p) => !deleted.has(p.key)).map((p) => ({ key: p.shownKey, label: p.label, type: p.type })),
+    keyTaken: (key) => all.filter((p) => p.key !== current?.key && !deleted.has(p.key)).some((p) => p.shownKey === key),
+    openResource,
     fieldsOf: (r) => {
       const have = fields[r];
       if (have === undefined && !asked.current.has(`fields:${r}`)) {
@@ -254,44 +457,60 @@ function App() {
     },
   };
 
-  const summary = [
-    changes.length ? `${changes.length} ${changes.length === 1 ? "setting" : "settings"} on ${changedProps} ${changedProps === 1 ? "property" : "properties"}` : "",
-    added.length ? `${added.length} new ${added.length === 1 ? "property" : "properties"}` : "",
-    renames.length ? `${renames.length} new ${renames.length === 1 ? "key" : "keys"}` : "",
-    orderToSend ? "the order" : "",
-  ].filter(Boolean);
+  const unsavedText = plans.length > 1 ? `Unsaved in ${plans.length} resources` : plans.length ? `Unsaved: ${plans[0].plan.summary.join(", ")}${plans[0].resource !== resource ? ` (${plans[0].resource})` : ""}` : "";
+  const pickedLive = picked.filter((p) => !deleted.has(p.key));
+  const pickedDeleted = picked.filter((p) => deleted.has(p.key));
+  const mappedOne = picked.length === 1 ? mappedOf(draftOf(picked[0].key)) : null;
 
   return (
-    <div className="rs-root">
+    <div className="rs-root" onClick={() => menu && setMenu(null)}>
       <header className="rs-top">
         <div className="rs-title">
           <span className="rs-title-main">Resources</span>
           <span className="rs-title-sub">{instanceName}</span>
         </div>
-        <label className="rs-select" title={dirty ? "Save or discard your changes first" : undefined}>
+        {trail.length > 0 && (
+          <nav className="rs-trail" aria-label="Where you came from">
+            <button className="rs-btn" title="Back (Alt+←)" onClick={() => back()}>‹ Back</button>
+            {trail.map((step, i) => (
+              <span key={i} className="rs-crumb">
+                <button className="rs-link" onClick={() => back(i)}>{step.resource}</button>
+                <span aria-hidden="true">›</span>
+              </span>
+            ))}
+            <b className="rs-crumb-here">{resource}</b>
+          </nav>
+        )}
+        <label className="rs-select">
           Resource
-          <select value={resource ?? ""} disabled={!resources || dirty || saving} onChange={(e) => { setResource(e.target.value || null); setSelected(null); setNotice(null); }}>
+          <select value={resource ?? ""} disabled={!resources || saving} onChange={(e) => { setResource(e.target.value || null); setSelected([]); setTrail([]); setNotice(null); }}>
             <option value="">{resources ? "Pick one" : "Loading…"}</option>
-            {(resources ?? []).map((r) => <option key={r} value={r}>{r}</option>)}
+            {(resources ?? []).map((r) => <option key={r} value={r}>{r}{works[r] && !isEmpty(works[r]) ? " •" : ""}</option>)}
           </select>
         </label>
         {resource && (
-          <button className="rs-btn" disabled={loading || saving || dirty} title={dirty ? "Save or discard your changes first" : "Read the resource again"} onClick={() => { setLoading(true); setFields({}); asked.current.clear(); send("load", { resource }); }}>
+          <button className="rs-btn" disabled={loading || saving || !!works[resource]} title={works[resource] ? "Save or discard this resource's changes first" : "Read the resource again"} onClick={() => { setLoading(true); setFields({}); asked.current.clear(); send("load", { resource }); }}>
             Reload
           </button>
         )}
         <span className="rs-push" />
-        {dirty && <span className="rs-unsaved">{saving ? "Saving…" : `Unsaved: ${summary.join(", ")}`}</span>}
+        {dirty && <span className="rs-unsaved">{saving ? "Saving…" : unsavedText}</span>}
         <button className="rs-btn" onClick={() => send("openBackups")}>Backups</button>
         {dirty && <button className="rs-btn" disabled={saving} onClick={discard}>Discard</button>}
-        <button className="rs-btn is-primary" disabled={!dirty || saving || confirming || !!badKey} title={badKey ? `Fix the key of ${badKey.label ?? badKey.shownKey} first` : undefined} onClick={() => setConfirming(true)}>Save</button>
+        <button className="rs-btn is-primary" disabled={!dirty || saving || confirming || !!badPlan} title={badPlan ? `Fix the key of ${badPlan.plan.badKey!.label ?? badPlan.plan.badKey!.shownKey} (${badPlan.resource}) first` : undefined} onClick={() => setConfirming(true)}>Save</button>
       </header>
 
       {dirty && confirming && (
         <div className="rs-confirm" role="alertdialog" aria-label="Confirm saving">
-          <span>
-            Save {summary.join(", ")} to <b>{resource}</b> on {instanceName}? It applies to everyone using it. A backup is kept, and the change is checked after saving.
-          </span>
+          <div className="rs-confirm-text">
+            {plans.map(({ resource: r, plan: p }) => (
+              <div key={r}>
+                Save {p.summary.join(", ")} to <b>{r}</b>.
+                {p.removedNames.length > 0 && <span className="rs-removing"> Removes {p.removedNames.join(", ")}: the values records have for {p.removedNames.length === 1 ? "it" : "them"} may be lost.</span>}
+              </div>
+            ))}
+            <div className="rs-confirm-note">On {instanceName}, for everyone using it. A backup of each is kept, and each change is checked after saving.</div>
+          </div>
           <button className="rs-btn" onClick={() => setConfirming(false)}>Cancel</button>
           <button className="rs-btn is-primary" onClick={save}>Save</button>
         </div>
@@ -301,12 +520,12 @@ function App() {
         <div className={`rs-notice is-${notice.kind}`} role={notice.kind === "error" ? "alert" : "status"}>
           <span>{notice.text}</span>
           {notice.kind === "error" && notice.backup && (
-            <button className="rs-btn" disabled={saving} onClick={() => { setSaving(true); setNotice(null); send("restore", { resource, backup: notice.backup }); }}>
+            <button className="rs-btn" disabled={saving} onClick={() => { setSaving(true); setNotice(null); send("restore", { resource: notice.resource ?? resource, backup: notice.backup }); }}>
               Restore backup
             </button>
           )}
           {notice.refused && (
-            <button className="rs-btn" disabled={probing} onClick={() => { setProbing(true); setReport(null); send("probe", { resource }); }}>
+            <button className="rs-btn" disabled={probing} onClick={() => { setProbing(true); setReport(null); send("probe", { resource: notice.resource ?? resource }); }}>
               {probing ? "Checking…" : "Check what it takes"}
             </button>
           )}
@@ -327,7 +546,7 @@ function App() {
 
       {!resource ? (
         <p className="rs-empty">Pick a resource to see its properties.</p>
-      ) : loading || !properties ? (
+      ) : !properties ? (
         <p className="rs-empty">Loading {resource}…</p>
       ) : (
         <div className="rs-main">
@@ -349,9 +568,9 @@ function App() {
               </form>
             )}
             <div className="rs-side-info">
-              <span>{all.length} properties · {requiredCount} required</span>
-              {order && (
-                <button className="rs-link" disabled={saving} onClick={() => setOrder(null)}>Reset order</button>
+              <span>{all.length - deleted.size} properties · {requiredCount} required{selected.length > 1 ? ` · ${selected.length} picked` : ""}</span>
+              {work.order && (
+                <button className="rs-link" disabled={saving} onClick={() => setWork(resource!, (w) => ({ ...w, order: null }))}>Reset order</button>
               )}
             </div>
             <div
@@ -359,89 +578,128 @@ function App() {
               ref={listRef}
               role="listbox"
               aria-label="Properties"
-              onDragOver={(e) => { if (dragKey) e.preventDefault(); }}
-              onDrop={(e) => { e.preventDefault(); if (dragKey && dropAt !== null) move(dragKey, dropAt); setDragKey(null); setDropAt(null); }}
+              aria-multiselectable="true"
+              onDragOver={(e) => { if (dragKeys) e.preventDefault(); }}
+              onDrop={(e) => { e.preventDefault(); if (dragKeys && dropAt !== null) move(dragKeys, dropAt); setDragKeys(null); setDropAt(null); }}
               onKeyDown={(e) => {
                 if (!current) return;
-                const index = ordered.findIndex((p) => p.key === current.key);
                 if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && canMove) {
                   e.preventDefault();
-                  move(current.key, e.key === "ArrowUp" ? index - 1 : index + 2);
+                  nudge(e.key === "ArrowUp");
                 } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
                   e.preventDefault();
                   const list = shown.map((p) => p.key);
                   const at = list.indexOf(current.key) + (e.key === "ArrowUp" ? -1 : 1);
-                  if (at >= 0 && at < list.length) setSelected(list[at]);
+                  if (at >= 0 && at < list.length) click(list[at], { ctrlKey: false, metaKey: false, shiftKey: e.shiftKey });
+                } else if ((e.key === "Delete" || e.key === "Backspace") && !saving) {
+                  e.preventDefault();
+                  remove(selected);
                 }
               }}
             >
               {shown.map((p) => {
                 const index = ordered.indexOf(p);
-                const changed = p.key in drafts || isNew(p.key);
+                const isPicked = selected.includes(p.key);
+                const gone = deleted.has(p.key);
+                const changed = p.key in work.drafts || isNew(p.key);
+                const mapped = mappedOf(p.definition as Prop);
                 return (
                   <div key={p.key} className="rs-item-wrap">
-                    {dropAt === index && dragKey && <div className="rs-drop" />}
+                    {dropAt === index && dragKeys && <div className="rs-drop" />}
                     <div
-                      className={`rs-item${current?.key === p.key ? " is-selected" : ""}${dragKey === p.key ? " is-dragging" : ""}`}
+                      className={`rs-item${isPicked ? " is-selected" : ""}${dragKeys?.includes(p.key) ? " is-dragging" : ""}${gone ? " is-deleted" : ""}`}
                       role="option"
-                      aria-selected={current?.key === p.key}
+                      aria-selected={isPicked}
                       tabIndex={current?.key === p.key || (!current && index === 0) ? 0 : -1}
                       draggable={canMove}
-                      onClick={() => setSelected(p.key)}
-                      onFocus={() => setSelected(p.key)}
-                      onDragStart={(e) => { setDragKey(p.key); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", p.key); }}
-                      onDragEnd={() => { setDragKey(null); setDropAt(null); }}
+                      onClick={(e) => click(p.key, e)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (!isPicked) { setSelected([p.key]); anchor.current = p.key; }
+                        setMenu({ x: e.clientX, y: e.clientY });
+                      }}
+                      onDragStart={(e) => {
+                        const keys = isPicked ? ordered.map((x) => x.key).filter((k) => selected.includes(k)) : [p.key];
+                        if (!isPicked) setSelected([p.key]);
+                        setDragKeys(keys);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", keys.join(","));
+                      }}
+                      onDragEnd={() => { setDragKeys(null); setDropAt(null); }}
                       onDragOver={(e) => {
-                        if (!dragKey) return;
+                        if (!dragKeys) return;
                         e.preventDefault();
                         const box = e.currentTarget.getBoundingClientRect();
                         setDropAt(e.clientY < box.top + box.height / 2 ? index : index + 1);
                       }}
-                      title={canMove ? "Drag to reorder (or Alt+↑ / Alt+↓)" : q ? "Clear the search to reorder" : undefined}
+                      title={gone ? "Removed when you save (right-click to restore)" : canMove ? "Drag to reorder (or Alt+↑ / Alt+↓). Ctrl/Cmd or Shift+click to pick several." : q ? "Clear the search to reorder" : undefined}
                     >
-                      <span className={`rs-grip${p.required ? " is-required" : ""}`} aria-hidden="true" />
+                      <span className={`rs-grip${mapped ? ` is-${mapped.kind}` : ""}`} aria-hidden="true" />
                       <span className="rs-item-text">
-                        <span className="rs-item-label">{p.label ?? p.shownKey}{isNew(p.key) && <span className="rs-new-pill">new</span>}</span>
+                        <span className="rs-item-label">
+                          {p.label ?? p.shownKey}
+                          {p.required && <span className="rs-req" title="Required">*</span>}
+                          {isNew(p.key) && <span className="rs-new-pill">new</span>}
+                        </span>
                         <span className="rs-item-key">{p.shownKey}</span>
                       </span>
-                      <span className="rs-item-type">{p.type ?? "—"}</span>
-                      {changed && <span className="rs-dot" title="Unsaved change" />}
+                      <span className="rs-item-end">
+                        <span className="rs-item-type">{p.type ?? "—"}</span>
+                        {mapped && (
+                          <button
+                            type="button"
+                            className={`rs-chip is-${mapped.kind}`}
+                            title={`${mapped.kind === "dynamic" ? "Dynamic source" : "Mapped"}: open ${mapped.resource}`}
+                            onClick={(e) => { e.stopPropagation(); openResource(mapped.resource); }}
+                          >
+                            {mapped.resource}
+                          </button>
+                        )}
+                      </span>
+                      {changed && !gone && <span className="rs-dot" title="Unsaved change" />}
                     </div>
                   </div>
                 );
               })}
-              {dropAt === ordered.length && dragKey && <div className="rs-drop" />}
+              {dropAt === ordered.length && dragKeys && <div className="rs-drop" />}
               {!shown.length && <p className="rs-empty">No property matches “{query}”.</p>}
             </div>
           </aside>
 
           <section className="rs-detail">
-            {!current ? (
-              <p className="rs-empty">Pick a property on the left, or add one with +.</p>
-            ) : !current.editable ? (
-              <p className="rs-empty">{current.shownKey} isn't stored as settings, so it can't be changed here.</p>
+            {!picked.length ? (
+              <p className="rs-empty">Pick a property on the left (Ctrl/Cmd or Shift+click to pick several), or add one with +.</p>
+            ) : pickedLive.length === 0 ? (
+              <div className="rs-gone">
+                <p>{picked.length === 1 ? `${current!.label ?? current!.shownKey} is` : `These ${picked.length} properties are`} removed when you save.</p>
+                <button className="rs-btn" onClick={() => restore(selected)}>Restore</button>
+              </div>
+            ) : pickedLive.some((p) => !p.editable) ? (
+              <p className="rs-empty">{pickedLive.find((p) => !p.editable)!.shownKey} isn't stored as settings, so it can't be changed here.</p>
             ) : (
               <>
                 <div className="rs-detail-head">
                   <div>
-                    <div className="rs-detail-label">{current.label ?? current.shownKey}</div>
-                    <div className="rs-detail-key">{current.shownKey}</div>
+                    <div className="rs-detail-label">{pickedLive.length === 1 ? pickedLive[0].label ?? pickedLive[0].shownKey : `${pickedLive.length} properties`}</div>
+                    <div className="rs-detail-key">{pickedLive.map((p) => p.shownKey).join(", ")}</div>
                   </div>
                   <div className="rs-detail-actions">
-                    {current.key in drafts && <button className="rs-link" disabled={saving} onClick={() => edit(current.key, originals.get(current.key)!)}>Undo all changes to it</button>}
-                    {isNew(current.key) && (
-                      <button className="rs-link" disabled={saving} onClick={() => { setAdded((before) => before.filter((a) => a.id !== current.key)); setOrder((before) => (before ? before.filter((k) => k !== current.key) : before)); setSelected(null); }}>
-                        Remove (not saved yet)
+                    {pickedDeleted.length > 0 && <span className="pe-hint">{pickedDeleted.length} picked {pickedDeleted.length === 1 ? "one is" : "ones are"} removed and left out here</span>}
+                    {pickedLive.some((p) => p.key in work.drafts) && (
+                      <button className="rs-link" disabled={saving} onClick={() => edit(Object.fromEntries(pickedLive.filter((p) => !isNew(p.key)).map((p) => [p.key, originals.get(p.key)!])))}>
+                        Undo all changes to {pickedLive.length === 1 ? "it" : "them"}
                       </button>
                     )}
-                    <span className="rs-pill">{current.type ?? "no type"}</span>
+                    {pickedLive.length === 1 && isNew(pickedLive[0].key) && (
+                      <button className="rs-link" disabled={saving} onClick={() => remove([pickedLive[0].key])}>Remove (not saved yet)</button>
+                    )}
+                    {pickedLive.length === 1 && <span className="rs-pill">{pickedLive[0].type ?? "no type"}</span>}
                   </div>
                 </div>
                 <PropertyEditor
-                  key={current.key}
-                  original={isNew(current.key) ? newProperty(current.key, current.label ?? current.key, current.type ?? "string") : originals.get(current.key)!}
-                  draft={(isNew(current.key) ? added.find((a) => a.id === current.key)?.prop : drafts[current.key]) ?? originals.get(current.key)!}
-                  onChange={(next) => edit(current.key, next)}
+                  key={pickedLive.map((p) => p.key).join("|")}
+                  items={pickedLive.map((p) => ({ original: originalOf(p.key), draft: draftOf(p.key) }))}
+                  onChange={(drafts) => edit(Object.fromEntries(pickedLive.map((p, i) => [p.key, drafts[i]])))}
                   lookups={lookups}
                   disabled={saving}
                   group={group}
@@ -453,6 +711,52 @@ function App() {
         </div>
       )}
 
+      {menu && picked.length > 0 && (
+        <div className="rs-menu" role="menu" style={{ left: Math.min(menu.x, window.innerWidth - 230), top: Math.min(menu.y, window.innerHeight - 260) }} onClick={(e) => e.stopPropagation()}>
+          {pickedLive.length > 0 && (
+            <>
+              <button role="menuitem" onClick={() => { duplicate(); setMenu(null); }}>Duplicate{pickedLive.length > 1 ? ` ${pickedLive.length}` : ""}</button>
+              {pickedLive.length === 1 && (
+                <button role="menuitem" onClick={() => { setClipboard({ from: pickedLive[0].label ?? pickedLive[0].shownKey, resource: resource!, prop: clone(draftOf(pickedLive[0].key)) }); setMenu(null); }}>Copy settings</button>
+              )}
+              <button role="menuitem" disabled={!clipboard} onClick={() => { setPasting(Object.fromEntries(GROUPS.map((g) => [g.id, g.id !== "general"]))); setMenu(null); }}>
+                Paste settings{clipboard ? ` from ${clipboard.from}` : ""}
+              </button>
+            </>
+          )}
+          <button role="menuitem" onClick={() => { send("copy", { text: picked.map((p) => p.shownKey).join("\n") }); setMenu(null); }}>Copy {picked.length === 1 ? "key" : "keys"}</button>
+          {mappedOne && <button role="menuitem" onClick={() => openResource(mappedOne.resource)}>Go to {mappedOne.resource}</button>}
+          <div className="rs-menu-line" />
+          {pickedDeleted.length > 0 && <button role="menuitem" onClick={() => { restore(pickedDeleted.map((p) => p.key)); setMenu(null); }}>Restore</button>}
+          {pickedLive.length > 0 && <button role="menuitem" className="is-danger" onClick={() => { remove(pickedLive.map((p) => p.key)); setMenu(null); }}>Delete{pickedLive.length > 1 ? ` ${pickedLive.length}` : ""}</button>}
+        </div>
+      )}
+
+      {pasting && clipboard && (
+        <div className="rs-modal-back" onClick={() => setPasting(null)}>
+          <div className="rs-modal" role="dialog" aria-label="Paste settings" onClick={(e) => e.stopPropagation()}>
+            <h2>Paste settings from {clipboard.from}</h2>
+            <p className="pe-hint">Into {pickedLive.length === 1 ? pickedLive[0].label ?? pickedLive[0].shownKey : `${pickedLive.length} properties`}{clipboard.resource !== resource ? ` (copied from ${clipboard.resource})` : ""}. Pick the groups to bring over; the key never is.</p>
+            <div className="pe-card">
+              {GROUPS.map((g) => (
+                <div key={g.id} className="pe-row">
+                  <div className="pe-text">
+                    <label className="pe-label" htmlFor={`paste-${g.id}`}>{g.title}</label>
+                    <span className="pe-hint">{g.id === "general" ? "Label, description, type, tags and rules." : g.blurb}</span>
+                  </div>
+                  <div className="pe-control">
+                    <Switch id={`paste-${g.id}`} on={!!pasting[g.id]} label={g.title} onSet={(on) => setPasting({ ...pasting, [g.id]: on })} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="pe-btns">
+              <button className="rs-btn" onClick={() => setPasting(null)}>Cancel</button>
+              <button className="rs-btn is-primary" disabled={!Object.values(pasting).some(Boolean)} onClick={() => paste(pasting)}>Paste</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

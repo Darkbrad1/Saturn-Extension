@@ -1,0 +1,126 @@
+// v0.3.22: the Resources screen with several properties picked (one change goes to all, Mixed,
+// moving them together), the right-click menu (duplicate, copy / paste settings, delete /
+// restore), chips for mapped properties with jumping there and back, each resource keeping its
+// own unsaved changes, and the sections side by side on a wide page.
+import { chromium } from "playwright";
+const out = process.env.SHOTS ?? "shots";
+const b = await chromium.launch({ executablePath: process.env.CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+const p = await b.newPage({ viewport: { width: 1400, height: 860 } });
+const errs = [];
+p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+p.on("console", (m) => (m.type() === "error" || /Content Security|Refused/.test(m.text())) && errs.push(m.text()));
+const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
+const item = (label) => p.locator(".rs-item", { hasText: label }).first();
+const listKeys = () => p.locator(".rs-item .rs-item-key").allInnerTexts();
+const sw = (name) => p.getByRole("switch", { name, exact: true });
+const topSave = () => p.locator(".rs-top").getByRole("button", { name: "Save", exact: true });
+const confirmSave = () => p.locator(".rs-confirm").getByRole("button", { name: "Save", exact: true });
+const saves = () => p.evaluate(() => window.__posted.filter((m) => m.type === "save").map((m) => m.payload));
+const menu = async (label, entry) => {
+  await item(label).click({ button: "right" });
+  await p.locator(".rs-menu").getByRole("menuitem", { name: entry }).click();
+};
+
+await p.goto("http://localhost:8765/resources.html");
+await p.waitForTimeout(400);
+await p.selectOption(".rs-select select", "Application");
+await p.waitForTimeout(300);
+
+// ===== several picked =====
+await item("Status").click();
+await item("Submitted At").click({ modifiers: ["Control"] });
+ok((await p.locator(".rs-item.is-selected").count()) === 2 && (await p.locator(".rs-side-info").innerText()).includes("2 picked"), "Ctrl+click picks a second property");
+ok((await p.locator(".pe-many").innerText()).includes("Editing 2 properties"), "the settings say they're for both");
+ok((await p.getByLabel("Label", { exact: true }).count()) === 0 && (await p.getByLabel("Key", { exact: true }).count()) === 0, "label, key and description are left out with several picked");
+ok((await sw("Required").getAttribute("aria-checked")) === "mixed" && (await p.locator(".pe-row", { has: sw("Required") }).innerText()).includes("Mixed"), "a setting they don't share shows as Mixed");
+await sw("Required").click();
+ok(await p.evaluate(() => true) && (await sw("Required").getAttribute("aria-checked")) === "true", "a click on a Mixed switch turns it on for all");
+await sw("Unique").click();
+ok((await p.locator(".rs-unsaved").innerText()).includes("on 2 properties") && (await p.locator(".pe-was").first().innerText()).includes("changed on"), "the change goes to both");
+await p.screenshot({ path: out + "/m1-multi.png" });
+await item("Application Number").click({ modifiers: ["Shift"] });
+ok((await p.locator(".rs-item.is-selected").count()) === 3, "Shift+click picks the run from the last one picked");
+await p.getByRole("button", { name: "Discard" }).click();
+
+// move several together
+await item("Status").click();
+await item("Requested Loan Amount").click({ modifiers: ["Control"] });
+await item("Requested Loan Amount").dragTo(item("Submitted At"), { targetPosition: { x: 20, y: 30 } });
+ok((await listKeys()).join() === "application_number,submitted_at,status,requested_loan_amount", "dragging one of the picked moves them all, side by side, in their order");
+await p.keyboard.press("Alt+ArrowUp");
+ok((await listKeys()).join() === "application_number,status,requested_loan_amount,submitted_at", "Alt+↑ moves the picked ones up together");
+await p.getByRole("button", { name: "Discard" }).click();
+
+// ===== right-click menu =====
+await item("Status").click();
+await menu("Status", "Duplicate");
+ok((await listKeys()).join() === "status,status_copy,application_number,requested_loan_amount,submitted_at" && (await item("Status (copy)").innerText()).includes("new"), "Duplicate puts a copy right below, with a free key");
+await item("Requested Loan Amount").click();
+await sw("Searchable").click();
+await menu("Requested Loan Amount", "Copy settings");
+await item("Application Number").click();
+await item("Submitted At").click({ modifiers: ["Control"] });
+await menu("Submitted At", /^Paste settings/);
+ok((await p.getByRole("dialog", { name: "Paste settings" }).innerText()).includes("Paste settings from Requested Loan Amount") && !(await p.getByRole("dialog").getByRole("switch", { name: "General" }).isChecked()) && (await p.getByRole("dialog").getByRole("switch", { name: "Display" }).isChecked()), "Paste asks which groups to bring over: all but General");
+await p.getByRole("dialog").getByRole("button", { name: "Paste" }).click();
+const pasted = await p.evaluate(() => window.acquireVsCodeApi().getState().works.Application.drafts);
+ok(pasted.application_number?.searchable === true && pasted.submitted_at?.searchable === true && pasted.application_number.label === "Application Number", "the settings go to both picked properties; their labels stay");
+await menu("Status", "Delete");
+ok((await p.locator(".rs-item.is-deleted").count()) === 1 && (await p.locator(".rs-detail").innerText()).includes("removed when you save"), "Delete marks it to be removed when you save");
+await topSave().click();
+ok((await p.locator(".rs-confirm").innerText()).includes("Removes Status") && (await p.locator(".rs-confirm").innerText()).includes("may be lost"), "the confirm names what's removed, and warns");
+await p.locator(".rs-confirm").getByRole("button", { name: "Cancel" }).click();
+await menu("Status", "Restore");
+ok((await p.locator(".rs-item.is-deleted").count()) === 0, "Restore brings it back before saving");
+await menu("Status", "Delete");
+await topSave().click();
+await confirmSave().click();
+await p.waitForTimeout(250);
+const sent = (await saves()).at(-1);
+ok(JSON.stringify(sent.removes) === '["status"]' && sent.adds?.[0]?.key === "status_copy" && sent.order && !sent.order.includes("status"), "Save sends the removal, the copy and the order without it");
+ok(await p.evaluate(() => !window.__data.Application.some((x) => x.key === "status") && window.__data.Application.some((x) => x.key === "status_copy")), "and after saving it's gone, the copy is there");
+
+// ===== mapped chips, jumping there and back =====
+await p.selectOption(".rs-select select", "Loan");
+await p.waitForTimeout(300);
+ok((await item("Category").locator(".rs-chip.is-static").innerText()) === "LoanCategory" && (await item("Payments").locator(".rs-chip.is-dynamic").innerText()) === "Application", "a mapped property has a chip naming its resource: blue for a map, purple for a dynamic source");
+ok((await item("Category").locator(".rs-grip.is-static").count()) === 1 && (await item("Payments").locator(".rs-grip.is-dynamic").count()) === 1 && (await item("Amount").locator(".rs-req").count()) === 1, "the bar shows the kind of map, and Required is a star");
+await item("Amount").click();
+await sw("Unique").click();
+await item("Category").click();
+await item("Category").locator(".rs-chip").click();
+await p.waitForTimeout(300);
+ok((await p.locator(".rs-select select").inputValue()) === "LoanCategory" && (await p.locator(".rs-trail").innerText()).includes("Loan"), "the chip opens that resource, with the way back shown");
+ok((await p.locator(".rs-unsaved").innerText()).includes("Loan"), "Loan's unsaved change is kept while you're away");
+await p.screenshot({ path: out + "/m2-jumped.png" });
+await p.keyboard.press("Alt+ArrowLeft");
+await p.waitForTimeout(300);
+ok((await p.locator(".rs-select select").inputValue()) === "Loan" && (await p.locator(".rs-item.is-selected").innerText()).includes("Category") && (await p.locator(".rs-trail").count()) === 0, "Alt+← comes back to the property you came from");
+await item("Payments").click({ button: "right" });
+await p.locator(".rs-menu").getByRole("menuitem", { name: "Go to Application" }).click();
+await p.waitForTimeout(300);
+await item("Application Number").click();
+await p.getByLabel("Label", { exact: true }).fill("App number");
+ok((await p.locator(".rs-unsaved").innerText()).includes("Unsaved in 2 resources"), "changes in two resources are counted together");
+await topSave().click();
+ok((await p.locator(".rs-confirm").innerText()).includes("to Loan") && (await p.locator(".rs-confirm").innerText()).includes("to Application"), "the confirm lists each resource");
+await confirmSave().click();
+await p.waitForTimeout(400);
+const last = (await saves()).slice(-2).map((x) => x.resource).sort().join();
+ok(last === "Application,Loan" && (await p.locator(".rs-notice").innerText()).includes("Saved 2 resources") && (await p.locator(".rs-unsaved").count()) === 0, "Save saves both, one after the other");
+await p.getByRole("button", { name: "‹ Back" }).click();
+await p.waitForTimeout(300);
+ok((await p.locator(".rs-select select").inputValue()) === "Loan", "Back goes back too");
+
+// ===== the page uses its width =====
+await item("Amount").click();
+const cols = await p.evaluate(() => getComputedStyle(document.querySelector(".pe-parts")).gridTemplateColumns.split(" ").length);
+const wide = await p.evaluate(() => document.querySelector(".pe-page").clientWidth);
+ok(wide < 1150 ? cols === 1 : cols === 2, `sections sit side by side on a wide page (${wide}px: ${cols} column${cols > 1 ? "s" : ""})`);
+await p.setViewportSize({ width: 1900, height: 900 });
+await p.waitForTimeout(150);
+ok((await p.evaluate(() => getComputedStyle(document.querySelector(".pe-group:nth-of-type(4) .pe-parts") ?? document.querySelector(".pe-parts")).gridTemplateColumns.split(" ").length)) === 2, "and in two columns once it is wide enough");
+await p.screenshot({ path: out + "/m3-wide.png" });
+
+ok(errs.length === 0, "no page or CSP errors " + JSON.stringify(errs));
+await b.close();

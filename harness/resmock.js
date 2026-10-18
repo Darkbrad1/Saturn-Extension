@@ -2,12 +2,18 @@
 // Saturn's), Loan and LoanCategory (for map references), AttachmentGroup records.
 // window.__saveMode: "ok" (default) | "refuse" | "mismatch". Like the real host, a save applies each
 // change at its path ({key, path, value | remove}; the old {key, required} too), adds new
-// properties ({key, property}) at the end, then the order, then new keys ({from, to}).
+// properties ({key, property}) at the end, removes properties ({removes: [key]}), then the order,
+// then new keys ({from, to}).
 (function () {
   const prop = (key, label, type, required = false) => ({ key, label, type, required, searchable: false, map_label_type: "property", source: "static", rendering: { component: "default" }, input_properties: { type: "input" } });
   const data = {
     Application: [prop("status", "Status", "string"), prop("application_number", "Application Number", "string"), prop("requested_loan_amount", "Requested Loan Amount", "number"), prop("submitted_at", "Submitted At", "date", true)],
-    Loan: [prop("amount", "Amount", "number", true), prop("term", "Term", "number")],
+    Loan: [
+      prop("amount", "Amount", "number", true),
+      prop("term", "Term", "number"),
+      { ...prop("category", "Category", "string"), map: { type: "model", reference: "LoanCategory", value_field: "id", label_field: "label" } },
+      { ...prop("payments", "Payments", "array"), source: "dynamic", source_type: "resource_lookup", source_definition: { reference: "Application", bounded_property: "loan", default_limit: 10 } },
+    ],
     LoanCategory: [prop("id", "ID", "string"), prop("label", "Label", "string"), prop("code", "Code", "string")],
   };
   const view = (list) => list.map((p) => ({ key: p.key, label: p.label, type: p.type, required: p.required === true, editable: true, definition: p }));
@@ -39,6 +45,7 @@
           list[i] = c.path ? setAt(list[i], c.path, c.value, c.remove) : { ...list[i], required: c.required };
         }
         for (const a of p.adds || []) list.push({ ...a.property, key: a.key });
+        list = list.filter((x) => !(p.removes || []).includes(x.key));
         if (p.order) list = p.order.map((k) => list.find((x) => x.key === k));
         for (const r of p.renames || []) list = list.map((x) => (x.key === r.from ? { ...x, key: r.to } : x));
         data[p.resource] = list;

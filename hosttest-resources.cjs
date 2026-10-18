@@ -161,6 +161,13 @@ const writes = () => calls.filter(([m]) => m !== "GET" && m !== "OPTIONS");
   r = await ask("save", { resource: "Application", renames: [{ from: "state", to: "no good" }] });
   ok(r.type === "saveFailed" && /can't be a property key/.test(r.payload.message) && writes().length === 1, "a key that isn't a key is refused, before writing");
 
+  // removing a property: left out of the schema, never a DELETE
+  reset(); calls.length = 0;
+  r = await ask("save", { resource: "Application", removes: ["loan_purpose"], order: ["application_number", "status"] });
+  ok(r.type === "saved" && stored.data.map((p) => p.key).join() === "application_number,status" && !("loan_purpose" in lastSchema), "a removed property is left out of the saved schema, with the new order of the rest");
+  ok(writes().length === 1 && writes()[0][0] === "PUT" && !calls.some(([m]) => m === "DELETE"), "with the one PUT, no DELETE");
+  ok(JSON.parse(fs.readFileSync(r.payload.backup, "utf8")).body.data.some((p) => p.key === "loan_purpose"), "and the backup still has it");
+
   // lookups for the screen
   reset();
   const fl = await ask("fields", { resource: "Application" });

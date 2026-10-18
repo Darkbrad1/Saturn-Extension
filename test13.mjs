@@ -56,7 +56,7 @@ await pick("Status");
 await box().check();
 ok(await p.locator(".rs-item .rs-dot").count() === 1 && (await p.locator(".pe-was").innerText()).includes("was off"), "a change is marked in the list, with what it was");
 ok((await p.locator(".rs-unsaved").innerText()).includes("Unsaved: 1 setting on 1 property") && await topSave().isEnabled(), "the top bar counts unsaved changes, next to Save");
-ok(await p.locator(".rs-select select").isDisabled(), "the resource can't be switched while changes are unsaved");
+ok(!(await p.locator(".rs-select select").isDisabled()), "the resource can still be switched (each keeps its own changes, test14)");
 await box().uncheck();
 ok(await p.locator(".rs-unsaved").count() === 0, "changing it back leaves nothing unsaved");
 await box().check();
@@ -120,7 +120,7 @@ await pick("Submitted At");
 await box().uncheck();
 await item("Requested Loan Amount").dragTo(item("Status"), { targetPosition: { x: 20, y: 4 } });
 await topSave().click();
-ok((await p.locator(".rs-confirm").innerText()).includes("Save 2 settings on 2 properties, the order to Application on demo"), "Save asks first, saying what will change and where");
+ok((await p.locator(".rs-confirm").innerText()).includes("Save 2 settings on 2 properties, the order to Application."), "Save asks first, saying what will change and where");
 ok((await p.evaluate(() => window.__posted.filter((m) => m.type === "save").length)) === 0, "nothing is sent before confirming");
 await p.screenshot({ path: out + "/r1-confirm.png" });
 await confirmSave().click();
@@ -136,7 +136,7 @@ await item("Submitted At").dragTo(item("Requested Loan Amount"), { targetPositio
 await pick("Requested Loan Amount");
 await box().check();
 const state = await p.evaluate(() => window.acquireVsCodeApi().getState());
-ok(state.resource === "Application" && state.drafts.requested_loan_amount.required === true && state.order[0] === "submitted_at" && state.selected === "requested_loan_amount", "unsaved changes, the new order and the picked property are kept in the webview's state");
+ok(state.resource === "Application" && state.works.Application.drafts.requested_loan_amount.required === true && state.works.Application.order[0] === "submitted_at" && state.selected.join() === "requested_loan_amount", "unsaved changes, the new order and the picked property are kept in the webview's state");
 await p.getByRole("button", { name: "Discard" }).click();
 
 // the label and the key can be changed

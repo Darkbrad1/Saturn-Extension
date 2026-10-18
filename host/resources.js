@@ -13,7 +13,8 @@
  *   2. back it up to <global storage>/resource-backups/<instance id>/<resource>-<time>.json;
  *   3. write it with only what was asked changed: the settings the screen changed (each at its
  *      path in the property, on the definition as just re-read), new properties, the
- *      properties' order (the schema's order is the order the map is sent in) and/or new keys;
+ *      properties left out (removed), the properties' order (the schema's order is the order
+ *      the map is sent in) and/or new keys;
  *   4. read it back and check exactly those changed and nothing else, and the order kept.
  * If the instance refuses, nothing changed. If the read-back differs in any other way, the screen
  * says how and offers to put the backup back (the same careful write and check).
@@ -157,6 +158,16 @@ var ResourcePropertiesHost = (() => {
       else out[key] = property;
     }
     return out;
+  }
+
+  /** removes: [key] -> the data without those properties. The save leaves them out of the schema
+   *  (the same whole-schema PUT, never a DELETE request); the backup keeps them. A key that's
+   *  already gone is skipped. */
+  function applyRemoves(data, removes) {
+    const gone = new Set(removes.map(String));
+    return Array.isArray(data)
+      ? data.filter((property) => !(isObject(property) && gone.has(property.key)))
+      : Object.fromEntries(Object.entries(data).filter(([key]) => !gone.has(key)));
   }
 
   /** renames: [{from, to}] -> the data with those properties' keys changed (each keeps its place
@@ -397,13 +408,16 @@ var ResourcePropertiesHost = (() => {
         const order = Array.isArray(payload.order) && payload.order.every((k) => typeof k === "string") ? payload.order : null;
         // renames: [{from, to}], a property's key changed (applied last)
         const renames = Array.isArray(payload.renames) ? payload.renames.filter((r) => r && typeof r.from === "string" && typeof r.to === "string" && r.from !== r.to) : [];
-        if (!changes.length && !adds.length && !order && !renames.length) return post("saveFailed", { resource, message: "Nothing to save." });
+        // removes: the keys of properties to take out of the schema
+        const removes = Array.isArray(payload.removes) ? payload.removes.filter((k) => typeof k === "string") : [];
+        if (!changes.length && !adds.length && !order && !renames.length && !removes.length) return post("saveFailed", { resource, message: "Nothing to save." });
         // the definition as it is now, not as the screen first read it
         const current = await readResource(manager, instance, resource);
         let nextData = applyChanges(current.data, changes);
         if (typeof nextData === "string") return post("saveFailed", { resource, message: nextData });
         if (adds.length) nextData = applyAdds(nextData, adds);
         if (typeof nextData === "string") return post("saveFailed", { resource, message: nextData });
+        if (removes.length) nextData = applyRemoves(nextData, removes);
         if (order) nextData = applyOrder(nextData, order);
         if (typeof nextData === "string") return post("saveFailed", { resource, message: nextData });
         if (renames.length) nextData = applyRenames(nextData, renames);
@@ -493,5 +507,5 @@ var ResourcePropertiesHost = (() => {
     storageUri = options.globalStorageUri ?? null;
   }
 
-  return { open, attach, handle, propertiesOf, applyChanges, applyRequired, applyAdds, applyOrder, applyRenames, newProperty, differences, entriesOf };
+  return { open, attach, handle, propertiesOf, applyChanges, applyRequired, applyAdds, applyOrder, applyRemoves, applyRenames, newProperty, differences, entriesOf };
 })();

@@ -36,6 +36,8 @@ export interface Setting {
   hint?: string;
   /** shown only when this is true for the property as edited */
   when?: (p: Prop) => boolean;
+  /** each property has its own (label, key, description): left out when editing several */
+  single?: boolean;
   /** a switch that adds (on) or removes (off) a whole part of the property */
   toggles?: { on: unknown };
   edit: Kind;
@@ -98,14 +100,15 @@ export const GROUPS: Group[] = [
     parts: [
       {
         settings: [
-          { path: ["label"], label: "Label", hint: "The name people see.", edit: { kind: "text" } },
+          { path: ["label"], label: "Label", hint: "The name people see.", single: true, edit: { kind: "text" } },
           {
             path: ["key"],
             label: "Key",
             hint: "The name Saturn stores the value under (Saturn calls it Field). Workflows, views and other properties that use the old key aren't changed with it.",
+            single: true,
             edit: { kind: "key" },
           },
-          { path: ["description"], label: "Description", edit: { kind: "textarea" } },
+          { path: ["description"], label: "Description", single: true, edit: { kind: "textarea" } },
           {
             path: ["type"],
             label: "Type",

@@ -1,6 +1,18 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.22",
+    title: "Resources: several properties at once, a right-click menu, mapped chips",
+    items: [
+      "Pick several properties with Ctrl/Cmd+click or Shift+click. A change goes to all of them; a setting they don't share shows as Mixed. Label, key and description are left out then.",
+      "Drag one of the picked properties (or Alt+↑/↓) and they all move together.",
+      "Right-click a property: Duplicate, Copy settings, Paste settings (pick which groups), Copy key, Go to the mapped resource, Delete or Restore. A deleted property is crossed out until you save, and the confirm names it.",
+      "A mapped property shows a chip with its resource: blue for a map, purple for a dynamic source. The chip opens that resource; Back (or Alt+←) brings you back to where you were. Required is now a red star.",
+      "Each resource keeps its own unsaved changes, so you can move between them. Save saves every resource with changes, one after the other, each with its backup and check.",
+      "On a wide screen the sections sit side by side in two columns.",
+    ],
+  },
+  {
     version: "0.3.21",
     title: "Resources: change a property's key, every type, Visibility higher up",
     items: [
