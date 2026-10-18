@@ -27,7 +27,7 @@
   let state;
   window.acquireVsCodeApi = () => ({
     getState: () => state,
-    setState: (s) => { state = s; },
+    setState: (s) => { state = s; return s; } /* like VS Code: it returns the state */,
     postMessage: (m) => {
       window.__posted.push(m);
       const p = m.payload || {};

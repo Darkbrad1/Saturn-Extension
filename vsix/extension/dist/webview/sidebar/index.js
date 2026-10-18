@@ -11605,8 +11605,8 @@ function instanceLabel(instance) {
   return instance.displayName?.trim() || instance.name;
 }
 var jsxForInstances = G(oe());
-// InstanceList (minified: jv) — Saturn instances list: starred ones first, each expandable to its actions (agent chat, Workflows, Menus, Pages, System Logs, Components, rename, remove).
-// Renames inline (Enter / blur saves, Escape cancels); System Logs posts saturn:openSystemLogs {instanceId} itself, the rest go to the on* callbacks.
+// InstanceList (minified: jv) — Saturn instances list: starred ones first, each expandable to its actions (agent chat, Workflows, Menus, Pages, System Logs, Resources, Components, rename, remove).
+// Renames inline (Enter / blur saves, Escape cancels); System Logs and Resources post saturn:openSystemLogs / saturn:openResources {instanceId} themselves, the rest go to the on* callbacks.
 // A lone instance starts expanded; renamingRef stops a rename finishing twice (Enter then blur).
 function InstanceList({
   instances: instances,
@@ -11722,6 +11722,16 @@ function InstanceList({
                 }
               })
             }, {
+              // this project: the Resources screen (resource properties, required or not)
+              label: "Resources",
+              icon: ResourcesIcon,
+              run: () => vscodeApi.postMessage({
+                type: "saturn:openResources",
+                payload: {
+                  instanceId: instance.id
+                }
+              })
+            }, {
               label: "Components",
               icon: ListTreeIcon,
               run: () => onOpen(instance)
@@ -11765,6 +11775,31 @@ function SystemLogsIcon({
       r: "3"
     }), (0, jsxForInstances.jsx)("path", {
       d: "M20.2 19.2 22 21"
+    })]
+  });
+}
+// ResourcesIcon — Icon for the Resources entry (a database), drawn like a lucide icon. Added by this project.
+function ResourcesIcon({
+  className: className
+}) {
+  return (0, jsxForInstances.jsxs)("svg", {
+    className: className,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true",
+    children: [(0, jsxForInstances.jsx)("ellipse", {
+      cx: "12",
+      cy: "5",
+      rx: "8",
+      ry: "3"
+    }), (0, jsxForInstances.jsx)("path", {
+      d: "M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"
+    }), (0, jsxForInstances.jsx)("path", {
+      d: "M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"
     })]
   });
 }

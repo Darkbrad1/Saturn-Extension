@@ -1,4 +1,4 @@
-# sonover-code (v0.3.12)
+# sonover-code (v0.3.13)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,12 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.13 — Resources: required or not
+- **Resources screen** (`src-res/`, host side `host/resources.js`, command `saturn.openResources`, sidebar entry "Resources", context menu on an instance): pick a resource, see its properties (label, key, type, required, the whole definition under Details) and tick Required on or off. Unsaved changes are kept in the webview's state; the resource can't be switched while some are unsaved.
+- **Careful saving**: Saturn's API for changing a resource isn't documented, so Save confirms, re-reads the definition, backs it up (`<global storage>/resource-backups/<instance>/<resource>-<time>.json`, the Backups button opens the folder), PUTs `/Resources/<name>` with only the chosen `required` flags changed — first the `data` list alone, as workflows are saved, then, if the instance takes that but nothing changes, the whole `{type, data}` body once — remembers the shape that worked, and reads it back: a refusal changes nothing; any other difference is reported with Restore backup.
+- **Fix**: `getResourceFields` read `GET /Resources/<name>`'s `data` only as a `{key: property}` map; Saturn sends a list of properties with their `key`s, which came out as 0, 1, 2…. It now reads both.
+- Tests: `hosttest-resources.cjs` (the real host against a fake Saturn: both save shapes, refusal, unexpected change, restore), `test13.mjs` (the screen and the sidebar entry).
 
 ## New in 0.3.12 — the sidebar is back
 - **Missing webviews**: `.gitignore`'s `dist/` also matched `vsix/extension/dist/`, so the shipped webviews (sidebar, list view, menus, pages, agent, kanban, preview) and the MCP server were never committed. A build from a fresh clone packaged an extension without them: VSCodium's console showed `Webview.loadLocalResource` / 404 for `dist/webview/sidebar/index.js` and the sidebar was blank. The ignore rules are now root-only (`/dist/`, `/out/`) and the files are in the repo.

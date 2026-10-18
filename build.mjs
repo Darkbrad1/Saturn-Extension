@@ -1,7 +1,7 @@
 // Builds the whole extension into out/vsix/ (the unpacked .vsix):
-//   - the node view and System Logs webviews (esbuild) -> dist/nodeview.js, dist/logs.js,
-//     copied to extension/dist/webview/{nodeview,logs}/index.js
-//   - the extension host: host/extension.js + host/syslogs.js -> extension/dist/extension.js
+//   - the node view, System Logs and Resources webviews (esbuild) -> dist/nodeview.js, dist/logs.js,
+//     dist/resources.js, copied to extension/dist/webview/{nodeview,logs,resources}/index.js
+//   - the extension host: host/extension.js + host/syslogs.js + host/resources.js -> extension/dist/extension.js
 //   - everything else from vsix/ (manifest, package.json, readme, icon, the other webviews, the MCP server);
 //     the webviews' JS/CSS and the MCP server are minified on the way
 //   - the version, from the newest src/changelog.ts entry, stamped into package.json and the manifest
@@ -21,6 +21,7 @@ const common = {
 };
 await build({ ...common, entryPoints: ["src/main.tsx"], outfile: "dist/nodeview.js" });
 await build({ ...common, entryPoints: ["src-logs/main.tsx"], outfile: "dist/logs.js" });
+await build({ ...common, entryPoints: ["src-res/main.tsx"], outfile: "dist/resources.js" });
 
 const version = /version:\s*"(\d+\.\d+\.\d+)"/.exec(readFileSync("src/changelog.ts", "utf8"))?.[1];
 if (!version) throw new Error("no version in src/changelog.ts");
@@ -36,7 +37,7 @@ const out = "out/vsix";
 rmSync(out, { recursive: true, force: true });
 cpSync("vsix", out, { recursive: true });
 const ext = `${out}/extension`;
-for (const [name, file] of [["nodeview", "dist/nodeview.js"], ["logs", "dist/logs.js"]]) {
+for (const [name, file] of [["nodeview", "dist/nodeview.js"], ["logs", "dist/logs.js"], ["resources", "dist/resources.js"]]) {
   mkdirSync(`${ext}/dist/webview/${name}`, { recursive: true });
   cpSync(file, `${ext}/dist/webview/${name}/index.js`);
 }
@@ -51,8 +52,8 @@ for (const f of shipped) {
     : { loader: "js", minifyWhitespace: true, minifyIdentifiers: true, legalComments: "eof" });
   writeFileSync(file, code);
 }
-// one scope: syslogs.js uses extension.js's helpers (listRecords, saturnRequest, …)
-writeFileSync(`${ext}/dist/extension.js`, readFileSync("host/extension.js", "utf8") + "\n" + readFileSync("host/syslogs.js", "utf8"));
+// one scope: syslogs.js and resources.js use extension.js's helpers (listRecords, saturnRequest, …)
+writeFileSync(`${ext}/dist/extension.js`, ["host/extension.js", "host/syslogs.js", "host/resources.js"].map((f) => readFileSync(f, "utf8")).join("\n"));
 
 const pj = JSON.parse(readFileSync(`${ext}/package.json`, "utf8"));
 pj.version = version;

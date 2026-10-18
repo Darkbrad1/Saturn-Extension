@@ -1,0 +1,33 @@
+// Mock of the extension host for the Resources screen: Application (a list-shaped definition, like
+// Saturn's) and Loan. window.__saveMode: "ok" (default) | "refuse" | "mismatch".
+(function () {
+  const prop = (key, label, type, required = false) => ({ key, label, type, required, searchable: false, rendering: { component: "default" } });
+  const data = {
+    Application: [prop("status", "Status", "string"), prop("application_number", "Application Number", "string"), prop("requested_loan_amount", "Requested Loan Amount", "number"), prop("submitted_at", "Submitted At", "date", true)],
+    Loan: [prop("amount", "Amount", "number", true), prop("term", "Term", "number")],
+  };
+  const view = (list) => list.map((p) => ({ key: p.key, label: p.label, type: p.type, required: p.required === true, editable: true, definition: p }));
+  window.__posted = [];
+  window.__saveMode = "ok";
+  window.__data = data;
+  const reply = (type, payload) => setTimeout(() => window.dispatchEvent(new MessageEvent("message", { data: { type, payload } })), 15);
+  let state;
+  window.acquireVsCodeApi = () => ({
+    getState: () => state,
+    setState: (s) => { state = s; return s; } /* like VS Code: it returns the state */,
+    postMessage: (m) => {
+      window.__posted.push(m);
+      const p = m.payload || {};
+      if (m.type === "init") reply("init", { instanceName: "demo", resources: Object.keys(data) });
+      if (m.type === "load") reply("properties", { resource: p.resource, properties: view(data[p.resource]) });
+      if (m.type === "save") {
+        if (window.__saveMode === "refuse") return reply("saveFailed", { resource: p.resource, message: "This instance doesn't accept changes to resources at /Resources/Application (405). Nothing was changed." });
+        const list = data[p.resource];
+        for (const c of p.changes) list.find((x) => x.key === c.key).required = c.required;
+        if (window.__saveMode === "mismatch") { list[0].searchable = true; return reply("saveMismatch", { resource: p.resource, ok: false, unchanged: false, backup: "/backups/Application-1.json", message: "The resource changed differently from what was asked, in: status. You can put the backup back.", properties: view(list) }); }
+        reply("saved", { resource: p.resource, ok: true, backup: "/backups/Application-1.json", properties: view(list) });
+      }
+      if (m.type === "restore") reply("restored", { resource: p.resource, ok: true, backup: "/backups/Application-2.json", properties: view(data[p.resource]) });
+    },
+  });
+})();

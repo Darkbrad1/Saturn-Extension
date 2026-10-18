@@ -10,6 +10,7 @@ const root = new URL("..", import.meta.url).pathname;
 const MAP = {
   "/nodeview.js": "dist/nodeview.js",
   "/logs.js": "dist/logs.js",
+  "/resources.js": "dist/resources.js",
   "/wf.js": "vsix/extension/dist/webview/workflows/index.js",
   "/wf.css": "vsix/extension/dist/webview/workflows/index.css",
   "/sidebar.js": "vsix/extension/dist/webview/sidebar/index.js",

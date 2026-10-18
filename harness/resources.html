@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'nonce-abc123'; style-src 'self' 'unsafe-inline';">
+    <script nonce="abc123" src="resmock.js"></script>
+</head>
+<body style="--vscode-font-size:13px">
+    <div id="resources-root"></div>
+    <script type="module" nonce="abc123" src="resources.js"></script>
+</body>
+</html>

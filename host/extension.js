@@ -3398,11 +3398,14 @@ async function listResourceNames(manager, instance) {
 // getResourceFields (minified: Ln) — GET /Resources/<name> -> its fields
 async function getResourceFields(manager, instance, resource) {
   let schema = (await (await checked(() => saturnRequest(manager, instance, `/Resources/${encodeURIComponent(resource)}`), `Read resource ${resource}`)).json())?.data;
-  if (!schema || typeof schema != "object" || Array.isArray(schema)) return {
+  if (!schema || typeof schema != "object") return {
     resource: resource,
     fields: []
   };
-  let fields = Object.entries(schema).map(([key, field]) => ({
+  // Saturn sends the properties as a list, each with its key ({data: [{key, label, …}]}); older
+  // answers were a {key: property} map. (The original read only the map, so a list's keys came out as 0, 1, 2, ….)
+  let entries = Array.isArray(schema) ? schema.filter(field => typeof field?.key == "string" && field.key).map(field => [field.key, field]) : Object.entries(schema);
+  let fields = entries.map(([key, field]) => ({
     key: key,
     label: typeof field?.label == "string" && field.label ? field.label : null,
     type: typeof field?.type == "string" ? field.type : null,
@@ -12601,6 +12604,19 @@ var SidebarProvider = class SelfSidebarProvider {
             });
             break;
           }
+        // Opens the Resources screen (resource properties: required or not) for that instance.
+        case "saturn:openResources":
+          {
+            let {
+                instanceId: instanceId
+              } = message.payload ?? {},
+              instance = this.instanceManager.get(instanceId);
+            if (!instance) return;
+            await vscode4.commands.executeCommand("saturn.openResources", {
+              instance: instance
+            });
+            break;
+          }
         case "saturn:openMenus":
           {
             let {
@@ -17522,7 +17538,28 @@ async function startExtension(context) {
       }).then(picked => picked?.instance);
     }
     instance && SystemLogsHost.open(context.extensionUri, manager, instance, context.globalState);
-  })));
+  }), (ResourcePropertiesHost.attach({
+    globalStorageUri: context.globalStorageUri,
+    globalState: context.globalState
+  }), vscode.commands.registerCommand("saturn.openResources", async item => {
+    // The Resources screen (host/resources.js): a resource's properties and whether each is required.
+    let instance = item?.instance;
+    if (!instance) {
+      let instances = manager.list();
+      if (instances.length === 0) {
+        vscode.window.showInformationMessage("Connect a Saturn instance first.");
+        return;
+      }
+      instance = instances.length === 1 ? instances[0] : await vscode.window.showQuickPick(instances.map(candidate => ({
+        label: instanceLabel(candidate),
+        description: candidate.url,
+        instance: candidate
+      })), {
+        placeHolder: "Edit the resources of which Saturn instance?"
+      }).then(picked => picked?.instance);
+    }
+    instance && ResourcePropertiesHost.open(context.extensionUri, manager, instance);
+  }))));
   let refreshTreeCommand = vscode.commands.registerCommand("saturn.refreshTree", () => {
       componentsTree.refresh();
     }),

@@ -189,6 +189,11 @@
 				"command": "saturn.openSystemLogs",
 				"title": "Saturn: Open System Logs",
 				"icon": "$(output)"
+			},
+			{
+				"command": "saturn.openResources",
+				"title": "Saturn: Edit Resource Properties",
+				"icon": "$(database)"
 			}
 		],
 		"viewsWelcome": [
@@ -248,6 +253,11 @@
 				},
 				{
 					"command": "saturn.openSystemLogs",
+					"when": "view == saturn-explorer && viewItem == saturn.instance",
+					"group": "1_modification"
+				},
+				{
+					"command": "saturn.openResources",
 					"when": "view == saturn-explorer && viewItem == saturn.instance",
 					"group": "1_modification"
 				},

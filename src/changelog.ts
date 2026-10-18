@@ -1,6 +1,15 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.13",
+    title: "Resources: required or not",
+    items: [
+      "A new Resources screen (sidebar → Resources): pick a resource, see its properties — label, key, type — and tick whether each is required.",
+      "Changes are kept until you save or discard them; Save asks first, backs up the resource's definition, and checks the instance has exactly the change afterwards — with Restore backup if anything else changed.",
+      "Field pickers read a resource's properties by their real keys (they showed 0, 1, 2… on instances that send properties as a list).",
+    ],
+  },
+  {
     version: "0.3.12",
     title: "The sidebar is back",
     items: [
