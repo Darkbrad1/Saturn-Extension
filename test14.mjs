@@ -137,5 +137,18 @@ await p.screenshot({ path: out + "/m3-wide.png" });
 const groups = await p.evaluate(() => [...document.querySelectorAll(".rs-select optgroup")].map((g) => g.label + ": " + [...g.querySelectorAll("option")].map((o) => o.value).join(",")));
 ok(groups.join(" | ") === "Resources: Application,Loan,LoanCategory | Core resources: User", "the resource picker lists the non-core resources first, then the core ones: " + groups.join(" | "));
 
+// ===== Show in: Saturn's hide… settings, shown the other way round (0.3.25) =====
+await p.selectOption(".rs-select select", "Loan");
+await p.waitForTimeout(300);
+await item("Term").click();
+const formsSwitch = p.locator(".pe-block", { hasText: "Show in" }).getByRole("switch", { name: "Forms", exact: true });
+ok((await p.locator(".pe-part-title").allInnerTexts()).includes("Show in") && (await formsSwitch.isChecked()), "Visibility has Show in, and a property that isn't hidden is on");
+await formsSwitch.click();
+const termDraft = await p.evaluate(() => window.acquireVsCodeApi().getState().works.Loan.drafts.term);
+ok(termDraft.hideInForm === true && (await p.locator(".pe-block", { hasText: "Show in" }).locator(".pe-row").first().innerText()).includes("was on"), "switching it off stores hideInForm: true, as Saturn does, and says it was on");
+await formsSwitch.click();
+ok((await p.evaluate(() => window.acquireVsCodeApi().getState().works.Loan?.drafts?.term?.hideInForm)) === false, "switching it back on stores hideInForm: false");
+await p.getByRole("button", { name: "Discard" }).click();
+
 ok(errs.length === 0, "no page or CSP errors " + JSON.stringify(errs));
 await b.close();

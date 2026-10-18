@@ -1,6 +1,11 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.25",
+    title: "Resources: Show in instead of Hide in",
+    items: ["Visibility's Hide in is now Show in: a switch that's on means the property shows there. Saturn still stores it as its hide setting, so nothing about how it's saved changed."],
+  },
+  {
     version: "0.3.24",
     title: "Resources: one column of settings",
     items: ["The settings are one column again on every screen size, as wide as the page, with the same gap under every card."],

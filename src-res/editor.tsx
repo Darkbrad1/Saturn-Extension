@@ -244,7 +244,7 @@ function SettingRow(props: {
         {shown && (
           <span className="pe-was">
             <span className="rs-dot is-inline" />
-            {items.length > 1 ? `changed on ${changedOn} of ${items.length}` : `was ${short(show(setting.toggles ? before !== undefined : before))}`}
+            {items.length > 1 ? `changed on ${changedOn} of ${items.length}` : `was ${short(show(setting.toggles ? before !== undefined : edit.kind === "bool" && edit.invert ? before !== true : before))}`}
             <button className="rs-link" disabled={props.disabled} onClick={() => props.revert(setting.path)}>Put back</button>
           </span>
         )}
@@ -305,6 +305,8 @@ function Control(props: { setting: Setting; id: string; value: unknown; mixed: b
         const on = value !== undefined && value !== null;
         return <Switch id={id} on={on} mixed={mixed} label={setting.label} disabled={disabled} onSet={(v) => (v ? set(path, setting.toggles!.on) : set(path, undefined, true))} />;
       }
+      // an inverted one ("Show in" for Saturn's hide… settings) is on when the stored value isn't true
+      if (edit.invert) return <Switch id={id} on={value !== true} mixed={mixed} label={setting.label} disabled={disabled} onSet={(v) => set(path, !v)} />;
       return <Switch id={id} on={value === true} mixed={mixed} label={setting.label} disabled={disabled} onSet={(v) => set(path, v)} />;
     case "text":
       return <input id={id} className={`pe-input${edit.mono ? " is-mono" : ""}`} value={str} placeholder={MIXED ?? edit.placeholder} disabled={disabled} onChange={(e) => set(path, e.target.value)} />;

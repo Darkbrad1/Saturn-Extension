@@ -14,7 +14,7 @@ export type Kind =
   | { kind: "text"; placeholder?: string; mono?: boolean }
   | { kind: "textarea" }
   | { kind: "number"; min?: number; max?: number; step?: number }
-  | { kind: "bool"; hint?: string }
+  | { kind: "bool"; hint?: string; invert?: boolean } // invert: the switch is on when the stored value isn't true (a "hide" setting shown as "show")
   | { kind: "select"; options: [string, string][] }
   | { kind: "choice"; options: [string, string, string?][] } // cards: value, label, hint
   | { kind: "cards"; options: [string, string, string?][] } // cards, no default value
@@ -136,14 +136,14 @@ export const GROUPS: Group[] = [
     blurb: "Where it shows, and when.",
     parts: [
       {
-        title: "Hide in",
+        title: "Show in",
         settings: [
-          { path: ["hideInForm"], label: "Forms", edit: { kind: "bool" } },
-          { path: ["hideInForm_edit"], label: "Edit forms", edit: { kind: "bool" } },
-          { path: ["hideInForm_add"], label: "Add forms", edit: { kind: "bool" } },
-          { path: ["hideInTable"], label: "Tables", edit: { kind: "bool" } },
-          { path: ["hideInDrawer"], label: "Drawers", edit: { kind: "bool" } },
-          { path: ["hideInView"], label: "Record views", edit: { kind: "bool" } },
+          { path: ["hideInForm"], label: "Forms", edit: { kind: "bool", invert: true } },
+          { path: ["hideInForm_edit"], label: "Edit forms", edit: { kind: "bool", invert: true } },
+          { path: ["hideInForm_add"], label: "Add forms", edit: { kind: "bool", invert: true } },
+          { path: ["hideInTable"], label: "Tables", edit: { kind: "bool", invert: true } },
+          { path: ["hideInDrawer"], label: "Drawers", edit: { kind: "bool", invert: true } },
+          { path: ["hideInView"], label: "Record views", edit: { kind: "bool", invert: true } },
         ],
       },
       {
