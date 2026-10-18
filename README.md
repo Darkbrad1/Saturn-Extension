@@ -1,4 +1,4 @@
-# sonover-code (v0.3.17)
+# sonover-code (v0.3.18)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,10 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.18 — Resources: properties down the side, in order
+- Layout like Saturn's stage / action editor: the properties down the left (`.rs-side`: search, cards with name, key, type, a blue grip when required, a dot when changed), the picked one on the right (`.rs-detail`: Required, the whole definition). Dragging a card (HTML drag and drop; off while searching) or Alt+↑ / Alt+↓ reorders; Reset order. The order is kept in webview state with the other unsaved changes.
+- `save` takes `order` (every key, in the new order) besides `changes`; `applyOrder` reorders the definition (refused if the keys no longer match), the schema map is sent in that order, and the read-back also checks the order was kept. `hosttest-resources.cjs` (23 checks), `test13.mjs` (38) cover it.
 
 ## New in 0.3.17 — Resources: saving the way Saturn does
 - From Saturn's own app's network traffic: a resource is saved with `PUT /api/resources/<name>/schema` and the body `{"data": "<JSON text of {<property key>: <property without its key>, …}>"}` — the whole schema, as a map keyed by property, sent as a JSON string. `host/resources.js` now does exactly that (`schemaMap` turns GET's list back into the map); the method / shape guessing (OPTIONS, POST, the two bodies, remembered settings) is gone. Backup, read-back check and Restore stay. `hosttest-resources.cjs` (18 checks) models the real endpoint.

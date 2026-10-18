@@ -10,8 +10,9 @@
  * A save is careful:
  *   1. read the definition again (never write over someone else's newer change);
  *   2. back it up to <global storage>/resource-backups/<instance id>/<resource>-<time>.json;
- *   3. write it with only the chosen properties' `required` changed;
- *   4. read it back and check exactly those changed and nothing else.
+ *   3. write it with only what was asked changed: properties' `required`, and/or the properties'
+ *      order (the schema's order is the order the map is sent in);
+ *   4. read it back and check exactly those changed and nothing else, and the order kept.
  * If the instance refuses, nothing changed. If the read-back differs in any other way, the screen
  * says how and offers to put the backup back (the same careful write and check).
  * When a save is refused, `probe` (read-only: OPTIONS, and the instance's MCP initialize +
@@ -65,6 +66,21 @@ var ResourcePropertiesHost = (() => {
       ? data.map((property) => (isObject(property) && wanted.has(property.key) ? change(property.key, property) : property))
       : Object.fromEntries(Object.entries(data).map(([key, property]) => [key, change(key, property)]));
   }
+
+  /** order: every property key, in the order wanted -> the data in that order, or an error
+   *  message if the keys don't match the resource's (it changed since the screen read it). */
+  function applyOrder(data, order) {
+    const entries = entriesOf(data);
+    const keys = entries.map(([key]) => key);
+    if (order.length !== keys.length || new Set(order).size !== order.length || !order.every((key) => keys.includes(key))) {
+      return "The resource's properties changed since you opened it — reload and order them again.";
+    }
+    const byKey = new Map(entries);
+    return Array.isArray(data) ? order.map((key) => byKey.get(key)) : Object.fromEntries(order.map((key) => [key, byKey.get(key)]));
+  }
+
+  /** The property keys of a definition, in order. */
+  const keysOf = (data) => entriesOf(data).map(([key]) => key);
 
   /** The keys of the properties that differ between two definitions. */
   function differences(expected, actual) {
@@ -136,7 +152,11 @@ var ResourcePropertiesHost = (() => {
     const reply = await write(manager, instance, resource, nextData);
     const after = await readResource(manager, instance, resource);
     const wrong = differences(nextData, after.data);
-    if (!wrong.length) return { ok: true, backup: backupFile.fsPath, data: after.data };
+    const orderKept = keysOf(nextData).join("\n") === keysOf(after.data).join("\n");
+    if (!wrong.length && orderKept) return { ok: true, backup: backupFile.fsPath, data: after.data };
+    if (!wrong.length) {
+      return { ok: false, backup: backupFile.fsPath, data: after.data, unchanged: false, message: "The properties were saved, but the instance didn't keep their new order. You can put the backup back." };
+    }
     const unchanged = differences(current.data, after.data).length === 0;
     return {
       ok: false,
@@ -252,10 +272,14 @@ var ResourcePropertiesHost = (() => {
       case "save": {
         const resource = String(payload.resource);
         const changes = Array.isArray(payload.changes) ? payload.changes.filter((c) => c && typeof c.key === "string") : [];
-        if (!changes.length) return post("saveFailed", { resource, message: "Nothing to save." });
+        // order: every property key in the new order (sent only when the order was changed)
+        const order = Array.isArray(payload.order) && payload.order.every((k) => typeof k === "string") ? payload.order : null;
+        if (!changes.length && !order) return post("saveFailed", { resource, message: "Nothing to save." });
         // the definition as it is now, not as the screen first read it
         const current = await readResource(manager, instance, resource);
-        const nextData = applyRequired(current.data, changes);
+        let nextData = applyRequired(current.data, changes);
+        if (typeof nextData === "string") return post("saveFailed", { resource, message: nextData });
+        if (order) nextData = applyOrder(nextData, order);
         if (typeof nextData === "string") return post("saveFailed", { resource, message: nextData });
         const result = await writeChecked(manager, instance, resource, current, nextData);
         post(result.ok ? "saved" : "saveMismatch", { resource, ok: result.ok, backup: result.backup, unchanged: result.unchanged, message: result.message, properties: propertiesOf(result.data) });
@@ -323,5 +347,5 @@ var ResourcePropertiesHost = (() => {
     storageUri = options.globalStorageUri ?? null;
   }
 
-  return { open, attach, handle, propertiesOf, applyRequired, differences, entriesOf };
+  return { open, attach, handle, propertiesOf, applyRequired, applyOrder, differences, entriesOf };
 })();

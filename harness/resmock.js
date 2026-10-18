@@ -24,8 +24,10 @@
         if (window.__saveMode === "refuse") return reply("saveFailed", { resource: p.resource, message: "This instance doesn't accept changes to resources at /Resources/Application (405). Nothing was changed." });
         const list = data[p.resource];
         for (const c of p.changes) list.find((x) => x.key === c.key).required = c.required;
-        if (window.__saveMode === "mismatch") { list[0].searchable = true; return reply("saveMismatch", { resource: p.resource, ok: false, unchanged: false, backup: "/backups/Application-1.json", message: "The resource changed differently from what was asked, in: status. You can put the backup back.", properties: view(list) }); }
-        reply("saved", { resource: p.resource, ok: true, backup: "/backups/Application-1.json", properties: view(list) });
+        if (p.order) data[p.resource] = p.order.map((k) => list.find((x) => x.key === k));
+        const saved = data[p.resource];
+        if (window.__saveMode === "mismatch") { saved[0].searchable = true; return reply("saveMismatch", { resource: p.resource, ok: false, unchanged: false, backup: "/backups/Application-1.json", message: "The resource changed differently from what was asked, in: status. You can put the backup back.", properties: view(saved) }); }
+        reply("saved", { resource: p.resource, ok: true, backup: "/backups/Application-1.json", properties: view(saved) });
       }
       if (m.type === "probe") reply("probe", { resource: p.resource, report: "OPTIONS /api/Resources/Application: 204 — allows GET, PATCH\nMCP (/api/mcp): 1 tools\n  • update_resource_schema — Change a resource's properties" });
       if (m.type === "restore") reply("restored", { resource: p.resource, ok: true, backup: "/backups/Application-2.json", properties: view(data[p.resource]) });

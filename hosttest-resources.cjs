@@ -39,6 +39,7 @@ global.fetch = async (u, o = {}) => {
     if (typeof body.data !== "string") return reply({ status: "FAILURE", message: "data must be a string" }, 400);
     lastSchema = JSON.parse(body.data);
     if (mode === "ok") stored = { ...stored, data: Object.entries(lastSchema).map(([key, p]) => ({ ...p, key })) };
+    if (mode === "sorted") stored = { ...stored, data: Object.entries(lastSchema).sort(([a], [b]) => a.localeCompare(b)).map(([key, p]) => ({ ...p, key })) };
     if (mode === "mangle") stored = { ...stored, data: Object.entries(lastSchema).map(([key, p]) => ({ ...p, key, searchable: true })) };
     return reply({ status: "SUCCESS", data: "updated" });
   }
@@ -84,6 +85,19 @@ const writes = () => calls.filter(([m]) => m !== "GET" && m !== "OPTIONS");
   ok(backup.resource === "Application" && backup.body.data.find((p) => p.key === "status").required === false, "the definition before the change was backed up");
   r = await ask("restore", { resource: "Application", backup: r.payload.backup });
   ok(r.type === "restored" && requiredOf("status") === false, "restore puts the backup back");
+
+  // reordering: the schema's order is the order the map is sent in
+  reset(); calls.length = 0;
+  r = await ask("save", { resource: "Application", changes: [{ key: "loan_purpose", required: true }], order: ["loan_purpose", "status", "application_number"] });
+  ok(r.type === "saved" && Object.keys(lastSchema).join() === "loan_purpose,status,application_number" && stored.data.map((p) => p.key).join() === "loan_purpose,status,application_number", "a new order is sent as the map's order, and kept");
+  ok(requiredOf("loan_purpose") === true && r.payload.properties.map((p) => p.key).join() === "loan_purpose,status,application_number", "with the Required change in the same save, and the screen gets the new order back");
+  r = await ask("save", { resource: "Application", order: ["status", "application_number", "loan_purpose"] });
+  ok(r.type === "saved" && stored.data.map((p) => p.key).join() === "status,application_number,loan_purpose", "an order change alone saves too");
+  r = await ask("save", { resource: "Application", order: ["status", "loan_purpose"] });
+  ok(r.type === "saveFailed" && /changed since you opened it/.test(r.payload.message), "an order that doesn't name every property (the resource changed) is refused before writing");
+  reset("sorted");
+  r = await ask("save", { resource: "Application", order: ["status", "loan_purpose", "application_number"] });
+  ok(r.type === "saveMismatch" && /didn't keep their new order/.test(r.payload.message), "if the instance doesn't keep the order, the screen says so");
 
   // an instance that refuses
   reset("refuse");

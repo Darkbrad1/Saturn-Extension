@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.18",
+    title: "Resources: properties down the side, in order",
+    items: [
+      "The Resources screen lists a resource's properties down the left, in the schema's order — name, key and type — with a search; the one you pick shows on the right.",
+      "Drag a property (or Alt+↑ / Alt+↓) to change its place in the schema; Reset order puts it back. The new order is saved with the same backup and check, which also makes sure the instance kept it.",
+    ],
+  },
+  {
     version: "0.3.17",
     title: "Resources: saving the way Saturn does",
     items: [
