@@ -12,7 +12,7 @@ const send = (type: string, payload: Record<string, unknown> = {}) => vscode.pos
 
 interface Property { key: string; label: string | null; type: string | null; required: boolean; editable: boolean; definition: unknown }
 interface Saved { resource?: string | null; pending?: Record<string, boolean> }
-type Notice = { kind: "ok" | "error"; text: string; backup?: string } | null;
+type Notice = { kind: "ok" | "error"; text: string; backup?: string; refused?: boolean } | null;
 
 const loadSaved = (): Saved => {
   try {
@@ -36,6 +36,9 @@ function App() {
   const [notice, setNotice] = useState<Notice>(null);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  // the read-only check of what the instance takes (after a refused save)
+  const [report, setReport] = useState<string | null>(null);
+  const [probing, setProbing] = useState(false);
 
   // (in braces: VS Code's setState returns the state, which React would take for a cleanup function)
   useEffect(() => {
@@ -70,7 +73,11 @@ function App() {
           break;
         case "saveFailed":
           setSaving(false);
-          setNotice({ kind: "error", text: payload.message });
+          setNotice({ kind: "error", text: payload.message, refused: /doesn't accept changes/.test(payload.message) });
+          break;
+        case "probe":
+          setProbing(false);
+          setReport(payload.report);
           break;
         case "failed":
           setLoading(false);
@@ -150,7 +157,23 @@ function App() {
               Restore backup
             </button>
           )}
+          {notice.refused && (
+            <button className="rs-btn" disabled={probing} onClick={() => { setProbing(true); setReport(null); send("probe", { resource }); }}>
+              {probing ? "Checking…" : "Check what it takes"}
+            </button>
+          )}
           <button className="rs-x" aria-label="Dismiss" onClick={() => setNotice(null)}>×</button>
+        </div>
+      )}
+
+      {report && (
+        <div className="rs-report">
+          <div className="rs-report-head">
+            <span>What this instance takes (read-only check — nothing was changed)</span>
+            <button className="rs-btn" onClick={() => send("copy", { text: report })}>Copy</button>
+            <button className="rs-x" aria-label="Close" onClick={() => setReport(null)}>×</button>
+          </div>
+          <pre className="rs-json">{report}</pre>
         </div>
       )}
 

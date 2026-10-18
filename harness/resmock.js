@@ -27,6 +27,7 @@
         if (window.__saveMode === "mismatch") { list[0].searchable = true; return reply("saveMismatch", { resource: p.resource, ok: false, unchanged: false, backup: "/backups/Application-1.json", message: "The resource changed differently from what was asked, in: status. You can put the backup back.", properties: view(list) }); }
         reply("saved", { resource: p.resource, ok: true, backup: "/backups/Application-1.json", properties: view(list) });
       }
+      if (m.type === "probe") reply("probe", { resource: p.resource, report: "OPTIONS /api/Resources/Application: 204 — allows GET, PATCH\nMCP (/api/mcp): 1 tools\n  • update_resource_schema — Change a resource's properties" });
       if (m.type === "restore") reply("restored", { resource: p.resource, ok: true, backup: "/backups/Application-2.json", properties: view(data[p.resource]) });
     },
   });

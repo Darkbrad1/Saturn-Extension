@@ -14,6 +14,8 @@
  *   4. read it back and check exactly those changed and nothing else.
  * If the instance refuses, nothing changed. If the read-back differs in any other way, the screen
  * says how and offers to put the backup back (the same careful write and check).
+ * When a save is refused, `probe` (read-only: OPTIONS, and the instance's MCP initialize +
+ * tools/list) reports what the instance does take, to find its real way of saving resources.
  */
 var ResourcePropertiesHost = (() => {
   const vs = require("vscode");
@@ -94,8 +96,9 @@ var ResourcePropertiesHost = (() => {
       throw new Error(`${what}: ${error instanceof Error ? error.message : String(error)}. Nothing was changed.`);
     }
     if (!response.ok) {
+      const allowed = allowedMethods(response);
       throw new Error(response.status === 404 || response.status === 405
-        ? `This instance doesn't accept changes to resources at /Resources/${resource} (${response.status}). Nothing was changed.`
+        ? `This instance doesn't accept changes to resources at /Resources/${resource} (${response.status}${allowed ? `; it allows ${allowed}` : ""}). Nothing was changed.`
         : `${what}: ${response.status} ${response.statusText}. Nothing was changed.`);
     }
     const reply = await response.json().catch(() => null);
@@ -130,6 +133,72 @@ var ResourcePropertiesHost = (() => {
         ? "The instance answered, but the resource is unchanged: it doesn't seem to take changes this way."
         : `The resource changed differently from what was asked, in: ${wrong.slice(0, 12).join(", ")}${wrong.length > 12 ? "…" : ""}. You can put the backup back.`,
     };
+  }
+
+  /** The methods a response says its address takes (Allow / CORS headers), or "". */
+  function allowedMethods(response) {
+    return (response.headers.get("allow") || response.headers.get("access-control-allow-methods") || "").trim();
+  }
+
+  /** One JSON-RPC call to the instance's own MCP server (POST /api/mcp); returns the reply or null. */
+  async function mcpCall(manager, instance, session, id, method, params) {
+    const response = await saturnRequest(manager, instance, "/mcp", {
+      method: "POST",
+      headers: { Accept: "application/json, text/event-stream", ...(session.id ? { "Mcp-Session-Id": session.id } : {}) },
+      body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+      signal: AbortSignal.timeout(8000),
+    });
+    session.id = response.headers.get("mcp-session-id") || session.id;
+    session.status = response.status;
+    if (!response.ok) return null;
+    const text = await response.text();
+    const pick = (payload) => (Array.isArray(payload) ? payload.find((m) => m?.id === id) : payload);
+    if ((response.headers.get("content-type") || "").includes("text/event-stream")) {
+      for (const block of text.split(/\r?\n\r?\n/)) {
+        const data = block.split(/\r?\n/).filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trimStart()).join("\n");
+        try { const reply = pick(JSON.parse(data)); if (reply?.id === id) return reply; } catch {}
+      }
+      return null;
+    }
+    try { return pick(JSON.parse(text)); } catch { return null; }
+  }
+
+  /** Read-only check of how this instance might take a resource change: which methods
+   *  /Resources/<name> allows (OPTIONS), and the instance's own MCP tools that are about
+   *  resources. Nothing is written: OPTIONS, and MCP initialize + tools/list only. */
+  async function probe(manager, instance, resource) {
+    const lines = [`Instance: ${instance.url}`, `Resource: ${resource}`];
+    for (const path of [`/Resources/${encodeURIComponent(resource)}`, "/Resources"]) {
+      try {
+        const response = await saturnRequest(manager, instance, path, { method: "OPTIONS", signal: AbortSignal.timeout(8000) });
+        lines.push(`OPTIONS /api${path}: ${response.status}${allowedMethods(response) ? ` — allows ${allowedMethods(response)}` : " — no Allow header"}`);
+      } catch (error) {
+        lines.push(`OPTIONS /api${path}: failed (${error instanceof Error ? error.message : String(error)})`);
+      }
+    }
+    try {
+      const session = { id: null, status: null };
+      const init = await mcpCall(manager, instance, session, 1, "initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "saturn-vscode", version: "0.1.0" } });
+      if (!init?.result) {
+        lines.push(`MCP (/api/mcp): no MCP server answered (${session.status ?? "no reply"})`);
+      } else {
+        await saturnRequest(manager, instance, "/mcp", {
+          method: "POST",
+          headers: { Accept: "application/json, text/event-stream", ...(session.id ? { "Mcp-Session-Id": session.id } : {}) },
+          body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+          signal: AbortSignal.timeout(8000),
+        }).catch(() => null);
+        const list = await mcpCall(manager, instance, session, 2, "tools/list", {});
+        const tools = Array.isArray(list?.result?.tools) ? list.result.tools.filter((t) => typeof t?.name === "string") : [];
+        const about = tools.filter((t) => /resource|schema|propert|field|model/i.test(`${t.name} ${t.description ?? ""}`));
+        lines.push(`MCP (/api/mcp): ${tools.length} tools`);
+        for (const t of about) lines.push(`  • ${t.name}${t.annotations?.readOnlyHint ? " (read-only)" : ""} — ${String(t.description ?? "").replace(/\s+/g, " ").slice(0, 200)}`);
+        if (!about.length && tools.length) lines.push(`  none about resources; all: ${tools.map((t) => t.name).join(", ").slice(0, 600)}`);
+      }
+    } catch (error) {
+      lines.push(`MCP (/api/mcp): failed (${error instanceof Error ? error.message : String(error)})`);
+    }
+    return lines.join("\n");
   }
 
   function html(panel, extensionUri) {
@@ -188,6 +257,15 @@ var ResourcePropertiesHost = (() => {
         const current = await readResource(manager, instance, resource);
         const result = await writeChecked(manager, instance, resource, current, savedData);
         post(result.ok ? "restored" : "saveMismatch", { resource, ok: result.ok, backup: result.backup, unchanged: result.unchanged, message: result.message, properties: propertiesOf(result.data) });
+        break;
+      }
+      case "probe": {
+        const resource = String(payload.resource);
+        post("probe", { resource, report: await probe(manager, instance, resource) });
+        break;
+      }
+      case "copy": {
+        await vs.env.clipboard.writeText(String(payload.text ?? ""));
         break;
       }
       case "openBackups": {

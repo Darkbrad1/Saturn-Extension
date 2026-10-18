@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.14",
+    title: "Resources: finding how to save",
+    items: [
+      "When an instance refuses a resource change, the message says which methods it does take there.",
+      "Check what it takes: a read-only look at what the instance accepts for resources — the methods each address allows, and the instance's own MCP tools about resources — with Copy, to find its real way of saving.",
+    ],
+  },
+  {
     version: "0.3.13",
     title: "Resources: required or not",
     items: [

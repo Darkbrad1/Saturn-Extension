@@ -57,3 +57,6 @@ html, body { margin: 0; height: 100%; background: var(--rs-bg); color: var(--rs-
 .rs-empty { color: var(--rs-muted); padding: 14px; margin: 0; }
 .rs-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--rs-border); background: var(--rs-bg); }
 .rs-bar span { flex: 1; }
+.rs-report { margin: 10px 14px 0; padding: 8px 10px; border: 1px solid var(--rs-border); border-radius: 4px; }
+.rs-report-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--rs-muted); font-size: 12px; }
+.rs-report-head span { flex: 1; }

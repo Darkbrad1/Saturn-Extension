@@ -33,11 +33,22 @@ global.fetch = async (u, o = {}) => {
   if (url.pathname === "/api/Resources/Application" && method === "GET") return reply(JSON.parse(JSON.stringify(stored)));
   if (url.pathname === "/api/Resources/Application" && method === "PUT") {
     const body = JSON.parse(o.body);
-    if (mode === "refuse") return reply({ message: "no" }, 405);
+    if (mode === "refuse") return new Response(JSON.stringify({ message: "no" }), { status: 405, headers: { "content-type": "application/json", allow: "GET, POST" } });
     if (mode === "data" && Array.isArray(body)) stored = { ...stored, data: body };
     if (mode === "body" && body?.type === "resource") stored = body; // takes only the whole body; a bare list is ignored
     if (mode === "mangle" && Array.isArray(body)) stored = { ...stored, data: body.map((p) => ({ ...p, searchable: true })) };
     return reply({ status: "SUCCESS" });
+  }
+  if (url.pathname.startsWith("/api/Resources") && method === "OPTIONS") return new Response(null, { status: 204, headers: { allow: url.pathname === "/api/Resources" ? "GET, POST" : "GET, PATCH" } });
+  if (url.pathname === "/api/mcp" && method === "POST") {
+    const rpc = JSON.parse(o.body);
+    if (rpc.method === "initialize") return new Response(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result: { protocolVersion: "2025-03-26" } }), { headers: { "content-type": "application/json", "mcp-session-id": "S1" } });
+    if (rpc.method === "tools/list") {
+      if (o.headers["Mcp-Session-Id"] !== "S1") return reply({ message: "no session" }, 400);
+      // an event-stream answer, as MCP servers may give
+      return new Response(`event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result: { tools: [{ name: "update_resource_schema", description: "Change a resource's properties" }, { name: "list_records", description: "List records", annotations: { readOnlyHint: true } }] } })}\n\n`, { headers: { "content-type": "text/event-stream" } });
+    }
+    return new Response("", { status: 202 });
   }
   return reply({ message: "nope" }, 404);
 };
@@ -82,7 +93,13 @@ const requiredOf = (key) => stored.data.find((p) => p.key === key).required;
   // an instance that refuses
   reset("refuse"); store.clear();
   r = await ask("save", { resource: "Application", changes: [{ key: "status", required: true }] }).catch((e) => ({ type: "threw", payload: { message: e.message } }));
-  ok(r.type === "threw" && /doesn't accept changes/.test(r.payload.message) && requiredOf("status") === false, "a refused save says so and changes nothing: " + r.payload.message);
+  ok(r.type === "threw" && /doesn't accept changes/.test(r.payload.message) && /allows GET, POST/.test(r.payload.message) && requiredOf("status") === false, "a refused save says so, with what the address allows, and changes nothing: " + r.payload.message);
+  calls.length = 0;
+  const probe = await ask("probe", { resource: "Application" });
+  const report = probe.payload.report;
+  ok(/OPTIONS \/api\/Resources\/Application: 204 — allows GET, PATCH/.test(report) && /OPTIONS \/api\/Resources: 204 — allows GET, POST/.test(report), "the check reports what each address allows");
+  ok(/MCP \(\/api\/mcp\): 2 tools/.test(report) && /update_resource_schema — Change a resource's properties/.test(report) && !/list_records/.test(report), "and the instance's MCP tools about resources (read from an event stream, in its session)");
+  ok(calls.every(([m, p]) => m === "OPTIONS" || (m === "POST" && p === "/api/mcp")), "the check writes nothing: OPTIONS and MCP initialize / tools/list only");
 
   // an instance that changes something else too
   reset("mangle"); store.clear(); calls.length = 0;

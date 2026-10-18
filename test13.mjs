@@ -84,6 +84,11 @@ await p.getByRole("button", { name: "Save" }).click();
 await p.locator(".rs-bar").getByRole("button", { name: "Save" }).click();
 await p.waitForTimeout(200);
 ok((await p.locator(".rs-notice.is-error").innerText()).includes("doesn't accept changes") && await p.locator(".rs-bar").count() === 1, "a refused save is shown, and the change stays unsaved to try again or discard");
+await p.getByRole("button", { name: "Check what it takes" }).click();
+await p.waitForTimeout(200);
+ok((await last()).type === "probe" && (await p.locator(".rs-report").innerText()).includes("allows GET, PATCH"), "Check what it takes runs the read-only check and shows its report");
+await p.locator(".rs-report").getByRole("button", { name: "Copy" }).click();
+ok((await last()).type === "copy" && (await last()).payload.text.includes("update_resource_schema"), "and Copy copies it");
 await p.getByRole("button", { name: "Discard" }).click();
 
 // read back differently: offer the backup
