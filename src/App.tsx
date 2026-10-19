@@ -236,6 +236,10 @@ export function App() {
         case "workflows":
           setWorkflowList(Array.isArray(p?.workflows) ? p.workflows : []);
           break;
+        case "showWorkflow":
+          // another screen (Resources) asked for this workflow: open it through the list view, as switching does
+          if (p?.workflow?.id) window.dispatchEvent(new CustomEvent("sonover:openWorkflow", { detail: p.workflow }));
+          break;
         case "workflowCreated":
           setNewWf(null);
           break;

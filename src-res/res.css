@@ -250,3 +250,11 @@ textarea.pe-input { height: auto; padding: 6px 8px; resize: vertical; }
 .rs-modal { width: min(560px, 92vw); max-height: 88vh; overflow: auto; padding: 16px 18px; border-radius: 10px; background: var(--rs-panel); border: 1px solid var(--rs-edge); box-shadow: 0 12px 36px rgba(0, 0, 0, .5); }
 .rs-modal h2 { margin: 0 0 4px; font-size: 14px; }
 .rs-modal .pe-card { margin: 12px 0 6px; }
+
+/* the workflows linked to the resource: a button each, opening it on the Workflows screen */
+:root { --rs-workflow: #14ae5c; }
+.rs-workflows { display: flex; flex-direction: column; gap: 4px; padding: 0 8px 8px; }
+.rs-wf { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--rs-workflow) 50%, transparent); background: color-mix(in srgb, var(--rs-workflow) 12%, transparent); color: var(--rs-fg); cursor: pointer; text-align: left; font-size: 11px; }
+.rs-wf:hover { background: color-mix(in srgb, var(--rs-workflow) 24%, transparent); }
+.rs-wf-kind { color: var(--rs-workflow); font-weight: 600; flex: none; }
+.rs-wf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

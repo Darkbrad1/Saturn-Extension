@@ -153,6 +153,8 @@ function App() {
   // other resources' properties and core records, for the settings that pick one
   const [fields, setFields] = useState<Record<string, Field[] | "loading">>({});
   const [records, setRecords] = useState<Record<string, [string, string][] | "loading">>({});
+  // the workflows linked to each resource (its own, and the ones its lifecycle hooks run)
+  const [linkedWorkflows, setLinkedWorkflows] = useState<Record<string, { id: string; name: string; via: "workflow" | "hook"; hooks: string[] }[]>>({});
   // what was asked for already (asked during render, so not state)
   const asked = useRef(new Set<string>());
   // the resources still to save, one at a time (each waits for the one before)
@@ -225,6 +227,9 @@ function App() {
         case "fields":
           setFields((before) => ({ ...before, [r]: payload.fields }));
           break;
+        case "workflows":
+          setLinkedWorkflows((before) => ({ ...before, [r]: Array.isArray(payload.workflows) ? payload.workflows : [] }));
+          break;
         case "options":
           setRecords((before) => ({ ...before, [`${r}|${payload.value}|${payload.label}`]: payload.options }));
           break;
@@ -249,6 +254,7 @@ function App() {
     if (!resource) return;
     setLoading(true);
     send("load", { resource });
+    send("workflows", { resource });
   }, [resource]);
 
   const work = (resource && works[resource]) || EMPTY;
@@ -577,6 +583,22 @@ function App() {
                   <button type="submit" className="rs-btn is-primary" disabled={!!addError}>Add</button>
                 </div>
               </form>
+            )}
+            {(linkedWorkflows[resource] ?? []).length > 0 && (
+              <div className="rs-workflows" aria-label="Linked workflows">
+                {linkedWorkflows[resource].map((w) => (
+                  <button
+                    key={w.id}
+                    className="rs-wf"
+                    title={`Open the ${w.name} workflow${w.via === "workflow" ? ` (${resource}'s workflow)` : ""}${w.hooks.length ? `. Runs on: ${w.hooks.join(", ")}` : ""}`}
+                    onClick={() => send("openWorkflow", { workflowId: w.id })}
+                  >
+                    <span className="rs-wf-kind">{w.via === "workflow" ? "Workflow" : "Hook"}</span>
+                    <span className="rs-wf-name">{w.name}</span>
+                    <span aria-hidden="true">›</span>
+                  </button>
+                ))}
+              </div>
             )}
             <div className="rs-side-info">
               <span>{all.length - deleted.size} properties · {requiredCount} required{selected.length > 1 ? ` · ${selected.length} picked` : ""}</span>

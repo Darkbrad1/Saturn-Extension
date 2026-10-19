@@ -7883,6 +7883,9 @@ var draftHistoryLimit = 20,
     // The resource lifecycle hooks (from /resourceDetails), or null when unavailable.
     bindings = null;
     reconciling = !1;
+    // A workflow to show once the panel's list has been sent (asked by the Resources screen), and whether it has been.
+    pendingShow = null;
+    listSent = !1;
     monitor;
     // The offline queue of trigger writes (trigger-queue.json), made on first use.
     triggerWrites;
@@ -7899,6 +7902,38 @@ var draftHistoryLimit = 20,
         retainContextWhenHidden: keepTabLoaded("workflows")
       });
       setPanelIcon(webviewPanel, "git-merge"), SelfWorkflowsPanel.panels.set(instance.id, new SelfWorkflowsPanel(webviewPanel, extensionUri, storageUri, manager, instance));
+    }
+    // Opens the instance's Workflows panel on one workflow (the Resources screen's workflow buttons). A panel made just now
+    // shows it once its list has been sent; an open one at once.
+    static showWorkflow(extensionUri, storageUri, manager, instance, workflowId) {
+      SelfWorkflowsPanel.open(extensionUri, storageUri, manager, instance);
+      let openPanel = SelfWorkflowsPanel.panels.get(instance.id);
+      if (!openPanel) return;
+      openPanel.pendingShow = String(workflowId);
+      openPanel.listSent && openPanel.postPendingShow();
+    }
+    // Posts showWorkflow {workflow: its summary} for the workflow waiting to be shown (the list view then opens it).
+    async postPendingShow() {
+      let workflowId = this.pendingShow;
+      if (!workflowId) return;
+      this.pendingShow = null;
+      let summary;
+      try {
+        let body = await loadWorkflow(this.manager, this.instance, workflowId);
+        summary = workflowSummary(body?.data && typeof body.data == "object" && !Array.isArray(body.data) ? body.data : body);
+      } catch {
+        summary = null;
+      }
+      this.panel.webview.postMessage({
+        type: "showWorkflow",
+        payload: {
+          workflow: summary?.id ? summary : {
+            id: workflowId,
+            name: workflowId,
+            stages: []
+          }
+        }
+      });
     }
     // Tells an instance's open panel that a workflow was changed elsewhere (e.g. by the agent).
     static workflowChanged(instanceId, workflowId, summary) {
@@ -8977,7 +9012,7 @@ var draftHistoryLimit = 20,
                   workflows: summaries,
                   instanceName: instanceLabel(this.instance)
                 }
-              }), this.postOperatorCatalog(await this.getOperatorCatalog()), this.postBindings();
+              }), this.listSent = !0, this.postPendingShow(), this.postOperatorCatalog(await this.getOperatorCatalog()), this.postBindings();
               try {
                 webview.postMessage({
                   type: "resourceNames",

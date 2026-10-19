@@ -56,6 +56,7 @@
       }
       if (m.type === "fields") reply("fields", { resource: p.resource, fields: (data[p.resource] || []).map((x) => ({ key: x.key, label: x.label, type: x.type })) });
       if (m.type === "options") reply("options", { resource: p.resource, value: p.value, label: p.label, options: [["attachmentgroup-1", "Loan documents"], ["attachmentgroup-2", "ID documents"]] });
+      if (m.type === "workflows") reply("workflows", { resource: p.resource, workflows: p.resource === "Application" ? [{ id: "wf-1", name: "Loan process", via: "workflow", hooks: [] }, { id: "wf-2", name: "Notify", via: "hook", hooks: ["after create"] }] : [] });
       if (m.type === "probe") reply("probe", { resource: p.resource, report: "OPTIONS /api/Resources/Application: 204 — allows GET, PATCH\nMCP (/api/mcp): 1 tools\n  • update_resource_schema — Change a resource's properties" });
       if (m.type === "restore") reply("restored", { resource: p.resource, ok: true, backup: "/backups/Application-2.json", properties: view(data[p.resource]) });
     },

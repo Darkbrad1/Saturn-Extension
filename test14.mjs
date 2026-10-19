@@ -150,5 +150,21 @@ await formsSwitch.click();
 ok((await p.evaluate(() => window.acquireVsCodeApi().getState().works.Loan?.drafts?.term?.hideInForm)) === false, "switching it back on stores hideInForm: false");
 await p.getByRole("button", { name: "Discard" }).click();
 
+// ===== the resource's workflows: a button opens each on the Workflows screen (0.3.26) =====
+await p.selectOption(".rs-select select", "Application");
+await p.waitForTimeout(300);
+const wfButtons = await p.locator(".rs-workflows .rs-wf").allInnerTexts();
+ok(wfButtons.length === 2 && wfButtons[0].includes("Workflow") && wfButtons[0].includes("Loan process") && wfButtons[1].includes("Hook") && (await p.locator(".rs-wf").nth(1).getAttribute("title")).includes("after create"), "the resource's workflow and its hooks' workflows each have a button");
+await p.locator(".rs-wf", { hasText: "Loan process" }).click();
+ok(await p.evaluate(() => window.__posted.some((m) => m.type === "openWorkflow" && m.payload.workflowId === "wf-1")), "the button asks the extension to open that workflow");
+// and the Workflows screen opens the workflow it's sent
+const w = await b.newPage({ viewport: { width: 1400, height: 860 } });
+await w.goto("http://localhost:8765/csp.html");
+await w.waitForTimeout(900);
+await w.evaluate(() => window.dispatchEvent(new MessageEvent("message", { data: { type: "showWorkflow", payload: { workflow: { id: "wf_tickets", name: "Support tickets", stages: [] } } } })));
+await w.waitForTimeout(900);
+ok((await w.locator(".nv-wf-switch").innerText()).includes("Support tickets"), "the Workflows screen opens the workflow it's sent (showWorkflow)");
+await w.close();
+
 ok(errs.length === 0, "no page or CSP errors " + JSON.stringify(errs));
 await b.close();

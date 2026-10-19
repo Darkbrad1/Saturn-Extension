@@ -1,4 +1,4 @@
-# sonover-code (v0.3.25)
+# sonover-code (v0.3.26)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,11 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.26 — Resources: open the resource's workflows
+- New Resources messages: `workflows {resource}` → `workflows {resource, workflows: [{id, name, via: "workflow" | "hook", hooks: ["after create", …]}]}`, read from `GET /resourceDetails` (`bindingsFromResourceDetails`: the ResourceDetail's `workflow.reference`, and the workflows its lifecycle hooks name) with names from `GET /Workflows`; `openWorkflow {workflowId}` → `WorkflowsPanel.showWorkflow`.
+- `WorkflowsPanel.showWorkflow(extensionUri, storageUri, manager, instance, workflowId)` opens (or reveals) the Workflows panel and posts `showWorkflow {workflow: summary}` once its list has been sent (`pendingShow`, `listSent`, `postPendingShow`). The node view (`src/App.tsx`) turns that into the `sonover:openWorkflow` event, so the list view opens it as when switching.
+- The screen shows the linked workflows as green buttons above the properties (`.rs-workflows`). `hosttest-resources.cjs` (41 checks), `test14.mjs` (35).
 
 ## New in 0.3.25 — Resources: Show in instead of Hide in
 - Visibility's "Hide in" switches are now "Show in" (`edit: {kind: "bool", invert: true}`): on when the stored `hideIn…` value isn't `true`; switching off stores `true`, on stores `false`, the same settings Saturn saves. "was on / off" follows the switch. `test14.mjs` (32).

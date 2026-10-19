@@ -32,6 +32,8 @@ global.fetch = async (u, o = {}) => {
   calls.push([method, url.pathname, o.headers?.Authorization]);
   const reply = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   if (url.pathname === "/api/Resources" && method === "GET") return reply({ data: [{ name: "Application" }, { name: "Loan" }, { name: "User" }] });
+  if (url.pathname === "/api/resourceDetails" && method === "GET") return reply({ data: [{ id: "rd1", resource: "Application", workflow: { reference: "wf-1" }, lifecycle: { create: { after: [{ data: { "wf-2": "action-1" } }] } } }, { id: "rd2", resource: "Loan", workflow: { reference: "wf-3" } }] });
+  if (url.pathname === "/api/Workflows" && method === "GET") return reply({ data: [{ id: "wf-1", name: "Loan process" }, { id: "wf-2", name: "Notify" }, { id: "wf-3", name: "Other" }] });
   if (url.pathname === "/api/resources/catalog" && method === "GET") return reply({ data: ["User", "Workflow"] });
   if (url.pathname === "/api/Resources/Application" && method === "GET") return reply(JSON.parse(JSON.stringify(stored)));
   if (url.pathname === "/api/resources/Application/schema" && method === "PUT") {
@@ -169,6 +171,10 @@ const writes = () => calls.filter(([m]) => m !== "GET" && m !== "OPTIONS");
   ok(r.type === "saved" && stored.data.map((p) => p.key).join() === "application_number,status" && !("loan_purpose" in lastSchema), "a removed property is left out of the saved schema, with the new order of the rest");
   ok(writes().length === 1 && writes()[0][0] === "PUT" && !calls.some(([m]) => m === "DELETE"), "with the one PUT, no DELETE");
   ok(JSON.parse(fs.readFileSync(r.payload.backup, "utf8")).body.data.some((p) => p.key === "loan_purpose"), "and the backup still has it");
+
+  // the workflows linked to a resource
+  const wf = await ask("workflows", { resource: "Application" });
+  ok(JSON.stringify(wf.payload.workflows) === JSON.stringify([{ id: "wf-1", via: "workflow", hooks: [], name: "Loan process" }, { id: "wf-2", via: "hook", hooks: ["after create"], name: "Notify" }]), "workflows lists the resource's own workflow and the ones its hooks run, with names: " + JSON.stringify(wf.payload.workflows));
 
   // lookups for the screen
   reset();

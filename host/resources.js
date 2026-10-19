@@ -26,6 +26,7 @@ var ResourcePropertiesHost = (() => {
   const panels = new Map(); // instance id -> panel
   const isObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
   let storageUri = null;
+  let extensionRoot = null;
 
   /** GET /Resources/<name> -> {body, data} (data: the property list or map). */
   async function readResource(manager, instance, resource) {
@@ -455,6 +456,34 @@ var ResourcePropertiesHost = (() => {
         post("options", { resource, value: payload.value, label: payload.label, options: rows.map((row) => [row.value, row.label]) });
         break;
       }
+      case "workflows": {
+        // the workflows linked to a resource: its ResourceDetail's workflow, and the workflows its
+        // lifecycle hooks run (create, update, …), with their names
+        const resource = String(payload.resource);
+        const bindings = bindingsFromResourceDetails(await listResourceDetails(manager, instance)).filter((b) => b.resource.toLowerCase() === resource.toLowerCase());
+        const linked = new Map();
+        for (const b of bindings) {
+          if (b.workflowId) linked.set(b.workflowId, { id: b.workflowId, via: "workflow", hooks: [] });
+          for (const group of b.hooks) for (const entry of group.entries) {
+            if (!entry.workflowId) continue;
+            const item = linked.get(entry.workflowId) ?? { id: entry.workflowId, via: "hook", hooks: [] };
+            item.hooks.push(`${group.when} ${group.op}`);
+            linked.set(entry.workflowId, item);
+          }
+        }
+        let names = new Map();
+        try {
+          const body = await listWorkflows(manager, instance);
+          for (const w of asArray(Array.isArray(body) ? body : body?.data)) if (w?.id) names.set(w.id, nonEmptyString(w.name) ?? w.id);
+        } catch {}
+        post("workflows", { resource, workflows: [...linked.values()].map((w) => ({ ...w, name: names.get(w.id) ?? w.id, hooks: [...new Set(w.hooks)] })) });
+        break;
+      }
+      case "openWorkflow": {
+        // opens the Workflows screen on that workflow
+        if (extensionRoot && storageUri) WorkflowsPanel.showWorkflow(extensionRoot, storageUri, manager, instance, String(payload.workflowId));
+        break;
+      }
       case "subjects": {
         // the user groups, users and permissions an access rule can name
         post("subjects", await loadAccessSubjects(manager, instance));
@@ -481,6 +510,7 @@ var ResourcePropertiesHost = (() => {
   }
 
   function open(extensionUri, manager, instance) {
+    extensionRoot = extensionUri;
     const existing = panels.get(instance.id);
     if (existing) return existing.reveal();
     const panel = vs.window.createWebviewPanel("saturn.resourceProperties", `Resources — ${instanceLabel(instance)}`, vs.ViewColumn.One, {

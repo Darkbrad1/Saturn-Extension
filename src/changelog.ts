@@ -1,6 +1,13 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.26",
+    title: "Resources: open the resource's workflows",
+    items: [
+      "Above a resource's properties, a green button for each workflow linked to it: its own workflow, and any workflow its lifecycle hooks run (hover to see when). Click it to open that workflow on the Workflows screen.",
+    ],
+  },
+  {
     version: "0.3.25",
     title: "Resources: Show in instead of Hide in",
     items: ["Visibility's Hide in is now Show in: a switch that's on means the property shows there. Saturn still stores it as its hide setting, so nothing about how it's saved changed."],

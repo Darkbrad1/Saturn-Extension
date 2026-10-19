@@ -38,7 +38,7 @@ ok((await p.locator(".rs-title").innerText()).includes("Resources") && (await p.
 ok((await p.locator(".rs-empty").innerText()).includes("Pick a resource"), "asks for a resource first");
 await p.selectOption(".rs-select select", "Application");
 await p.waitForTimeout(300);
-ok((await last()).type === "load" && (await last()).payload.resource === "Application", "picking a resource loads it");
+ok(await p.evaluate(() => window.__posted.some((m) => m.type === "load" && m.payload.resource === "Application")), "picking a resource loads it");
 const cards = await p.locator(".rs-item").allInnerTexts();
 ok(cards.length === 4 && cards[0].includes("Status") && cards[0].includes("status") && cards[0].includes("string"), "the properties are listed down the left: name, key and type");
 ok((await listKeys()).join() === "status,application_number,requested_loan_amount,submitted_at", "in the schema's order");
