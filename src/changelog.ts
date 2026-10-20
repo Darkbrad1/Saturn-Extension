@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.29",
+    title: "Open in Saturn",
+    items: [
+      "The Resources screen has an Open in Saturn button next to Reload: it opens the resource you picked in Saturn, in your browser.",
+      "The node view has one in its top bar: it opens the workflow you have open in Saturn.",
+    ],
+  },
+  {
     version: "0.3.28",
     title: "Lookup functions, and code settings in their own file",
     items: [

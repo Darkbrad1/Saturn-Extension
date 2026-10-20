@@ -1,4 +1,4 @@
-# sonover-code (v0.3.28)
+# sonover-code (v0.3.29)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,10 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.29 — Open in Saturn
+- Resources screen: an "Open in Saturn ↗" button next to Reload, once a resource is picked. It sends `openInSaturn {resource}`; the host opens `<instance url>/resources/<name>` in the browser (a name with `/`, `?` or `#` opens nothing). `hosttest-resources.cjs` (43 checks).
+- Node view: an "Open in Saturn ↗" button in the top bar, which sends the existing `openWorkflow {workflowId}` (`<instance url>/workflows/<id>`). `test16.mjs` (4).
 
 ## New in 0.3.28 — Lookup functions, and code settings in their own file
 - `src-res/spec.ts`: with `lookup_type: "function"`, Lookup shows "Lookup function" (the code in `lookup_reference`, which is where Saturn keeps it) and "Item data type" (`lookup_function_item_data_type`; `string` is the only value seen so far, any other stored value is kept and shown). Both screens get it.

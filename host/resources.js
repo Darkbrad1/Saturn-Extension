@@ -502,6 +502,13 @@ var ResourcePropertiesHost = (() => {
         await vs.env.clipboard.writeText(String(payload.text ?? ""));
         break;
       }
+      // The resource's page in Saturn's web app: <instance url>/resources/<name>.
+      case "openInSaturn": {
+        const resource = message.payload?.resource;
+        if (typeof resource !== "string" || !resource || /[\/?#]/.test(resource)) break;
+        await vs.env.openExternal(vs.Uri.parse(`${String(instance.url).replace(/\/+$/, "")}/resources/${encodeURIComponent(resource)}`));
+        break;
+      }
       case "openBackups": {
         if (storageUri) {
           const folder = vs.Uri.joinPath(storageUri, "resource-backups", instance.id);

@@ -508,6 +508,11 @@ function App() {
             Reload
           </button>
         )}
+        {resource && (
+          <button className="rs-btn" title={`Open ${resource} in Saturn, in your browser`} onClick={() => send("openInSaturn", { resource })}>
+            Open in Saturn ↗
+          </button>
+        )}
         <span className="rs-push" />
         {dirty && <span className="rs-unsaved">{saving ? "Saving…" : unsavedText}</span>}
         <button className="rs-btn" onClick={() => send("openBackups")}>Backups</button>

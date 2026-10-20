@@ -1053,6 +1053,9 @@ export function App() {
         >
           {dir === "v" ? "↕ Vertical" : "↔ Horizontal"}
         </button>
+        <button className="nv-btn" disabled={!wf} onClick={() => wf && send("openWorkflow", { workflowId: wf.id })} title="Open this workflow in Saturn, in your browser">
+          Open in Saturn ↗
+        </button>
         <button className={`nv-btn ${panel ? "is-on" : ""}`} onClick={() => setPanel((p) => !p)} title="Side panel (N)">
           Panel
         </button>

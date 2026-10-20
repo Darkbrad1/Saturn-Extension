@@ -5,6 +5,7 @@ const fs = require("fs"), os = require("os"), path = require("path"), Module = r
 const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={ResourcePropertiesHost,getResourceFields};";
 const stub = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => "" : stub), apply: () => stub, construct: () => stub });
 const uri = (p) => ({ fsPath: p, path: p, toString: () => "file://" + p });
+const opened = [];
 const vs = new Proxy({}, {
   get: (t, k) => k === "workspace" ? {
     getConfiguration: () => ({ get: () => "" }),
@@ -13,7 +14,8 @@ const vs = new Proxy({}, {
       writeFile: async (u, data) => fs.writeFileSync(u.fsPath, data),
       readFile: async (u) => fs.readFileSync(u.fsPath),
     },
-  } : k === "Uri" ? { joinPath: (u, ...parts) => uri(path.join(u.fsPath, ...parts)), file: (p) => uri(p) } : stub,
+  } : k === "Uri" ? { joinPath: (u, ...parts) => uri(path.join(u.fsPath, ...parts)), file: (p) => uri(p), parse: (s) => ({ parsed: s }) }
+    : k === "env" ? { openExternal: async (u) => { opened.push(u.parsed); return true; } } : stub,
 });
 const m = new Module("ext"); m.filename = "/x/extension.js";
 const orig = Module._load; Module._load = (r, p, i) => (r === "vscode" ? vs : orig(r, p, i));
@@ -187,5 +189,11 @@ const writes = () => calls.filter(([m]) => m !== "GET" && m !== "OPTIONS");
   ok(r.type === "saveFailed" && /no longer a property/.test(r.payload.message), "a property that's gone is refused before anything is written");
   r = await ask("save", { resource: "Application", changes: [] });
   ok(r.type === "saveFailed", "nothing to save is refused");
+  // Open in Saturn: the resource's page in the web app
+  await ask("openInSaturn", { resource: "Application" });
+  ok(opened.at(-1) === "https://demo.saturn.gd/resources/Application", "Open in Saturn opens <instance>/resources/<name>");
+  const count = opened.length;
+  for (const bad of ["", "../x", "a/b", "x?y", 5]) await ask("openInSaturn", { resource: bad });
+  ok(opened.length === count, "a resource name that isn't one opens nothing");
   fs.rmSync(backups, { recursive: true, force: true });
 })();
