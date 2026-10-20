@@ -1,4 +1,4 @@
-# sonover-code (v0.3.30)
+# sonover-code (v0.3.31)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.31 — One icon picker everywhere
+- The icon picker moved to `src-res/icons.tsx` (its styles into `src-res/editor.css`) and is shared: the Menus screen, and a new setting kind `{kind: "icon"}` in `src-res/spec.ts`, used by `propertyIcon` (Icon) and `tabIcon` (Tab icon). So the Resources screen and the node view's Form tab show the same button and popup. A value stored as `fa-name` keeps that form when another icon is picked. `test18.mjs` (10).
 
 ## New in 0.3.30 — A new Menus screen
 - The Menus screen is a new app, `src-menus/` (React, styled with the Resources screen's `src-res/editor.css` plus `src-menus/menus.css`), built into `dist/webview/menus/index.js` in place of the old bundle (removed from `vsix/`; it's in git history). The host side (`MenusPanel`) and its messages are unchanged, plus `openInSaturn` (`<instance url>/menus`).

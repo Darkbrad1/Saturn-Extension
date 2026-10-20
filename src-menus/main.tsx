@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { Switch } from "../src-res/editor";
 import editorCss from "../src-res/editor.css";
 import css from "./menus.css";
-import { FaIcon, IconField, isIcon } from "./icons";
+import { FaIcon, IconField, isIcon } from "../src-res/icons";
 import { AccessBox } from "./access";
 import { Mark, Row, TabSettings, type Host } from "./tabsettings";
 import {

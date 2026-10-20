@@ -11,8 +11,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .mn-col-title { flex: 1; min-width: 0; align-self: center; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 2px; }
 .mn-menu-icon, .mn-tab-icon { width: 26px; height: 26px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: var(--rs-accent); background: color-mix(in srgb, var(--rs-accent) 16%, transparent); }
 .mn-tab-icon { width: 18px; height: 18px; background: none; color: var(--rs-fg-2); }
-.mn-icon { width: 14px; height: 14px; display: inline-block; vertical-align: -2px; }
-.mn-icon.is-unknown { width: auto; height: auto; color: var(--rs-error); font-weight: 700; }
 .mn-flag { flex: none; display: flex; }
 .mn-mark { font-size: 10px; line-height: 1; }
 .mn-mark.is-error { color: var(--rs-error); }
@@ -54,23 +52,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .mn-problems .is-error { color: var(--rs-error); }
 .mn-problems .is-warning { color: var(--rs-changed); }
 .mn-warn-text { color: var(--rs-changed); font-size: 11px; }
-
-/* the icon button and its picker */
-.mn-icon-field { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 8px 0 3px; border-radius: 5px; border: 1px solid transparent; background: var(--rs-input); cursor: pointer; text-align: left; }
-.mn-icon-field:hover:not(:disabled) { border-color: var(--rs-input-hover); }
-.mn-icon-field.is-bad { border-color: var(--rs-error); }
-.mn-icon-box { width: 24px; height: 24px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: var(--rs-panel); }
-.mn-icon-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--rs-mono); font-size: 11px; }
-.mn-caret { color: var(--rs-muted); font-size: 10px; }
-.mn-none { font-size: 9px; color: var(--rs-muted); }
-.mn-picker { position: fixed; z-index: 70; width: 360px; padding: 8px; border-radius: 8px; background: var(--rs-panel-2); border: 1px solid var(--rs-edge); box-shadow: 0 10px 30px rgba(0, 0, 0, .5); display: flex; flex-direction: column; gap: 8px; }
-.mn-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 2px; max-height: 260px; overflow: auto; }
-.mn-pick { height: 34px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 5px; background: none; color: var(--rs-fg); cursor: pointer; }
-.mn-pick:hover, .mn-pick:focus-visible { background: var(--rs-hover); outline: none; border-color: var(--rs-input-hover); }
-.mn-pick.is-on { border-color: var(--rs-accent); background: color-mix(in srgb, var(--rs-accent) 16%, transparent); }
-.mn-pick .mn-icon { width: 15px; height: 15px; }
-.mn-picker-foot { display: flex; justify-content: space-between; gap: 8px; color: var(--rs-muted); font-size: 11px; }
-.mn-picker-name { color: var(--rs-fg); font-family: var(--rs-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* colours */
 .mn-colour { display: flex; gap: 6px; align-items: center; width: 100%; }

@@ -1,6 +1,11 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.31",
+    title: "One icon picker everywhere",
+    items: ["A property's Icon and Tab icon, on the Resources screen and on the node view's Form tab, now use the Menus screen's icon picker: a button that opens a popup with a search, and the icon's name when you hover it."],
+  },
+  {
     version: "0.3.30",
     title: "A new Menus screen",
     items: [

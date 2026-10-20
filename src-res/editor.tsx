@@ -6,6 +6,7 @@
 // Everything is local until the screen's Save.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HighlightInput } from "../src/controls";
+import { IconField } from "./icons";
 import { ALL, GROUPS, KEY_PATTERN, get, type Group, type Path, type Prop, type Setting } from "./spec";
 
 export interface Field { key: string; label: string | null; type: string | null }
@@ -334,6 +335,9 @@ function Control(props: { setting: Setting; id: string; value: unknown; mixed: b
     }
     case "tags":
       return <Tags id={id} tags={Array.isArray(value) ? value.map(String) : []} placeholder={MIXED ? "Mixed: tags typed here replace each one's" : edit.placeholder} disabled={disabled} onSet={(t) => set(path, t)} />;
+    case "icon":
+      // a value stored as "fa-name" keeps that form
+      return <IconField label={setting.label} allowEmpty mixed={mixed} disabled={disabled} value={mixed ? "" : str} onChange={(n) => set(path, n && str.startsWith("fa-") ? `fa-${n}` : n)} />;
     case "csv":
       return <Tags id={id} tags={str ? str.split(",").map((t) => t.trim()).filter(Boolean) : []} placeholder="Add a value, press Enter" disabled={disabled} onSet={(t) => set(path, t.join(","))} />;
     case "code":

@@ -267,3 +267,23 @@ textarea.pe-input { height: auto; padding: 6px 8px; resize: vertical; }
 .ft .ft-detail { position: relative; }
 .ft .ft-bad { margin: 8px 14px 0; }
 .pe-code .pe-open-file { display: block; margin: 6px 8px 8px auto; }
+
+/* Font Awesome icons and the icon picker (./icons.tsx), used by the Resources screen, the Form tab and the Menus screen */
+.mn-icon { width: 14px; height: 14px; display: inline-block; vertical-align: -2px; }
+.mn-icon.is-unknown { width: auto; height: auto; color: var(--rs-error); font-weight: 700; }
+.mn-icon-field { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 8px 0 3px; border-radius: 5px; border: 1px solid transparent; background: var(--rs-input); cursor: pointer; text-align: left; }
+.mn-icon-field:hover:not(:disabled) { border-color: var(--rs-input-hover); }
+.mn-icon-field.is-bad { border-color: var(--rs-error); }
+.mn-icon-box { width: 24px; height: 24px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: var(--rs-panel); }
+.mn-icon-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--rs-mono); font-size: 11px; }
+.mn-caret { color: var(--rs-muted); font-size: 10px; }
+.mn-none { font-size: 9px; color: var(--rs-muted); }
+.mn-picker { position: fixed; z-index: 70; width: 360px; padding: 8px; border-radius: 8px; background: var(--rs-panel-2); border: 1px solid var(--rs-edge); box-shadow: 0 10px 30px rgba(0, 0, 0, .5); display: flex; flex-direction: column; gap: 8px; }
+.mn-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 2px; max-height: 260px; overflow: auto; }
+.mn-pick { height: 34px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 5px; background: none; color: var(--rs-fg); cursor: pointer; }
+.mn-pick:hover, .mn-pick:focus-visible { background: var(--rs-hover); outline: none; border-color: var(--rs-input-hover); }
+.mn-pick.is-on { border-color: var(--rs-accent); background: color-mix(in srgb, var(--rs-accent) 16%, transparent); }
+.mn-pick .mn-icon { width: 15px; height: 15px; }
+.mn-picker-foot { display: flex; justify-content: space-between; gap: 8px; color: var(--rs-muted); font-size: 11px; }
+.mn-picker-name { color: var(--rs-fg); font-family: var(--rs-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+

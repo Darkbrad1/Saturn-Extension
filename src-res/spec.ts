@@ -28,6 +28,7 @@ export type Kind =
   | { kind: "record"; resource: string; value: string; label: string } // a record of a core resource
   | { kind: "view" } // one of the property's views
   | { kind: "key" } // the property's key: checked as you type
+  | { kind: "icon" } // a Font Awesome icon, from the icon picker (./icons.tsx)
   | { kind: "json" };
 
 export interface Setting {
@@ -325,7 +326,7 @@ export const GROUPS: Group[] = [
     parts: [
       {
         settings: [
-          { path: ["propertyIcon"], label: "Icon", hint: "A Font Awesome icon name, like folder-open.", edit: { kind: "text", mono: true } },
+          { path: ["propertyIcon"], label: "Icon", hint: "A Font Awesome icon.", edit: { kind: "icon" } },
           { path: ["rendering", "component"], label: "Default renderer", hint: "Used everywhere unless a renderer below is set.", edit: { kind: "select", options: RENDERERS } },
           {
             path: ["rendering", "options", "currency", "value"],
@@ -352,7 +353,7 @@ export const GROUPS: Group[] = [
           { path: ["rendering", "_variances", "view", "component"], label: "Renderer", edit: { kind: "select", options: RENDERERS } },
           { path: ["rendering", "_variances", "view", "span"], label: "Span", edit: { kind: "number", min: 1, max: 12 } },
           { path: ["placeInOwnTab"], label: "Add to separate tab", edit: { kind: "bool" } },
-          { path: ["tabIcon"], label: "Tab icon", when: (p) => p.placeInOwnTab === true, edit: { kind: "text", mono: true, placeholder: "folder-open" } },
+          { path: ["tabIcon"], label: "Tab icon", when: (p) => p.placeInOwnTab === true, edit: { kind: "icon" } },
           { path: ["disable_popover"], label: "Disable popover", edit: { kind: "bool", hint: "No preview when hovering." } },
           {
             path: ["position"],

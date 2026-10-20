@@ -5,7 +5,7 @@
 // share shows Mixed.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Cards, Switch } from "../src-res/editor";
-import { IconField } from "./icons";
+import { IconField } from "../src-res/icons";
 import {
   BUILT_IN_FIELDS, FILTER_OPS, VIEW_LABELS, VIEW_TYPES, addSavedView, addTableView, buildFilter, captionFor, customPageTab, defaultRow, hasTable, isDateType,
   moveItem, newResourceTab, newViewProblems, parseFilter, removeView, reorderViews, same, setTableColumns, setTarget, tabCaption, tabTarget, tableColumns, viewRows,
