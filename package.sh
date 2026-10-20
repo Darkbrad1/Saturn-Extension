@@ -26,7 +26,9 @@ out="$(cd "$(dirname "$out")" && pwd)/$(basename "$out")"
 
 echo "==> sonover-code $version"
 
-[ -d node_modules ] || { echo "==> npm install"; npm install --no-audit --no-fund; }
+# install the packages when any listed in package.json is missing (a pull can add one, as 0.3.30 did)
+missing="$(node -e 'const p=require("./package.json");const fs=require("fs");const all={...p.dependencies,...p.devDependencies};console.log(Object.keys(all).filter((n)=>!fs.existsSync("node_modules/"+n+"/package.json")).join(" "))')"
+if [ -n "$missing" ]; then echo "==> npm install (missing: $missing)"; npm install --no-audit --no-fund; fi
 
 echo "==> build"
 node build.mjs --min

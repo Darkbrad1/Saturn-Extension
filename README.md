@@ -7,6 +7,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
 
+## Build fix after 0.3.31
+- `package.sh` runs `npm install` when any package in `package.json` is missing, not only when `node_modules` is. After 0.3.30 added `@fortawesome/free-solid-svg-icons`, a `git pull` then `./package.sh` stopped with "Could not resolve"; now it installs it and goes on.
+
 ## New in 0.3.31 — One icon picker everywhere
 - The icon picker moved to `src-res/icons.tsx` (its styles into `src-res/editor.css`) and is shared: the Menus screen, and a new setting kind `{kind: "icon"}` in `src-res/spec.ts`, used by `propertyIcon` (Icon) and `tabIcon` (Tab icon). So the Resources screen and the node view's Form tab show the same button and popup. A value stored as `fa-name` keeps that form when another icon is picked. `test18.mjs` (10).
 
