@@ -3444,3 +3444,12 @@ body.nv-scrubbing * {
 #sonover-node-view .lgm-json .token.punctuation,
 #sonover-node-view .lgm-json .token.operator { color: #a8a8a8; }
 #sonover-node-view .lgt-whole summary { cursor: pointer; color: var(--fg-text-3); font-size: 10.5px; margin: 2px 0 4px; }
+
+/* the Form / Parameters tab: the editor scrolls inside itself */
+#sonover-node-view .fg-panel.is-form .fg-scroll {
+  overflow: hidden;
+  padding: 8px;
+}
+#sonover-node-view:has(.fg-panel.is-form) .nv-hints {
+  display: none;
+}

@@ -21,7 +21,10 @@ export interface Lookups {
   openResource?: (resource: string) => void;
   /** records of a core resource as [value, label]: null while they load */
   recordsOf: (resource: string, value: string, label: string) => [string, string][] | null;
+  /** what the things edited are called (default: property, properties, of this resource) */
+  noun?: { one: string; many: string; of: string };
 }
+const NOUN = { one: "property", many: "properties", of: "this resource" };
 
 /** A copy of `target` with `value` at `path` (or the last part removed). */
 export function setAt(target: unknown, path: Path, value: unknown, remove = false): Prop {
@@ -67,6 +70,10 @@ export function PropertyEditor(props: {
   /** the group shown when it opens (and remembered as you scroll) */
   group: string;
   onGroup: (id: string) => void;
+  /** no settings menu beside the page (the node view's Form tab) */
+  noMenu?: boolean;
+  /** a different hint for some settings, by path ("key": the Key row in a workflow's form) */
+  hints?: Record<string, string>;
 }) {
   const { items } = props;
   const many = items.length > 1;
@@ -126,12 +133,12 @@ export function PropertyEditor(props: {
   const activeGroup = inView.split("-")[0];
 
   const row = (setting: Setting) => (
-    <SettingRow key={setting.path.join(".") + setting.label} setting={setting} items={items} set={set} revert={revert} lookups={props.lookups} disabled={props.disabled} />
+    <SettingRow key={setting.path.join(".") + setting.label} setting={props.hints?.[setting.path.join(".")] ? { ...setting, hint: props.hints[setting.path.join(".")] } : setting} items={items} set={set} revert={revert} lookups={props.lookups} disabled={props.disabled} />
   );
 
   return (
     <div className="pe">
-      <nav className="pe-menu" aria-label="Settings">
+      {!props.noMenu && <nav className="pe-menu" aria-label="Settings">
         <input className="pe-input pe-find" placeholder="Find a setting" aria-label="Find a setting" value={find} onChange={(e) => setFind(e.target.value)} />
         {GROUPS.map((g) => {
           const parts = shownParts(g);
@@ -163,10 +170,10 @@ export function PropertyEditor(props: {
             </button>
           </div>
         )}
-      </nav>
+      </nav>}
 
       <div className="pe-page" ref={page} onScroll={onScroll}>
-        {many && <p className="pe-many">Editing {items.length} properties. A change here goes to all of them; a setting they don't share shows as Mixed.</p>}
+        {many && <p className="pe-many">Editing {items.length} {(props.lookups.noun ?? NOUN).many}. A change here goes to all of them; a setting they don't share shows as Mixed.</p>}
         {/* every card is a block in one column, so the gap under each is the same */}
         <div className="pe-flow">
           {GROUPS.flatMap((g) => {
@@ -190,7 +197,7 @@ export function PropertyEditor(props: {
             <div id={anchor("json")} data-sec="json" className="pe-block is-first is-wide">
               <header className="pe-group-head">
                 <h2 className="pe-group-title">JSON</h2>
-                <p className="pe-blurb">The whole property as Saturn stores it. Anything the groups don't cover can be changed here.</p>
+                <p className="pe-blurb">The whole {(props.lookups.noun ?? NOUN).one} as Saturn stores it. Anything the groups don't cover can be changed here.</p>
               </header>
               <div className="pe-card is-pad">
                 <WholeJson draft={first.draft} onChange={(d) => props.onChange([d])} disabled={props.disabled} />
@@ -374,7 +381,7 @@ function Control(props: { setting: Setting; id: string; value: unknown; mixed: b
       return <Select id={id} value={mixed ? MIXED_VALUE : str} options={options} disabled={disabled} onPick={(v) => set(path, v)} />;
     }
     case "key": {
-      const problem = !KEY_PATTERN.test(str) ? "Use letters, digits and _, starting with a letter." : props.lookups.keyTaken(str) ? `${str} is already a property of this resource.` : null;
+      const problem = !KEY_PATTERN.test(str) ? "Use letters, digits and _, starting with a letter." : props.lookups.keyTaken(str) ? `${str} is already a ${(props.lookups.noun ?? NOUN).one} of ${(props.lookups.noun ?? NOUN).of}.` : null;
       return (
         <span className="pe-key">
           <input id={id} className="pe-input is-mono" value={str} disabled={disabled} spellCheck={false} aria-invalid={!!problem} onChange={(e) => set(path, e.target.value)} />

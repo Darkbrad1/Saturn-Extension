@@ -431,3 +431,13 @@ export function diff(before: unknown, after: unknown, path: Path = []): { path: 
   }
   return JSON.stringify(before) === JSON.stringify(after) ? [] : [{ path, value: after }];
 }
+
+/** The resource a property points at: a static map (map.reference) or a dynamic source. */
+export function mappedOf(p: Prop): { kind: "static" | "dynamic"; resource: string } | null {
+  const source = get(p, ["source_definition", "reference"]);
+  if (p.source === "dynamic" && typeof source === "string" && source) return { kind: "dynamic", resource: source };
+  const map = get(p, ["map", "reference"]);
+  if (typeof map === "string" && map) return { kind: "static", resource: map };
+  return null;
+}
+

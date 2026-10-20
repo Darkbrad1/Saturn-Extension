@@ -5,6 +5,7 @@ import { codeParams, isEmailSummary, operatorName, type NvEdge, type NvNode, typ
 import type { Catalog, CommandView, DraftState, Flow, Path, WorkflowView } from "./types";
 import { CHANGELOG } from "./changelog";
 import { LogsTab } from "./logs";
+import { FormTab, type FormOwner } from "./formtab";
 
 export interface Tree {
   key: string;
@@ -88,36 +89,44 @@ export function SidePanel(props: {
   onSave: () => void;
   onDiscard: () => void;
 }) {
-  const [tab, setTab] = useState<"design" | "inspect" | "logs" | "changes">("design");
+  const [tab, setTab] = useState<"design" | "inspect" | "form" | "logs" | "changes">("design");
   const f = props.node?.data.flow;
   const pending = props.draft?.pending ?? 0;
+  const owner = props.scope.kind === "tree" ? formOwner(props.wf, props.tree) : null;
+  // no form here (a stage or the workflow settings are open): back to Design
+  const shown = tab === "form" && !owner ? "design" : tab;
+  const tabs = (["design", "inspect", ...(owner ? ["form" as const] : []), "logs", "changes"] as const);
+  // the form tab takes two thirds of the window (or more if the panel was made wider)
+  const width = shown === "form" ? Math.max(props.width, Math.round(window.innerWidth * 0.66)) : props.width;
 
   return (
-    <aside className="fg-panel" style={{ width: props.width }}>
-      <ResizeHandle width={props.width} onResize={props.onResize} />
+    <aside className={`fg-panel${shown === "form" ? " is-form" : ""}`} style={{ width }}>
+      {shown !== "form" && <ResizeHandle width={props.width} onResize={props.onResize} />}
       <div className="fg-tabs" role="tablist">
-        {(["design", "inspect", "logs", "changes"] as const).map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             role="tab"
-            aria-selected={tab === t}
-            className={`fg-tab ${tab === t ? "is-active" : ""}`}
+            aria-selected={shown === t}
+            className={`fg-tab ${shown === t ? "is-active" : ""}`}
             onClick={() => setTab(t)}
           >
-            {t === "design" ? "Design" : t === "inspect" ? "Inspect" : t === "logs" ? "Logs" : "Changes"}
+            {t === "design" ? "Design" : t === "inspect" ? "Inspect" : t === "form" ? (owner?.kind === "command" ? "Parameters" : "Form") : t === "logs" ? "Logs" : "Changes"}
             {t === "changes" && pending > 0 && <span className="fg-tab-badge">{pending}</span>}
           </button>
         ))}
       </div>
       <div className="fg-scroll">
-        {tab === "logs" ? (
+        {shown === "form" && owner ? (
+          <FormTab key={`${owner.ownerPath.join(".")}`} wfId={props.wf.id} owner={owner} env={props.formEnv} />
+        ) : shown === "logs" ? (
           <LogsTab wf={props.wf} tree={props.tree} flow={f} catalog={props.catalog} onOpenTree={props.onOpenTree} />
-        ) : tab === "changes" ? (
+        ) : shown === "changes" ? (
           <ChangesTab draft={props.draft} wf={props.wf} onUndo={props.onUndo} onSave={props.onSave} onDiscard={props.onDiscard} />
         ) : props.multi.length > 1 ? (
           <MultiPanel flows={props.multi} catalog={props.catalog} bulk={props.bulk} />
         ) : !f ? (
-          tab === "inspect" && props.scope.kind !== "workflow" ? (
+          shown === "inspect" && props.scope.kind !== "workflow" ? (
             <EmptyPanel {...props} />
           ) : props.edgeSel ? (
             <EmptyPanel {...props} />
@@ -128,7 +137,7 @@ export function SidePanel(props: {
           ) : (
             <TreePanel {...props} />
           )
-        ) : tab === "design" ? (
+        ) : shown === "design" ? (
           <DesignTab {...props} f={f} />
         ) : (
           <InspectTab f={f} catalog={props.catalog} />
@@ -500,6 +509,19 @@ function InspectTab({ f, catalog }: { f: Flow; catalog: Catalog }) {
 }
 
 /** No node selected: the open action's or command's own settings. */
+/** The action (its form) or command (its parameters) open in the canvas, if any. */
+function formOwner(wf: WorkflowView, t: Tree | undefined): FormOwner | null {
+  if (!t) return null;
+  if (t.kind === "command") {
+    const i = wf.commands.findIndex((c) => c.id === t.commandId);
+    const c = wf.commands[i];
+    return c ? { kind: "command", title: c.label, ownerPath: ["commands", i], formKey: "parameters", fields: c.parameters ?? [] } : null;
+  }
+  const path = t.taskPath.slice(0, -1);
+  const a = path[0] === "actions" ? wf.actions[Number(path[1])] : wf.stages[Number(path[1])]?.actions[Number(path[3])];
+  return a ? { kind: "action", title: a.label, ownerPath: path, formKey: "form", fields: a.form ?? [] } : null;
+}
+
 function TreePanel(props: Parameters<typeof SidePanel>[0]) {
   const t = props.tree;
   const wf = props.wf;

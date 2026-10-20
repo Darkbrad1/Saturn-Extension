@@ -19,7 +19,6 @@ import {
   scrubOf,
   type HlLang,
 } from "./controls";
-import { FieldMore } from "./fieldmore";
 
 // ---------------------------------------------------------------------------
 // Settings for the things around the flows — stages, actions, commands and the
@@ -394,15 +393,10 @@ export function ActionPanel(props: {
       <PanelHead color="#4a4a4a" title={a.label} sub={props.stageLabel ? `Action · Stage ${props.stageLabel}` : "Global action"} />
       <NameSection kind="action" path={props.path} label={a.label} machineName={a.action} ops={props.ops} />
       <AccessSection action={a} path={props.path} contextName={props.contextName} ops={props.ops} />
-      <FieldsSection
-        title="Form"
-        id="action-form"
-        empty="This action has no form fields."
-        fields={a.form ?? []}
-        ownerPath={props.path}
-        formKey="form"
-        ops={props.ops}
-      />
+      <Section title="Form" id="action-form">
+        <Row label="Fields">{(a.form ?? []).length}</Row>
+        <p className="fg-hint">Edit them in the Form tab above.</p>
+      </Section>
       <Section title="Details" id="action-details" defaultOpen={false}>
         <Row label="Performed by">{a.actorLabel ?? "Everyone"}</Row>
         <Row label="Batch action">{a.isBatchAction ? "Yes" : "No"}</Row>
@@ -424,16 +418,10 @@ export function CommandPanel(props: { wf: WorkflowView; command: CommandView; in
     <>
       <PanelHead color="#1f6e4a" title={c.label} sub="Reusable command" />
       <NameSection kind="command" path={path} label={c.label} machineName={c.name} ops={props.ops} />
-      <FieldsSection
-        title="Parameters"
-        id="command-params"
-        empty="This command takes no parameters."
-        hint="Steps inside read them as _params.<key>; references fill them in."
-        fields={c.parameters ?? []}
-        ownerPath={path}
-        formKey="parameters"
-        ops={props.ops}
-      />
+      <Section title="Parameters" id="command-params">
+        <Row label="Parameters">{(c.parameters ?? []).length}</Row>
+        <p className="fg-hint">Edit them in the Parameters tab above.</p>
+      </Section>
       <Section title={`Used in (${c.usageCount ?? 0})`} id="command-usages">
         {(c.usages ?? []).length === 0 && <p className="fg-hint">Nothing references this command yet.</p>}
         {(c.usages ?? []).map((u, i) => (
@@ -448,140 +436,6 @@ export function CommandPanel(props: { wf: WorkflowView; command: CommandView; in
         {(c.usageCount ?? 0) > 0 && <p className="fg-hint">It is referenced {c.usageCount} time{c.usageCount === 1 ? "" : "s"}; those references will break.</p>}
       </Section>
     </>
-  );
-}
-
-// ---- form fields / command parameters ----------------------------------------------
-const FIELD_TYPES = ["string", "number", "boolean", "object", "array"];
-function FieldsSection(props: {
-  title: string;
-  id: string;
-  empty: string;
-  hint?: string;
-  fields: FormFieldView[];
-  ownerPath: Path;
-  formKey: string;
-  ops: SettingsOps;
-}) {
-  const [editing, setEditing] = useState<string | "new" | null>(null);
-  const prevBusy = useRef(props.ops.busy);
-  const saving = useRef(false);
-  // close the editor once its save went through (not after a settings tweak)
-  useEffect(() => {
-    if (prevBusy.current && !props.ops.busy && !props.ops.error && saving.current) {
-      setEditing(null);
-      saving.current = false;
-    }
-    if (props.ops.error) saving.current = false;
-    prevBusy.current = props.ops.busy;
-  }, [props.ops.busy, props.ops.error]);
-  return (
-    <Section
-      title={`${props.title}${props.fields.length ? ` (${props.fields.length})` : ""}`}
-      id={props.id}
-      actions={
-        <button className="fg-plus" title="New field" onClick={() => { props.ops.clearError(); setEditing("new"); }}>
-          ＋
-        </button>
-      }
-    >
-      {props.fields.length === 0 && editing !== "new" && <p className="fg-hint">{props.empty}</p>}
-      {props.fields.map((f) =>
-        editing === f.key ? (
-          <div key={f.key} className="fg-field-edit">
-            <FieldEditor
-              initial={f}
-              ops={props.ops}
-              onCancel={() => setEditing(null)}
-              onSave={(label, key, type, required) => {
-                saving.current = true;
-                props.ops.updateField(props.ownerPath, props.formKey, f.key, label, key !== f.key ? key : undefined, type, required);
-              }}
-            />
-            {f.raw && (
-              <FieldMore
-                raw={f.raw}
-                onChange={(changes) => props.ops.setFieldProps(props.ownerPath, props.formKey, f.key, changes)}
-              />
-            )}
-          </div>
-        ) : (
-          <div key={f.key} className="fg-list-row">
-            <span className="fg-field-sum">
-              <span>
-                {f.label}
-                {f.required && <span className="nv-req">*</span>}
-              </span>
-              <code>
-                {f.key}
-                {f.type ? ` · ${f.type}` : ""}
-              </code>
-            </span>
-            <span className="fg-row-tools">
-              <button title={`Edit ${f.label}`} onClick={() => { props.ops.clearError(); setEditing(f.key); }}>✎</button>
-              <button title={`Remove ${f.label}`} onClick={() => props.ops.deleteField(props.ownerPath, props.formKey, f.key)}>×</button>
-            </span>
-          </div>
-        ),
-      )}
-      {editing === "new" && (
-        <FieldEditor
-          ops={props.ops}
-          onCancel={() => setEditing(null)}
-          onSave={(label, _key, type, required) => {
-            saving.current = true;
-            props.ops.createField(props.ownerPath, props.formKey, label, type, required);
-          }}
-        />
-      )}
-      {props.hint && props.fields.length > 0 && <p className="fg-hint">{props.hint}</p>}
-    </Section>
-  );
-}
-
-function FieldEditor(props: {
-  initial?: FormFieldView;
-  ops: SettingsOps;
-  onSave: (label: string, key: string, type: string, required: boolean) => void;
-  onCancel: () => void;
-}) {
-  const [label, setLabel] = useState(props.initial?.label ?? "");
-  const [key, setKey] = useState(props.initial?.key ?? "");
-  const [type, setType] = useState(props.initial?.type && FIELD_TYPES.includes(props.initial.type) ? props.initial.type : "string");
-  const [required, setRequired] = useState(props.initial?.required ?? false);
-  const ref = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-  useEffect(() => ref.current?.focus(), []);
-  const save = () => label.trim() && props.onSave(label.trim(), key.trim() || label, type, required);
-  return (
-    <div className="fg-field-editor" onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") props.onCancel(); }}>
-      <div className="fg-row">
-        <span className="fg-label">Label</span>
-        <HighlightInput inputRef={ref} className="fg-input" value={label} placeholder="Recipient email"
-          onChange={setLabel} onKeyDown={(e) => e.key === "Enter" && save()} />
-      </div>
-      {props.initial && (
-        <div className="fg-row">
-          <span className="fg-label">Key</span>
-          <HighlightInput className="fg-input is-mono" mono value={key} onChange={setKey} onKeyDown={(e) => e.key === "Enter" && save()} />
-        </div>
-      )}
-      <div className="fg-row">
-        <span className="fg-label">Type</span>
-        <select className="fg-input" value={type} onChange={(e) => setType(e.target.value)}>
-          {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-      </div>
-      <label className="fg-check">
-        <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required
-      </label>
-      <ErrorLine text={props.ops.error} />
-      <div className="fg-btn-row">
-        <Btn onClick={props.onCancel}>Cancel</Btn>
-        <Btn kind="primary" disabled={!label.trim() || props.ops.busy} onClick={save}>
-          {props.ops.busy ? "Saving…" : props.initial ? "Save field" : "Add field"}
-        </Btn>
-      </div>
-    </div>
   );
 }
 

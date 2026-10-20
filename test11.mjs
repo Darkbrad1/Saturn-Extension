@@ -49,7 +49,7 @@ await p.waitForTimeout(900);
 
 // ===== the tab: this workflow's newest 10 =====
 const names = await panel.locator(".fg-tab").allInnerTexts();
-ok(names.join(",") === "Design,Inspect,Logs,Changes", "the side panel has a Logs tab (" + names.join(", ") + ")");
+ok(names.join(",") === "Design,Inspect,Form,Logs,Changes", "the side panel has a Logs tab (" + names.join(", ") + ")");
 await tab("Logs").click();
 await p.waitForTimeout(700);
 ok((await panel.locator(".lgt-sub").innerText()).includes("Demo instance · SystemLog"), "it reads the instance's SystemLog resource");

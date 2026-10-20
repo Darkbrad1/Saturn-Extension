@@ -11,8 +11,9 @@ import { createRoot } from "react-dom/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Cards, PropertyEditor, Switch, type Field, type Lookups } from "./editor";
 import { setAt } from "./editor";
-import { GROUPS, KEY_PATTERN, TYPES, diff, get, keyFrom, newProperty, type Prop } from "./spec";
+import { GROUPS, KEY_PATTERN, TYPES, diff, get, keyFrom, mappedOf, newProperty, type Prop } from "./spec";
 import css from "./res.css";
+import editorCss from "./editor.css";
 
 declare function acquireVsCodeApi(): { postMessage: (m: unknown) => void; getState: () => unknown; setState: (s: unknown) => void };
 const vscode = acquireVsCodeApi();
@@ -64,15 +65,6 @@ const asProp = (p: Property): Prop => (p.definition && typeof p.definition === "
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 const isEmpty = (w: Work) => !Object.keys(w.drafts).length && !w.added.length && !w.order && !w.deleted.length;
-
-/** The resource a property points at: a static map (map.reference) or a dynamic source. */
-export function mappedOf(p: Prop): { kind: "static" | "dynamic"; resource: string } | null {
-  const source = get(p, ["source_definition", "reference"]);
-  if (p.source === "dynamic" && typeof source === "string" && source) return { kind: "dynamic", resource: source };
-  const map = get(p, ["map", "reference"]);
-  if (typeof map === "string" && map) return { kind: "static", resource: map };
-  return null;
-}
 
 /** Everything a resource's unsaved changes add up to, as Save sends it. */
 function planOf(properties: Property[] | undefined, work: Work) {
@@ -192,6 +184,12 @@ function App() {
           setInstanceName(payload.instanceName);
           setResources(payload.resources);
           setCore(Array.isArray(payload.core) ? payload.core : null);
+          // opened on a resource (a mapped form field's chip on the Workflows screen)
+          if (typeof payload.show === "string" && payload.show) { setResource(payload.show); setSelected([]); }
+          break;
+        case "show":
+          setResource(payload.resource);
+          setSelected([]);
           break;
         case "properties":
           setLoading(false);
@@ -814,6 +812,6 @@ function keepDifferent(drafts: Record<string, Prop>, properties: Property[]) {
 }
 
 const style = document.createElement("style");
-style.textContent = css;
+style.textContent = editorCss + "\n" + css;
 document.head.appendChild(style);
 createRoot(document.getElementById("resources-root")!).render(<App />);

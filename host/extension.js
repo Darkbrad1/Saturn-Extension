@@ -10152,6 +10152,98 @@ var draftHistoryLimit = 20,
             await this.applyEdit(workflowId, `Removed field "${fieldKey}"`, draft => updateFields(draft, ownerPath, String(formKey), fields => fields.filter(field => nonEmptyString(field?.key) !== fieldKey)));
             break;
           }
+        // The Form / Parameters tab: the whole field list of an action's form or a command's parameters, as edited there
+        // (settings, order, new, duplicated, removed and renamed fields), as ONE draft edit. Each field must be an object
+        // with its own valid key; no two fields may share one.
+        case "setFormFields":
+          {
+            let {
+              workflowId: workflowId,
+              ownerPath: ownerPath,
+              formKey: formKey,
+              fields: fields,
+              summary: summary
+            } = message.payload ?? {};
+            let problem = !Array.isArray(fields) ? "The form's fields weren't sent." : fields.find(field => !field || typeof field != "object" || Array.isArray(field) || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(String(field.key ?? ""))) ? "A field has no valid key (letters, digits and _, starting with a letter)." : new Set(fields.map(field => field.key)).size !== fields.length ? "Two fields have the same key." : fields.some(field => ["__proto__", "constructor", "prototype"].some(part => Object.prototype.hasOwnProperty.call(field, part))) ? "A field has a setting that can't be written." : null;
+            if (problem) {
+              webview.postMessage({
+                type: "editFailed",
+                payload: {
+                  message: problem
+                }
+              });
+              break;
+            }
+            await this.applyEdit(workflowId, nonEmptyString(summary) ?? "Changed the form's fields", draft => updateFields(draft, ownerPath, String(formKey), () => fields));
+            break;
+          }
+        // The Form / Parameters tab: the fields of a form as saved on the instance (the draft's base), to show what each
+        // setting was. Answers savedForm {workflowId, ownerPath, formKey, fields}.
+        case "fetchSavedForm":
+          {
+            let {
+              workflowId: workflowId,
+              ownerPath: ownerPath,
+              formKey: formKey
+            } = message.payload ?? {};
+            try {
+              let draft = this.drafts.get(workflowId),
+                definition = draft ? draft.base : (await this.readWorkflow(workflowId)).definition,
+                owner = getAt(definition, ownerPath),
+                form = owner && typeof owner == "object" ? owner[String(formKey)] : null;
+              webview.postMessage({
+                type: "savedForm",
+                payload: {
+                  workflowId: workflowId,
+                  ownerPath: ownerPath,
+                  formKey: formKey,
+                  fields: Array.isArray(form) ? form : form && typeof form == "object" && Array.isArray(form.fields) ? form.fields : []
+                }
+              });
+            } catch (error) {
+              console.warn("[Saturn] saved form unavailable", error);
+            }
+            break;
+          }
+        // Another resource's properties (for form-field settings that name one: a map's reference, a dynamic source).
+        case "fetchResourceFields":
+          {
+            let {
+              resource: resource
+            } = message.payload ?? {};
+            try {
+              let result = await getResourceFields(this.manager, this.instance, String(resource));
+              webview.postMessage({
+                type: "resourceFields",
+                payload: {
+                  resource: resource,
+                  fields: result.fields.map(field => ({
+                    key: field.key,
+                    label: field.label,
+                    type: field.type
+                  }))
+                }
+              });
+            } catch {
+              webview.postMessage({
+                type: "resourceFields",
+                payload: {
+                  resource: resource,
+                  fields: []
+                }
+              });
+            }
+            break;
+          }
+        // A mapped field's chip: opens that resource on the Resources screen.
+        case "openResourceScreen":
+          {
+            let {
+              resource: resource
+            } = message.payload ?? {};
+            ResourcePropertiesHost.open(this.extensionUri, this.manager, this.instance, nonEmptyString(resource));
+            break;
+          }
         // Adds a reusable command, with a fresh id.
         case "createCommand":
           {

@@ -1,4 +1,4 @@
-# sonover-code (v0.3.26)
+# sonover-code (v0.3.27)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,12 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.27 — A Form tab for actions, a Parameters tab for commands
+- The side panel has a Form tab when an action is open, and a Parameters tab when a command is open (`src/formtab.tsx`). It uses the Resources screen's editor (`src-res/editor.tsx` with `noMenu`, `hints` and `lookups.noun`), styled by `src-res/editor.css` (now shared by both screens). The panel widens to two thirds of the window on it, with no resize handle and no shortcut bar.
+- Everything from the Resources screen's property list carries over: several picked (Mixed), drag and Alt+↑/↓, + to add, the right-click menu (Duplicate, Copy / Paste settings, Copy key, Delete), the mapped chips. A field keeps a fixed id here, so it stays picked while its key is typed.
+- New Workflows panel messages: `setFormFields {workflowId, ownerPath, formKey, fields, summary}` (the whole list as ONE draft edit; refuses missing or invalid keys, two fields with one key and prototype keys), `fetchSavedForm` → `savedForm {…, fields}` (from the draft's base, for "was …"), `fetchResourceFields {resource}` → `resourceFields`, `openResourceScreen {resource}` (`ResourcePropertiesHost.open(…, show)`: a new screen gets `show` in `init`, an open one a `show` message).
+- The old Form / Parameters sections in Design are gone (with `src/fieldmore.tsx`). `hosttest-formtab.cjs` (12 checks), `test15.mjs` (28).
 
 ## New in 0.3.26 — Resources: open the resource's workflows
 - New Resources messages: `workflows {resource}` → `workflows {resource, workflows: [{id, name, via: "workflow" | "hook", hooks: ["after create", …]}]}`, read from `GET /resourceDetails` (`bindingsFromResourceDetails`: the ResourceDetail's `workflow.reference`, and the workflows its lifecycle hooks name) with names from `GET /Workflows`; `openWorkflow {workflowId}` → `WorkflowsPanel.showWorkflow`.

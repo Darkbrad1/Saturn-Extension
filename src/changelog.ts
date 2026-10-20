@@ -1,6 +1,18 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.27",
+    title: "A Form tab for actions, a Parameters tab for commands",
+    items: [
+      "An action's form now has its own tab in the side panel (Form), and a command's parameters too (Parameters). The panel gets wider while it's open.",
+      "It works like the Resources screen: the fields down the left, the picked ones' settings on the right, with the same switches, type cards, Show in and JSON. There's no settings menu, just the one long page.",
+      "Pick several with Ctrl/Cmd or Shift+click: a change goes to all of them, and a setting they don't share shows Mixed. Drag or Alt+↑/↓ to reorder, + to add a field, Delete to remove one.",
+      "Right-click a field: Duplicate, Copy settings, Paste settings, Copy key, Delete. A mapped field's chip opens that resource on the Resources screen.",
+      "Changes go into the workflow's draft a moment after you stop (or when you leave the tab), like every other edit: undo, Save and Discard work as before. \"was …\" shows the value the saved workflow has.",
+      "The Design tab no longer lists the form's fields; it points to the new tab.",
+    ],
+  },
+  {
     version: "0.3.26",
     title: "Resources: open the resource's workflows",
     items: [

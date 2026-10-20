@@ -234,6 +234,9 @@
   const get = (o, p) => p.reduce((a, k) => (a == null ? a : a[k]), o);
   function ensureArray(o, p) { let cur = o; for (let i = 0; i < p.length - 1; i++) { const k = p[i]; if (cur[k] == null) cur[k] = typeof p[i + 1] === "number" ? [] : { type: "series" }; cur = cur[k]; } const last = p[p.length - 1]; if (!Array.isArray(cur[last])) cur[last] = []; return cur[last]; }
   const history = {}; const summaries = {};
+  // each workflow as saved on the instance (what the Form tab's "was …" compares with)
+  const savedDefs = {};
+  const savedOf = (id) => (savedDefs[id] ||= JSON.stringify(defs[id]));
   let cur = "wf_orders";
   const post = (type, payload) => setTimeout(() => window.dispatchEvent(new MessageEvent("message", { data: { type, payload } })), 15);
   function reply(id = cur) { post("workflow", view(defs[id])); post("draftState", { workflowId: id, pending: (summaries[id] || []).length, summaries: (summaries[id] || []).slice(0, 12) }); }
@@ -427,6 +430,18 @@
             const k = c.path[c.path.length - 1]; if (c.remove) delete o[k]; else o[k] = c.value; } });
         break;
       }
+      case "setFormFields": {
+        const bad = (Array.isArray(p.fields) ? p.fields : [null]).find((f, i, all) => !f || typeof f !== "object" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(String(f.key)) || all.findIndex((g) => g && g.key === f.key) !== i);
+        if (bad !== undefined || window.__formFail) { fail(window.__formFail || `The field key "${bad?.key}" isn\u2019t valid or is used twice.`); break; }
+        savedOf(id);
+        apply(id, p.summary || "Changed the form's fields", (d) => { const fs = fieldsAt(d, p.ownerPath, p.formKey); fs.splice(0, fs.length, ...structuredClone(p.fields)); });
+        (window.__formSends ||= []).push(p);
+        break;
+      }
+      case "fetchSavedForm": { const d = JSON.parse(savedOf(id)); let fs = []; try { const o = get(d, p.ownerPath)?.[p.formKey]; fs = Array.isArray(o) ? o : Array.isArray(o?.fields) ? o.fields : []; } catch {}
+        post("savedForm", { workflowId: id, ownerPath: p.ownerPath, formKey: p.formKey, fields: fs }); break; }
+      case "fetchResourceFields": post("resourceFields", { resource: p.resource, fields: [{ key: "id", label: "Id", type: "string" }, { key: "first_name", label: "First name", type: "string" }, { key: "email", label: "Email", type: "string" }] }); break;
+      case "openResourceScreen": (window.__opened = window.__opened || []).push({ type: msg.type, ...p }); break;
       case "deleteFormField": apply(id, `Removed field "${p.key}"`, (d) => { const fs = fieldsAt(d, p.ownerPath, p.formKey); fs.splice(fs.findIndex((x) => x.key === p.key), 1); }); break;
       case "setAccess": apply(id, p.rules.length ? `Set access to ${p.rules.length} rule(s)` : "Removed every access restriction", (d) => {
         get(d, p.path).access_control = p.rules.map((r) => ({ method: r.method, lable: ke(r.method), data: r.data })); }); break;
@@ -484,7 +499,7 @@
         if (!(history[id] || []).length) { post("editFailed", { message: "Nothing to undo in this session." }); break; }
         defs[id] = JSON.parse(history[id].pop()); summaries[id].shift(); reply(id); post("editSaved", { canUndo: history[id].length > 0 });
         break;
-      case "saveChanges": summaries[id] = []; history[id] = []; reply(id); break;
+      case "saveChanges": summaries[id] = []; history[id] = []; savedDefs[id] = JSON.stringify(defs[id]); reply(id); break;
       case "discardChanges": break;
     }
   }

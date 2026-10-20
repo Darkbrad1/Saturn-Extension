@@ -27,6 +27,8 @@ var ResourcePropertiesHost = (() => {
   const isObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
   let storageUri = null;
   let extensionRoot = null;
+  // instance id -> the resource to open the screen on (asked before the screen was made)
+  const pendingShow = new Map();
 
   /** GET /Resources/<name> -> {body, data} (data: the property list or map). */
   async function readResource(manager, instance, resource) {
@@ -394,7 +396,9 @@ var ResourcePropertiesHost = (() => {
         // which of them are Saturn's own (core) resources, so the picker lists the others first;
         // null when the instance's catalog can't be read (then it's one list)
         const core = await coreResourceNames(manager, instance);
-        post("init", { instanceName: instanceLabel(instance), resources: names, core: core ? names.filter((n) => core.has(n)) : null });
+        const show = pendingShow.get(instance.id) ?? null;
+        pendingShow.delete(instance.id);
+        post("init", { instanceName: instanceLabel(instance), resources: names, core: core ? names.filter((n) => core.has(n)) : null, show });
         break;
       }
       case "load": {
@@ -509,10 +513,16 @@ var ResourcePropertiesHost = (() => {
     }
   }
 
-  function open(extensionUri, manager, instance) {
+  /** Opens the instance's Resources screen; `show` opens it on that resource (a mapped form field's chip on the
+   *  Workflows screen). A screen that's just been made picks it up in its init. */
+  function open(extensionUri, manager, instance, show = null) {
     extensionRoot = extensionUri;
+    if (show) pendingShow.set(instance.id, show);
     const existing = panels.get(instance.id);
-    if (existing) return existing.reveal();
+    if (existing) {
+      if (show) { pendingShow.delete(instance.id); existing.webview.postMessage({ type: "show", payload: { resource: show } }); }
+      return existing.reveal();
+    }
     const panel = vs.window.createWebviewPanel("saturn.resourceProperties", `Resources — ${instanceLabel(instance)}`, vs.ViewColumn.One, {
       enableScripts: true,
       localResourceRoots: [vs.Uri.joinPath(extensionUri, "dist")],
