@@ -33,7 +33,7 @@ node build.mjs --min
 
 echo "==> typecheck"
 npx --no-install tsc --noEmit --jsx react-jsx --strict --module esnext --moduleResolution bundler \
-  --target es2020 --skipLibCheck src/env.d.ts src/main.tsx src-logs/main.tsx src-res/main.tsx
+  --target es2020 --skipLibCheck src/env.d.ts src/main.tsx src-logs/main.tsx src-res/main.tsx src-menus/main.tsx
 
 echo "==> host tests"
 ext="out/vsix/extension/dist/extension.js"

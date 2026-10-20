@@ -169,9 +169,9 @@ await p.waitForTimeout(500);
 ok((await p.evaluate(() => window.__triggers().wf_orders.length)) === 1, "trigger deleted");
 
 // resources
-await section("Resources").locator(".fg-section-title").click();
+await section("Hooks").locator(".fg-section-title").click();
 await p.waitForTimeout(200);
-const res = section("Resources");
+const res = section("Hooks");
 ok((await res.innerText()).includes("orders") && (await res.innerText()).includes("update.after"), "bound resource and hook listed");
 ok((await res.innerText()).includes("invoices") && (await res.innerText()).includes("hooks only"), "hooks-only resource listed");
 await res.locator(".fg-resource", { hasText: "orders" }).locator(".fg-plus").click();

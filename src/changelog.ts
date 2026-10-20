@@ -1,6 +1,20 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.30",
+    title: "A new Menus screen",
+    items: [
+      "The Menus screen is rebuilt in the Resources screen's style, the full width of the view, in three columns: the menus, the picked menu's tabs, and the settings.",
+      "Tabs fold open and closed to show their sub-tabs. Drag them to reorder, onto a tab to make them its sub-tab, or out again. Alt+↑/↓ moves the picked ones; ←/→ folds; Delete crosses them out until Save.",
+      "Pick several tabs with Ctrl/Cmd or Shift+click: a change goes to all of them. Right-click a tab to duplicate it, copy or paste its settings, add a sub-tab or delete it.",
+      "The menu's label, icon and who can see it are always at the top of the settings; the picked tab's settings are below.",
+      "Problems show beside what they're about: a red or yellow mark on the menu or tab, and the message under the setting.",
+      "The icon picker opens as a popup; hover an icon to see its name.",
+      "Each menu keeps its own unsaved changes. Save lists them all, then saves them one after another, and the new order last.",
+      "Open in Saturn opens Saturn's menus page. In the node view, the workflow's lifecycle hooks section is now called Hooks.",
+    ],
+  },
+  {
     version: "0.3.29",
     title: "Open in Saturn",
     items: [

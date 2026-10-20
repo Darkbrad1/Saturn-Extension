@@ -22,6 +22,7 @@ const common = {
 await build({ ...common, entryPoints: ["src/main.tsx"], outfile: "dist/nodeview.js" });
 await build({ ...common, entryPoints: ["src-logs/main.tsx"], outfile: "dist/logs.js" });
 await build({ ...common, entryPoints: ["src-res/main.tsx"], outfile: "dist/resources.js" });
+await build({ ...common, entryPoints: ["src-menus/main.tsx"], outfile: "dist/menus.js" });
 
 const version = /version:\s*"(\d+\.\d+\.\d+)"/.exec(readFileSync("src/changelog.ts", "utf8"))?.[1];
 if (!version) throw new Error("no version in src/changelog.ts");
@@ -29,7 +30,7 @@ if (!version) throw new Error("no version in src/changelog.ts");
 // the shipped files build.mjs doesn't make: a clone missing any of them would package a broken
 // extension (0.3.10/0.3.11 went out with a blank sidebar when git ignored vsix/extension/dist)
 const shipped = ["dist/mcp/saturn-mcp.js", "dist/webview/preview/index.js",
-  ...["workflows", "sidebar", "menus", "pages", "agent", "kanban"].flatMap((w) => [`dist/webview/${w}/index.js`, `dist/webview/${w}/index.css`])];
+  ...["workflows", "sidebar", "pages", "agent", "kanban"].flatMap((w) => [`dist/webview/${w}/index.js`, `dist/webview/${w}/index.css`])];
 const missing = shipped.filter((f) => !existsSync(`vsix/extension/${f}`));
 if (missing.length) throw new Error(`missing from vsix/extension: ${missing.join(", ")}`);
 
@@ -37,10 +38,12 @@ const out = "out/vsix";
 rmSync(out, { recursive: true, force: true });
 cpSync("vsix", out, { recursive: true });
 const ext = `${out}/extension`;
-for (const [name, file] of [["nodeview", "dist/nodeview.js"], ["logs", "dist/logs.js"], ["resources", "dist/resources.js"]]) {
+for (const [name, file] of [["nodeview", "dist/nodeview.js"], ["logs", "dist/logs.js"], ["resources", "dist/resources.js"], ["menus", "dist/menus.js"]]) {
   mkdirSync(`${ext}/dist/webview/${name}`, { recursive: true });
   cpSync(file, `${ext}/dist/webview/${name}/index.js`);
 }
+// the Menus panel's page links an index.css; the new screen's styles are inside its index.js
+writeFileSync(`${ext}/dist/webview/menus/index.css`, "/* The Menus screen's styles are in index.js. */\n");
 // the shipped webviews and the MCP server are kept readable in vsix/; they go into the package
 // minified (names and whitespace only, licence notices kept). package.sh proves with
 // tools/same-code.mjs that each minified file is the same program as its readable source.

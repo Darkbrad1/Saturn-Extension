@@ -1,4 +1,4 @@
-# sonover-code (v0.3.29)
+# sonover-code (v0.3.30)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,12 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.30 — A new Menus screen
+- The Menus screen is a new app, `src-menus/` (React, styled with the Resources screen's `src-res/editor.css` plus `src-menus/menus.css`), built into `dist/webview/menus/index.js` in place of the old bundle (removed from `vsix/`; it's in git history). The host side (`MenusPanel`) and its messages are unchanged, plus `openInSaturn` (`<instance url>/menus`).
+- Three columns: menus (search, +, drag or Alt+↑/↓ to reorder, right-click: Copy id, Undo the last save, Discard its changes, Delete menu), the tab tree (fold with ←/→, drag before / after / into a tab, Alt+↑/↓, several picked, right-click: Duplicate, Add a sub-tab, Copy / Paste settings, Delete / Restore, + and × on each row), and the settings (the menu's label, icon and access at the top; the picked tabs below).
+- `src-menus/model.ts`: the old screen's helpers in TypeScript; each problem now names the setting it's about (`field`), so it shows under that setting, and on its menu card and tab row. The tabs are edited as a tree of nodes with fixed ids (`treeOf` / `referencesOf`) that writes an untouched menu back exactly as it was read.
+- Unsaved changes per menu (`works`), kept while the screen is hidden; Save confirms the list, sends `save` for each in turn, then `reorder`. The icon picker (`src-menus/icons.tsx`, Font Awesome 7.3.1 solid, now an npm dependency) is a popup with names on hover. The node view's workflow "Resources" section is called "Hooks". `hosttest-menus.cjs` (1), `test17.mjs` (54).
 
 ## New in 0.3.29 — Open in Saturn
 - Resources screen: an "Open in Saturn ↗" button next to Reload, once a resource is picked. It sends `openInSaturn {resource}`; the host opens `<instance url>/resources/<name>` in the browser (a name with `/`, `?` or `#` opens nothing). `hosttest-resources.cjs` (43 checks).

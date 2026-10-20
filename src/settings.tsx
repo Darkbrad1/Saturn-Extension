@@ -905,7 +905,7 @@ function ResourcesSection(props: { wf: WorkflowView; ops: SettingsOps }) {
   );
   const label = (id: string) => allActions.find((a) => a.id === id)?.label ?? id;
   return (
-    <Section title="Resources" id="wf-resources" defaultOpen={false}>
+    <Section title="Hooks" id="wf-resources" defaultOpen={false}>
       {rows === null ? (
         <p className="fg-hint">Could not read this instance's resource details, so what this workflow is attached to is unknown.</p>
       ) : rows.length === 0 ? (

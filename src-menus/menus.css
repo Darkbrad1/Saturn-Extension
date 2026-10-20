@@ -1,0 +1,122 @@
+/* The Menus screen: the page-wide rules, and what it adds to the Resources screen's look
+   (../src-res/editor.css): the tab tree, the icon picker, problem marks, the filter, views and columns. */
+html, body { margin: 0; height: 100%; background: var(--rs-bg); color: var(--rs-fg); font-family: var(--rs-font); font-size: 12px; }
+#root { height: 100%; }
+* { box-sizing: border-box; }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+/* columns 1 and 2 */
+.mn-menus { width: 260px; }
+.mn-tabs { width: 290px; }
+.mn-col-title { flex: 1; min-width: 0; align-self: center; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 2px; }
+.mn-menu-icon, .mn-tab-icon { width: 26px; height: 26px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: var(--rs-accent); background: color-mix(in srgb, var(--rs-accent) 16%, transparent); }
+.mn-tab-icon { width: 18px; height: 18px; background: none; color: var(--rs-fg-2); }
+.mn-icon { width: 14px; height: 14px; display: inline-block; vertical-align: -2px; }
+.mn-icon.is-unknown { width: auto; height: auto; color: var(--rs-error); font-weight: 700; }
+.mn-flag { flex: none; display: flex; }
+.mn-mark { font-size: 10px; line-height: 1; }
+.mn-mark.is-error { color: var(--rs-error); }
+.mn-mark.is-warning { color: var(--rs-changed); }
+.mn-top-errors { color: var(--rs-error); font-size: 11px; white-space: nowrap; }
+
+/* the tab tree */
+.mn-tree .rs-item { padding-left: 4px; }
+.mn-subs { margin-left: 18px; padding-left: 6px; border-left: 1px solid var(--rs-line); }
+.mn-tab.is-sub { padding-left: 8px; }
+.mn-tab.is-into { border-color: var(--rs-accent); background: color-mix(in srgb, var(--rs-accent) 18%, var(--rs-panel-2)); }
+.rs-drop.is-sub { margin-left: 4px; }
+.mn-fold { width: 16px; flex: none; background: none; border: 0; padding: 0; color: var(--rs-muted); cursor: pointer; font-size: 11px; }
+.mn-fold.is-empty { cursor: default; }
+.mn-sub-count { margin-left: 6px; font-size: 10px; padding: 0 5px; border-radius: 8px; background: var(--rs-input); color: var(--rs-fg-2); }
+.mn-row-btns { display: flex; gap: 2px; flex: none; opacity: 0; }
+.rs-item:hover .mn-row-btns, .rs-item.is-selected .mn-row-btns, .rs-item.is-deleted .mn-row-btns { opacity: 1; }
+.mn-row-btn { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--rs-fg-2); cursor: pointer; font-size: 14px; line-height: 20px; }
+.mn-row-btn:hover { background: var(--rs-btn); color: var(--rs-fg); }
+.mn-row-btn.is-danger:hover { background: var(--rs-error); color: #fff; }
+
+/* column 3 */
+.mn-page { padding-top: 14px; }
+.mn-menu-title { display: flex; align-items: center; gap: 8px; }
+.mn-menu-title .mn-icon { color: var(--rs-accent); width: 16px; height: 16px; }
+.mn-tab-settings .pe-group-head { padding-top: 6px; }
+.mn-pick-hint { padding: 4px 2px 16px; }
+.mn-sub-of { margin: 0 0 12px; color: var(--rs-muted); font-size: 11px; }
+.mn-others { margin: 0 0 16px; }
+.mn-grow { flex: 1; align-self: center; }
+
+/* problems, under their setting */
+.mn-row-problems { flex-basis: 100%; }
+.pe-row:has(.mn-row-problems) { flex-wrap: wrap; row-gap: 6px; }
+.pe-row.is-error::before, .pe-row.is-warning::before { content: ""; position: absolute; left: -14px; top: 10px; bottom: 10px; width: 2px; border-radius: 1px; }
+.pe-row.is-error::before { background: var(--rs-error); }
+.pe-row.is-warning::before { background: var(--rs-changed); }
+.mn-problems { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
+.mn-problems .is-error { color: var(--rs-error); }
+.mn-problems .is-warning { color: var(--rs-changed); }
+.mn-warn-text { color: var(--rs-changed); font-size: 11px; }
+
+/* the icon button and its picker */
+.mn-icon-field { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 8px 0 3px; border-radius: 5px; border: 1px solid transparent; background: var(--rs-input); cursor: pointer; text-align: left; }
+.mn-icon-field:hover:not(:disabled) { border-color: var(--rs-input-hover); }
+.mn-icon-field.is-bad { border-color: var(--rs-error); }
+.mn-icon-box { width: 24px; height: 24px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: var(--rs-panel); }
+.mn-icon-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--rs-mono); font-size: 11px; }
+.mn-caret { color: var(--rs-muted); font-size: 10px; }
+.mn-none { font-size: 9px; color: var(--rs-muted); }
+.mn-picker { position: fixed; z-index: 70; width: 360px; padding: 8px; border-radius: 8px; background: var(--rs-panel-2); border: 1px solid var(--rs-edge); box-shadow: 0 10px 30px rgba(0, 0, 0, .5); display: flex; flex-direction: column; gap: 8px; }
+.mn-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 2px; max-height: 260px; overflow: auto; }
+.mn-pick { height: 34px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 5px; background: none; color: var(--rs-fg); cursor: pointer; }
+.mn-pick:hover, .mn-pick:focus-visible { background: var(--rs-hover); outline: none; border-color: var(--rs-input-hover); }
+.mn-pick.is-on { border-color: var(--rs-accent); background: color-mix(in srgb, var(--rs-accent) 16%, transparent); }
+.mn-pick .mn-icon { width: 15px; height: 15px; }
+.mn-picker-foot { display: flex; justify-content: space-between; gap: 8px; color: var(--rs-muted); font-size: 11px; }
+.mn-picker-name { color: var(--rs-fg); font-family: var(--rs-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* colours */
+.mn-colour { display: flex; gap: 6px; align-items: center; width: 100%; }
+.mn-swatch { position: relative; width: 28px; height: 28px; flex: none; border-radius: 5px; border: 1px solid var(--rs-line); cursor: pointer; background-image: linear-gradient(45deg, #444 25%, transparent 25%, transparent 75%, #444 75%), linear-gradient(45deg, #444 25%, transparent 25%, transparent 75%, #444 75%); background-size: 8px 8px; background-position: 0 0, 4px 4px; overflow: hidden; }
+.mn-swatch input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* filter */
+.mn-filter { display: flex; flex-direction: column; gap: 8px; }
+.mn-filter-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.mn-conditions { display: flex; flex-direction: column; gap: 6px; }
+.mn-join { display: flex; align-items: center; gap: 6px; color: var(--rs-fg-2); font-size: 11px; }
+.mn-join .pe-input { width: auto; }
+.mn-condition { display: flex; gap: 6px; align-items: center; }
+.mn-condition .pe-input { flex: 1; min-width: 0; }
+.mn-add-small { width: 24px; height: 24px; font-size: 13px; }
+.mn-count { align-self: flex-start; font-size: 11px; padding: 1px 8px; border-radius: 10px; background: var(--rs-input); color: var(--rs-fg-2); }
+.mn-count.is-zero { background: color-mix(in srgb, var(--rs-changed) 20%, transparent); color: var(--rs-changed); }
+
+/* views and columns */
+.mn-views { display: flex; flex-direction: column; gap: 8px; }
+.mn-view-list { display: flex; flex-direction: column; }
+.mn-view { display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 6px; margin-bottom: 4px; border-radius: 6px; background: var(--rs-panel-2); border: 1px solid transparent; cursor: grab; }
+.mn-view:focus-visible { outline: 1px solid var(--rs-accent); }
+.mn-view.is-missing { border-color: var(--rs-error); }
+.mn-view.is-dragging { opacity: .4; }
+.mn-view .rs-grip { min-height: 18px; }
+.mn-view-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mn-view-name small { margin-left: 8px; color: var(--rs-muted); font-size: 10px; }
+.mn-first { font-size: 10px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--rs-line); background: none; color: var(--rs-muted); cursor: pointer; }
+.mn-first.is-on { border-color: var(--rs-accent); color: var(--rs-accent); }
+.mn-view-add { display: flex; gap: 6px; }
+.mn-view-add .pe-input { max-width: 300px; }
+.mn-new-view { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 8px; border: 1px solid var(--rs-line); background: var(--rs-panel); }
+.mn-new-view-head { display: flex; justify-content: space-between; }
+.mn-new-view .pe-cards { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.mn-columns { display: flex; flex-direction: column; gap: 6px; }
+.mn-columns .pe-input { max-width: 300px; }
+.mn-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.mn-col { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px 1px 8px; border-radius: 10px; background: var(--rs-btn); font-size: 11px; font-family: var(--rs-mono); cursor: grab; }
+.mn-col:focus-visible { outline: 1px solid var(--rs-accent); }
+.mn-col.is-bad { background: color-mix(in srgb, var(--rs-error) 30%, var(--rs-btn)); }
+.mn-col button { background: none; border: 0; color: var(--rs-fg-2); cursor: pointer; padding: 0 2px; }
+
+/* the access box */
+.mn-access { width: min(620px, 94vw); }
+.mn-row-head { display: flex; align-items: center; gap: 18px; width: 100%; }
+.mn-other { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--rs-line); }
+.mn-other code { margin-left: 6px; color: var(--rs-muted); font-size: 10px; }
+.mn-other small { display: block; color: var(--rs-muted); font-family: var(--rs-mono); font-size: 10px; word-break: break-all; }

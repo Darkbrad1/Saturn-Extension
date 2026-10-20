@@ -13413,6 +13413,10 @@ var MenusPanel = class SelfMenusPanel {
       case "copyId":
         await vscode16.env.clipboard.writeText(String(message.id ?? "")), vscode16.window.setStatusBarMessage("Saturn: menu id copied", 3e3);
         return;
+      // Saturn's menus page in the browser: <instance url>/menus (a single menu has no address of its own).
+      case "openInSaturn":
+        await vscode16.env.openExternal(vscode16.Uri.parse(`${String(this.instance.url).replace(/\/+$/, "")}/menus`));
+        return;
     }
   }
   // Runs a task after the previous one finishes (a failed one does not block the queue).
