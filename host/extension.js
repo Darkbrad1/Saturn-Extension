@@ -8197,6 +8197,10 @@ var draftHistoryLimit = 20,
           await this.saveHtmlParam(node.workflowId, node, node.param, code);
           return;
         }
+        if (node.kind === "fieldCode") {
+          await this.saveFieldCode(node, code);
+          return;
+        }
         await this.saveCodeParam(node, param, code);
       }
     }
@@ -8218,6 +8222,27 @@ var draftHistoryLimit = 20,
           ...step,
           data: data
         });
+      });
+    }
+    // Writes an edited form-field code file back into that field's setting. The action or command is found by its id if it
+    // has moved since the file was opened.
+    async saveFieldCode(node, code) {
+      await this.applyEdit(node.workflowId, `Saved ${node.settingPath.join(".")} of field "${node.key}"`, definition => {
+        let ownerPath = node.path,
+          owner = getAt(definition, ownerPath);
+        if (node.ownerId && owner?.id !== node.ownerId) {
+          let found = null;
+          (definition.actions ?? []).forEach((action, index) => action?.id === node.ownerId && (found = ["actions", index])), (definition.commands ?? []).forEach((command, index) => command?.id === node.ownerId && (found = ["commands", index])), (definition.stages ?? []).forEach((stage, stageIndex) => (stage?.actions ?? []).forEach((action, index) => action?.id === node.ownerId && (found = ["stages", stageIndex, "actions", index])));
+          if (!found) throw new Error("That action or command has been deleted, so this file no longer writes anywhere. Close it \u2014 its contents are still on disk if you need them.");
+          ownerPath = found;
+        }
+        let missing = !0,
+          edited = updateFields(definition, ownerPath, node.formKey, fields => fields.map(field => nonEmptyString(field?.key) === node.key ? (missing = !1, setFieldProps(field, [{
+            path: node.settingPath,
+            value: code
+          }])) : field));
+        if (missing) throw new Error(`The field "${node.key}" is no longer in this form (it may have been renamed), so this file no longer writes anywhere.`);
+        return edited;
       });
     }
     // Writes the Custom Function access rule of an action; an empty file removes the rule (after a warning).
@@ -9302,6 +9327,52 @@ var draftHistoryLimit = 20,
                 type: "editFailed",
                 payload: {
                   message: errorMessage(error, "Could not open the Custom Function")
+                }
+              });
+            }
+            break;
+          }
+        // The Form / Parameters tab: opens a form field's code setting (a lookup function, a label function, …) as its own file,
+        // tied to that field; saving the file writes it back into the draft (saveFieldCode).
+        case "openFieldCode":
+          {
+            let {
+              workflowId: workflowId,
+              ownerPath: ownerPath,
+              formKey: formKey,
+              key: fieldKey,
+              path: settingPath,
+              language: language,
+              text: text,
+              workflowName: workflowName,
+              contextName: contextName
+            } = message.payload ?? {};
+            try {
+              if (!Array.isArray(settingPath) || !settingPath.length || !settingPath.every(part => typeof part == "string" && part && !["__proto__", "constructor", "prototype"].includes(part)) || ["key", "label", "type"].includes(settingPath[0])) throw new Error("That setting can't be opened as a file.");
+              let owner = getAt(await this.definitionFor(workflowId), ownerPath);
+              if (!owner || typeof owner != "object") throw new Error("That action or command is no longer there \u2014 reopen the workflow.");
+              let lang = language === "html" ? "html" : "javascript",
+                textDocument = await this.openParamDocument(`field_${String(fieldKey)}_${settingPath.join("_")}`, typeof text == "string" ? text : "", lang, workflowName && contextName ? {
+                  workflowName: String(workflowName),
+                  contextName: String(contextName)
+                } : void 0, {
+                  kind: "fieldCode",
+                  workflowId: String(workflowId),
+                  path: ownerPath,
+                  ownerId: nonEmptyString(owner.id),
+                  formKey: String(formKey),
+                  key: String(fieldKey),
+                  settingPath: settingPath
+                });
+              await vscode12.window.showTextDocument(textDocument, {
+                viewColumn: vscode12.ViewColumn.Beside,
+                preview: !1
+              }), vscode12.window.setStatusBarMessage(`$(edit) ${String(fieldKey)}: save this file to write it back to the workflow's draft`, 6e3);
+            } catch (error) {
+              webview.postMessage({
+                type: "editFailed",
+                payload: {
+                  message: errorMessage(error, "Could not open that setting as a file")
                 }
               });
             }

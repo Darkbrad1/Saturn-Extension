@@ -118,7 +118,7 @@ export function SidePanel(props: {
       </div>
       <div className="fg-scroll">
         {shown === "form" && owner ? (
-          <FormTab key={`${owner.ownerPath.join(".")}`} wfId={props.wf.id} owner={owner} env={props.formEnv} />
+          <FormTab key={`${owner.ownerPath.join(".")}`} wfId={props.wf.id} owner={owner} env={props.formEnv} workflowName={props.wf.name} contextName={props.tree?.contextName} />
         ) : shown === "logs" ? (
           <LogsTab wf={props.wf} tree={props.tree} flow={f} catalog={props.catalog} onOpenTree={props.onOpenTree} />
         ) : shown === "changes" ? (

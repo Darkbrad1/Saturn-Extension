@@ -57,4 +57,25 @@ const last = (type) => [...posted].reverse().find((p) => p.type === type);
 
   await panel.handleMessage({ type: "setFormFields", payload: { workflowId: "wf", ownerPath: ["commands", 0], formKey: "parameters", fields: [] } });
   ok(Array.isArray(panel.drafts.get("wf").definition.commands[0].parameters.fields) && panel.drafts.get("wf").definition.commands[0].parameters.fields.length === 0, "a command's parameters can be emptied");
+
+  // a field's code setting opened as a file, then saved
+  panel.drafts.delete("wf");
+  const node = { kind: "fieldCode", workflowId: "wf", path: ["actions", 0], ownerId: "a", formKey: "form", key: "staff", settingPath: ["lookup_reference"] };
+  await panel.saveFieldCode(node, "async () => [1]");
+  let f0 = panel.drafts.get("wf").definition.actions[0].form.fields[0];
+  ok(f0.lookup_reference === "async () => [1]" && f0.map.reference === "User" && f0.label === "Staff", "saving the file writes that one setting into the field in the draft");
+  await panel.saveFieldCode({ ...node, settingPath: ["rendering", "options", "code"] }, "<b/>");
+  ok(panel.drafts.get("wf").definition.actions[0].form.fields[0].rendering.options.code === "<b/>" && panel.drafts.get("wf").history.length === 2, "a nested setting too, each save one draft edit");
+  // the action moved since the file was opened: found by its id
+  panel.drafts.get("wf").definition.actions.unshift({ id: "z", action: "z", label: "Z", task: { type: "series", commands: [] } });
+  await panel.saveFieldCode(node, "moved");
+  ok(panel.drafts.get("wf").definition.actions[1].form.fields[0].lookup_reference === "moved" && !panel.drafts.get("wf").definition.actions[0].form, "an action that moved is found by its id");
+  posted.length = 0;
+  await panel.saveFieldCode({ ...node, key: "gone" }, "x").catch(() => {}); // (the stub has no error popup)
+  ok(/no longer in this form/.test(last("editFailed")?.payload.message ?? ""), "a field that's gone says the file writes nowhere");
+  for (const bad of [["key"], ["__proto__", "x"], [], "lookup_reference"]) {
+    posted.length = 0;
+    await panel.handleMessage({ type: "openFieldCode", payload: { workflowId: "wf", ownerPath: ["actions", 1], formKey: "form", key: "staff", path: bad, text: "" } });
+    ok(/can't be opened as a file/.test(last("editFailed")?.payload.message ?? ""), `openFieldCode refuses the path ${JSON.stringify(bad)}`);
+  }
 })();

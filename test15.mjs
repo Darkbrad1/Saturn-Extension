@@ -112,11 +112,33 @@ await panel.getByLabel("Key", { exact: true }).fill("staff_id");
 await p.waitForTimeout(1100);
 ok((await form())[1].key === "staff_id", "once fixed it's sent");
 
-// ===== a command's parameters, and no tab elsewhere =====
+// ===== a lookup function (v0.3.27: Saturn keeps it in lookup_reference) =====
 await p.goto("http://localhost:8765/csp.html");
 await p.waitForTimeout(900);
+const FN = "async (form, { Resource }) =>{\n    return [ form.id ];\n}";
+await p.evaluate((fn) => Object.assign(window.__defs.wf_orders.stages[0].actions[0].form.fields[0], { lookup_type: "function", lookup_function_item_data_type: "string", lookup_reference: fn }), FN);
 await p.locator(".nv-picker-item", { hasText: "Order fulfilment" }).click();
 await p.waitForTimeout(900);
+await p.locator(".nv-ol-item", { hasText: "Approve order" }).first().click();
+await p.waitForTimeout(600);
+await tab("Form").click();
+await p.waitForTimeout(500);
+await item("Note").click();
+await p.waitForTimeout(300);
+const fnBox = panel.getByLabel("Lookup function", { exact: true });
+ok((await fnBox.count()) === 1 && (await fnBox.inputValue()).includes("return [ form.id ]"), "a function lookup shows its function");
+ok((await panel.getByLabel("Item data type").inputValue()) === "string", "and its item data type");
+await panel.locator(".pe-code", { has: p.getByLabel("Lookup function", { exact: true }) }).getByRole("button", { name: "Open in a file" }).click();
+await p.waitForTimeout(300);
+const opened = await p.evaluate(() => (window.__opened || []).find((o) => o.type === "openFieldCode"));
+ok(opened && opened.key === "note" && opened.path.join(".") === "lookup_reference" && opened.text.includes("form.id") && opened.contextName, "Open in a file opens that function as a file, tied to the field");
+await p.evaluate(() => window.__saveFieldFile("async () => {\n  return [1];\n}"));
+await p.waitForTimeout(600);
+const note = async () => (await p.evaluate(() => window.__defs.wf_orders.stages[0].actions[0].form.fields[0]));
+ok((await note()).lookup_reference.includes("return [1]") && (await fnBox.inputValue()).includes("return [1]"), "saving the file writes it into the draft, and the tab shows it");
+await p.screenshot({ path: out + "/f3-lookup-function.png" });
+
+// ===== a command's parameters, and no tab elsewhere =====
 await p.locator(".nv-ol-item", { hasText: "Notify customer" }).first().click();
 await p.waitForTimeout(600);
 await tab("Parameters").click();

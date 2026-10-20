@@ -21,6 +21,8 @@ export interface Lookups {
   openResource?: (resource: string) => void;
   /** records of a core resource as [value, label]: null while they load */
   recordsOf: (resource: string, value: string, label: string) => [string, string][] | null;
+  /** opens a code setting as its own file (the node view's Form tab; not on the Resources screen) */
+  openCode?: (path: Path, lang: "javascript" | "html", text: string) => void;
   /** what the things edited are called (default: property, properties, of this resource) */
   noun?: { one: string; many: string; of: string };
 }
@@ -100,7 +102,7 @@ export function PropertyEditor(props: {
       .map((part, i) => ({
         part,
         i,
-        rows: part.settings.filter((s) => !(many && s.single) && (!s.when || items.some((it) => s.when!(it.draft) || differs(s, it))) && matches(s)),
+        rows: part.settings.filter((s) => !(many && s.single) && (!s.when || items.some((it) => s.when!(it.draft) || (differs(s, it) && !sharedShown(s, it.draft)))) && matches(s)),
       }))
       .filter((x) => x.rows.length);
   const showJson = !many && (!q || "json whole property".includes(q));
@@ -338,6 +340,11 @@ function Control(props: { setting: Setting; id: string; value: unknown; mixed: b
       return (
         <div className="pe-code">
           <HighlightInput multiline mono rows={Math.min(16, Math.max(4, str.split("\n").length + 1))} lang={edit.lang} value={mixed ? str : str || edit.empty} placeholder={MIXED && "Mixed: what you type here goes to all of them"} disabled={disabled} ariaLabel={setting.label} onChange={(v) => set(path, v)} />
+          {props.lookups.openCode && props.drafts.length === 1 && (
+            <button type="button" className="rs-btn pe-open-file" disabled={disabled} title="Open it in its own editor tab; saving the file writes it back" onClick={() => props.lookups.openCode!(path, edit.lang, str || edit.empty)}>
+              Open in a file
+            </button>
+          )}
         </div>
       );
     case "resource":
@@ -392,6 +399,12 @@ function Control(props: { setting: Setting; id: string; value: unknown; mixed: b
     case "json":
       return <JsonBox id={id} value={value} mixed={mixed} disabled={disabled} onSet={(v, remove) => set(path, v, remove)} />;
   }
+}
+
+/** Whether another setting stored at the same path shows for this property (like Values, Reference and Lookup
+ *  function, all lookup_reference): then a change there isn't a reason to show this one too. */
+function sharedShown(setting: Setting, draft: Prop) {
+  return ALL.some(({ setting: other }) => other !== setting && other.path.join(".") === setting.path.join(".") && (!other.when || other.when(draft)));
 }
 
 /** The value a select shows when the properties don't share one. */

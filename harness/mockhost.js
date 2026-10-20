@@ -441,6 +441,11 @@
       case "fetchSavedForm": { const d = JSON.parse(savedOf(id)); let fs = []; try { const o = get(d, p.ownerPath)?.[p.formKey]; fs = Array.isArray(o) ? o : Array.isArray(o?.fields) ? o.fields : []; } catch {}
         post("savedForm", { workflowId: id, ownerPath: p.ownerPath, formKey: p.formKey, fields: fs }); break; }
       case "fetchResourceFields": post("resourceFields", { resource: p.resource, fields: [{ key: "id", label: "Id", type: "string" }, { key: "first_name", label: "First name", type: "string" }, { key: "email", label: "Email", type: "string" }] }); break;
+      // a field's code setting opened as a file: __saveFieldFile(code) stands in for saving that file
+      case "openFieldCode": (window.__opened = window.__opened || []).push({ type: msg.type, ...p });
+        window.__saveFieldFile = (code) => apply(id, `Saved ${p.path.join(".")} of field "${p.key}"`, (d) => { const f = fieldsAt(d, p.ownerPath, p.formKey).find((x) => x.key === p.key); if (!f) throw new Error(`The field "${p.key}" is no longer in this form.`);
+          let o = f; for (const k of p.path.slice(0, -1)) o = o[k] && typeof o[k] === "object" ? o[k] : (o[k] = {}); o[p.path[p.path.length - 1]] = code; });
+        break;
       case "openResourceScreen": (window.__opened = window.__opened || []).push({ type: msg.type, ...p }); break;
       case "deleteFormField": apply(id, `Removed field "${p.key}"`, (d) => { const fs = fieldsAt(d, p.ownerPath, p.formKey); fs.splice(fs.findIndex((x) => x.key === p.key), 1); }); break;
       case "setAccess": apply(id, p.rules.length ? `Set access to ${p.rules.length} rule(s)` : "Removed every access restriction", (d) => {

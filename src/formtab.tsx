@@ -41,7 +41,7 @@ const COMMIT_AFTER = 700;
  * on the instance (for "was …"), and the field itself. */
 interface Row { id: string; savedKey: string; f: Prop }
 
-export function FormTab(props: { wfId: string; owner: FormOwner; env: FormEnv }) {
+export function FormTab(props: { wfId: string; owner: FormOwner; env: FormEnv; workflowName?: string; contextName?: string }) {
   const { owner } = props;
   // ids by key, from the rows last shown, so the draft's fields keep theirs
   const known = useRef(new Map<string, Row>());
@@ -228,6 +228,14 @@ export function FormTab(props: { wfId: string; owner: FormOwner; env: FormEnv })
     noun: owner.kind === "command" ? { one: "parameter", many: "parameters", of: "this command" } : { one: "field", many: "fields", of: "this form" },
     keyTaken: (key) => rows.filter((r) => !selected.includes(r.id)).some((r) => r.f.key === key),
     openResource: (resource) => send("openResourceScreen", { resource }),
+    // a code setting in its own file: what's typed here goes to the draft first, so the file starts from it
+    openCode: bad
+      ? undefined
+      : (path, language, text) => {
+          if (picked.length !== 1) return;
+          flush();
+          send("openFieldCode", { workflowId: props.wfId, ownerPath: owner.ownerPath, formKey: owner.formKey, key: picked[0].f.key, path, language, text, workflowName: props.workflowName, contextName: props.contextName });
+        },
     fieldsOf: (resource) => {
       if (!resourceFields[resource] && !asked.current.has(resource)) {
         asked.current.add(resource);

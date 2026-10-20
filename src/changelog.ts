@@ -1,6 +1,15 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.28",
+    title: "Lookup functions, and code settings in their own file",
+    items: [
+      "A field (or resource property) whose lookup source is Function now shows its lookup function and its item data type, the way Saturn stores them.",
+      "On the Form and Parameters tabs, every code setting (the lookup function, the label function, the HTML template, …) has an Open in a file button, like the code step. Saving the file writes it back into the workflow's draft.",
+      "Fixed: changing one of the settings that share a stored place (Values, Reference and Lookup function) no longer brings up the other two.",
+    ],
+  },
+  {
     version: "0.3.27",
     title: "A Form tab for actions, a Parameters tab for commands",
     items: [

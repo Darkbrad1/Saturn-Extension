@@ -1,4 +1,4 @@
-# sonover-code (v0.3.27)
+# sonover-code (v0.3.28)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,11 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.28 — Lookup functions, and code settings in their own file
+- `src-res/spec.ts`: with `lookup_type: "function"`, Lookup shows "Lookup function" (the code in `lookup_reference`, which is where Saturn keeps it) and "Item data type" (`lookup_function_item_data_type`; `string` is the only value seen so far, any other stored value is kept and shown). Both screens get it.
+- `PropertyEditor`: a setting that changed but whose `when` is false is no longer forced into view when another setting at the same path shows (`sharedShown`), so Values / Reference / Lookup function don't all appear.
+- Form / Parameters tab: an "Open in a file" button under each code setting (`lookups.openCode`, only on that tab). New Workflows panel message `openFieldCode {workflowId, ownerPath, formKey, key, path, language, text, workflowName, contextName}` opens the text as a file tied to the field (`openParamDocument`, node kind `fieldCode`); saving it runs `saveFieldCode`: one draft edit setting that path on the field (the action or command found again by its id if it moved; an error if the field is gone). Refuses `key` / `label` / `type` and prototype paths. `hosttest-formtab.cjs` (20 checks), `test15.mjs` (32).
 
 ## New in 0.3.27 — A Form tab for actions, a Parameters tab for commands
 - The side panel has a Form tab when an action is open, and a Parameters tab when a command is open (`src/formtab.tsx`). It uses the Resources screen's editor (`src-res/editor.tsx` with `noMenu`, `hints` and `lookups.noun`), styled by `src-res/editor.css` (now shared by both screens). The panel widens to two thirds of the window on it, with no resize handle and no shortcut bar.

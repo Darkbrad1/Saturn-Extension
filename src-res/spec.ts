@@ -281,6 +281,21 @@ export const GROUPS: Group[] = [
             edit: { kind: "select", options: [["", "As listed"], ["asc", "A to Z"], ["desc", "Z to A"]] },
           },
           { path: ["lookup_reference"], label: "Reference", when: (p) => lookupType(p) === "lookup", edit: { kind: "text", mono: true } },
+          // a function lookup: Saturn keeps the function in lookup_reference, and the type of each item it returns beside it
+          {
+            path: ["lookup_reference"],
+            label: "Lookup function",
+            hint: "Runs to give the choices. It gets the form and Saturn's helpers, and returns a list.",
+            when: (p) => lookupType(p) === "function",
+            edit: { kind: "code", lang: "javascript", empty: "async (form, { Resource, ctx, _, data, logged_in_user, axios, moment, parent, setting }) => {\n  return [];\n}" },
+          },
+          {
+            path: ["lookup_function_item_data_type"],
+            label: "Item data type",
+            hint: "What each item the function returns is.",
+            when: (p) => lookupType(p) === "function",
+            edit: { kind: "select", options: [["string", "String"]] },
+          },
           { path: ["lookup_value_field"], label: "Value field", when: (p) => ["lookup", "map", "resources", "resource_properties"].includes(lookupType(p)) || p.lookup_value_field !== undefined, edit: { kind: "text", mono: true, placeholder: "id" } },
           {
             path: ["lookup_label_type"],

@@ -266,3 +266,4 @@ textarea.pe-input { height: auto; padding: 6px 8px; resize: vertical; }
 .ft .ft-side { width: 240px; }
 .ft .ft-detail { position: relative; }
 .ft .ft-bad { margin: 8px 14px 0; }
+.pe-code .pe-open-file { display: block; margin: 6px 8px 8px auto; }
