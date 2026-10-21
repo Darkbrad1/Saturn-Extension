@@ -1,6 +1,15 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.44",
+    title: "Find a setting finds more",
+    items: [
+      "Fixed: Find a setting (on the Resources screen and the Form tab) only looked at each setting's own name, so \"show\" missed the Show in switches and \"data\" didn't show the Data group.",
+      "It now also looks at the heading and group a setting is under, and the names of its choices (\"currency\" finds the renderers).",
+      "Several words match anywhere, unless they appear together somewhere: then just those show.",
+    ],
+  },
+  {
     version: "0.3.43",
     title: "What's new has its own page",
     items: [

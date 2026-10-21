@@ -1,4 +1,4 @@
-# sonover-code (v0.3.43)
+# sonover-code (v0.3.44)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.44 — Find a setting finds more
+- `src-res/editor.tsx`: the settings search (`matches`, `textOf`) also reads the setting's section heading, its group's title and its choices' labels (`options`). Several words: as a phrase when some setting has them together (`asPhrase`), else each word anywhere. `test31.mjs` (9).
 
 ## New in 0.3.43 — What's new has its own page
 - New screen `src-news/` (`main.tsx`, `news.css`; built to `dist/webview/news/index.js`): the release notes from `src/changelog.ts`, newest first, the newest open and marked Installed, with a search. Host side `host/whatsnew.js` (`WhatsNewHost.open`: one webview tab, revealed if open), appended after `resources.js`; command `saturn.openWhatsNew` ("Saturn: What's new"); the sidebar's What's new button (under AI Skills, `WhatsNewIcon`) posts `saturn:openWhatsNew`.

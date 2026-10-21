@@ -99,7 +99,20 @@ export function PropertyEditor(props: {
   const revert = (path: Path) => props.onChange(items.map((it) => setAt(it.draft, path, get(it.original, path), get(it.original, path) === undefined)));
 
   const q = find.trim().toLowerCase();
-  const matches = (s: Setting) => !q || `${s.label} ${s.hint ?? ""} ${s.edit.kind === "bool" ? s.edit.hint ?? "" : ""} ${s.path.join(".")}`.toLowerCase().includes(q);
+  // what a search looks in: a setting's name, hints, stored name, its choices' names, and the heading and group it's
+  // under (so "show" finds the Show in switches, "data" the Data group)
+  const words = q.split(/\s+/).filter(Boolean);
+  const textOf = (s: Setting, g: Group, partTitle?: string) => {
+    const choices = "options" in s.edit ? s.edit.options.map((o) => `${o[1]} ${o[2] ?? ""}`).join(" ") : "";
+    return `${s.label} ${s.hint ?? ""} ${s.edit.kind === "bool" ? s.edit.hint ?? "" : ""} ${s.path.join(".")} ${choices} ${partTitle ?? ""} ${g.title}`.toLowerCase();
+  };
+  // the words as typed, together, when some setting has them like that; else each word anywhere
+  const asPhrase = words.length > 1 && GROUPS.some((g) => g.parts.some((part) => part.settings.some((s) => textOf(s, g, part.title).includes(q))));
+  const matches = (s: Setting, g: Group, partTitle?: string) => {
+    if (!words.length) return true;
+    const text = textOf(s, g, partTitle);
+    return asPhrase ? text.includes(q) : words.every((w) => text.includes(w));
+  };
   const otherChanges = items.some((it) => !same(stripKnown(it.original), stripKnown(it.draft)));
   // what the page shows: each group's parts, with the rows that apply (and match the search)
   const shownParts = (g: Group) =>
@@ -107,10 +120,10 @@ export function PropertyEditor(props: {
       .map((part, i) => ({
         part,
         i,
-        rows: part.settings.filter((s) => !(many && s.single) && (!s.when || items.some((it) => s.when!(it.draft) || (differs(s, it) && !sharedShown(s, it.draft)))) && matches(s)),
+        rows: part.settings.filter((s) => !(many && s.single) && (!s.when || items.some((it) => s.when!(it.draft) || (differs(s, it) && !sharedShown(s, it.draft)))) && matches(s, g, part.title)),
       }))
       .filter((x) => x.rows.length);
-  const showJson = !many && (!q || "json whole property".includes(q));
+  const showJson = !many && (!words.length || words.every((w) => "json whole property".includes(w)));
 
   const jump = (id: string) => {
     const el = page.current?.querySelector<HTMLElement>(`#${id}`);
