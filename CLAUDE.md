@@ -200,7 +200,7 @@ These were settled with me, so don't reopen them without asking.
 
 Ideas to come back to. Don't start them unless asked.
 
-- **The rest of Saturn's property settings** whose stored names aren't known yet: property mask, validation rules, Is Password, Allow Custom Values, URL, the map's filter / search field / dropdown limit / label function, background and foreground colours, Disable Record View Navigation, Open Record After Create, dropdown styling, a property's Custom Function access rule and what `access_details` holds, the input types Signature / Rich Text Editor (AI transcriber, AI actions) / Number Input / Code Editor / Color Picker / File Upload and their options, and the Defaults tab. Waiting on captures of Saturn's save.
+- **The rest of Saturn's property settings** whose stored names aren't known yet: property mask, validation rules, Is Password, Allow Custom Values, URL, the map's filter / search field / dropdown limit / label function, background and foreground colours, Disable Record View Navigation, Open Record After Create, dropdown styling, a property's Custom Function access rule and what `access_details` holds, the input types Signature / Rich Text Editor (AI transcriber, AI actions) / Number Input / Code Editor / Color Picker / File Upload and their options, the Defaults tab, and the renderers Attachment, Tag Viewer, Image Viewer and Profile (Saturn's editor lists them; only `default`, `currency`, `inline-component` and `FileManagerUploader` are known as stored, so the renderer pickers offer just those, and a stored value they don't list still shows and is kept). Waiting on captures of Saturn's save.
 
 ## Conventions
 
