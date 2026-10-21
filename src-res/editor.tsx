@@ -7,6 +7,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HighlightInput } from "../src/controls";
 import { IconField } from "./icons";
+import { PropertyAccess, accessSummary } from "./access";
+import type { Subjects } from "../src-menus/model";
 import { ALL, GROUPS, KEY_PATTERN, get, type Group, type Path, type Prop, type Setting } from "./spec";
 
 export interface Field { key: string; label: string | null; type: string | null }
@@ -24,6 +26,8 @@ export interface Lookups {
   recordsOf: (resource: string, value: string, label: string) => [string, string][] | null;
   /** opens a code setting as its own file (the node view's Form tab; not on the Resources screen) */
   openCode?: (path: Path, lang: "javascript" | "html", text: string) => void;
+  /** the user groups, users and permissions access rules can name: null while they load (asking for them) */
+  subjects?: () => Subjects | null;
   /** what the things edited are called (default: property, properties, of this resource) */
   noun?: { one: string; many: string; of: string };
 }
@@ -242,7 +246,7 @@ function SettingRow(props: {
   const edit = setting.edit;
   const hint = setting.hint ?? (edit.kind === "bool" ? edit.hint : undefined);
   // big controls (code, lists, cards…) go under the text; small ones on the right of it
-  const wide = ["textarea", "code", "json", "tags", "csv", "fields", "ownFields", "choice", "cards"].includes(edit.kind);
+  const wide = ["textarea", "code", "json", "tags", "csv", "fields", "ownFields", "choice", "cards", "access"].includes(edit.kind);
   return (
     <div className={`pe-row${wide ? " is-wide" : ""}${shown ? " is-changed" : ""}`}>
       <div className="pe-text">
@@ -254,7 +258,7 @@ function SettingRow(props: {
         {shown && (
           <span className="pe-was">
             <span className="rs-dot is-inline" />
-            {items.length > 1 ? `changed on ${changedOn} of ${items.length}` : `was ${short(show(setting.toggles ? before !== undefined : edit.kind === "bool" && edit.invert ? before !== true : before))}`}
+            {items.length > 1 ? `changed on ${changedOn} of ${items.length}` : `was ${edit.kind === "access" ? accessSummary(before) : short(show(setting.toggles ? before !== undefined : edit.kind === "bool" && edit.invert ? before !== true : before))}`}
             <button className="rs-link" disabled={props.disabled} onClick={() => props.revert(setting.path)}>Put back</button>
           </span>
         )}
@@ -400,6 +404,8 @@ function Control(props: { setting: Setting; id: string; value: unknown; mixed: b
         </span>
       );
     }
+    case "access":
+      return <PropertyAccess id={id} value={value} mixed={mixed} subjects={props.lookups.subjects?.() ?? null} disabled={disabled} noun={(props.lookups.noun ?? NOUN).many} onSet={(v) => set(path, v)} />;
     case "json":
       return <JsonBox id={id} value={value} mixed={mixed} disabled={disabled} onSet={(v, remove) => set(path, v, remove)} />;
   }

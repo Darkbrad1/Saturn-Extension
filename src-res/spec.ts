@@ -29,6 +29,7 @@ export type Kind =
   | { kind: "view" } // one of the property's views
   | { kind: "key" } // the property's key: checked as you type
   | { kind: "icon" } // a Font Awesome icon, from the icon picker (./icons.tsx)
+  | { kind: "access" } // access rules: {list: [...]} (./access.tsx)
   | { kind: "json" };
 
 export interface Setting {
@@ -380,7 +381,7 @@ export const GROUPS: Group[] = [
     blurb: "Who can see and change it.",
     parts: [
       {
-        settings: [{ path: ["access_control"], label: "Access rules", hint: "As Saturn stores them.", edit: { kind: "json" } }],
+        settings: [{ path: ["access_control"], label: "Access rules", hint: "Who the rules let in. Saved as Saturn stores them.", edit: { kind: "access" } }],
       },
     ],
   },

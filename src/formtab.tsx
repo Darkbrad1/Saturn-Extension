@@ -243,6 +243,7 @@ export function FormTab(props: { wfId: string; owner: FormOwner; env: FormEnv; w
       }
       return resourceFields[resource] ?? null;
     },
+    subjects: props.env.subjects,
     recordsOf: (resource, value, labelField) => {
       const have = props.env.lookupOptions[resource];
       if (have === undefined) props.env.needLookup(resource, value, labelField);

@@ -287,3 +287,12 @@ textarea.pe-input { height: auto; padding: 6px 8px; resize: vertical; }
 .mn-picker-foot { display: flex; justify-content: space-between; gap: 8px; color: var(--rs-muted); font-size: 11px; }
 .mn-picker-name { color: var(--rs-fg); font-family: var(--rs-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+
+/* access rules (src-menus/access.tsx): a menu's box, and a property's Access setting (src-res/access.tsx) */
+.mn-row-head { display: flex; align-items: center; gap: 18px; width: 100%; }
+.mn-other { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--rs-line); }
+.mn-other code { margin-left: 6px; color: var(--rs-muted); font-size: 10px; }
+.mn-other small { display: block; color: var(--rs-muted); font-family: var(--rs-mono); font-size: 10px; word-break: break-all; }
+.mn-warn-text { color: var(--rs-changed); font-size: 11px; }
+.pe-access { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.pe-access .pe-card { border: 1px solid var(--rs-line); }

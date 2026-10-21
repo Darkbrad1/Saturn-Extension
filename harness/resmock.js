@@ -10,7 +10,11 @@
     Application: [prop("status", "Status", "string"), prop("application_number", "Application Number", "string"), prop("requested_loan_amount", "Requested Loan Amount", "number"), prop("submitted_at", "Submitted At", "date", true)],
     Loan: [
       prop("amount", "Amount", "number", true),
-      prop("term", "Term", "number"),
+      // access rules as a real definition stores them, plus a Custom Function rule (kept, not built)
+      { ...prop("term", "Term", "number"), access_control: { list: [
+        { method: "user_group", lable: "User Group", icon: { name: "Folder", __name: "folder" }, data: [{ ref: "g-staff", access_details: ["kept"] }] },
+        { method: "function", lable: "Custom Function", data: ["(res) => true"] },
+      ] } },
       { ...prop("category", "Category", "string"), map: { type: "model", reference: "LoanCategory", value_field: "id", label_field: "label" } },
       { ...prop("payments", "Payments", "array"), source: "dynamic", source_type: "resource_lookup", source_definition: { reference: "Application", bounded_property: "loan", default_limit: 10 } },
     ],
@@ -55,6 +59,7 @@
         reply("saved", { resource: p.resource, ok: true, backup: "/backups/Application-1.json", properties: view(saved) });
       }
       if (m.type === "fields") reply("fields", { resource: p.resource, fields: (data[p.resource] || []).map((x) => ({ key: x.key, label: x.label, type: x.type })) });
+      if (m.type === "subjects") reply("subjects", { groups: [{ id: "g-staff", name: "Staff", detail: "Everyone at the branch" }, { id: "g-admin", name: "Admins" }], users: [{ id: "u-ada", name: "Ada", detail: "ada@example.com" }], permissions: [{ id: "p-approve", name: "loans.approve" }], error: null });
       if (m.type === "options") reply("options", { resource: p.resource, value: p.value, label: p.label, options: [["attachmentgroup-1", "Loan documents"], ["attachmentgroup-2", "ID documents"]] });
       if (m.type === "workflows") reply("workflows", { resource: p.resource, workflows: p.resource === "Application" ? [{ id: "wf-1", name: "Loan process", via: "workflow", hooks: [] }, { id: "wf-2", name: "Notify", via: "hook", hooks: ["after create"] }] : [] });
       if (m.type === "probe") reply("probe", { resource: p.resource, report: "OPTIONS /api/Resources/Application: 204 — allows GET, PATCH\nMCP (/api/mcp): 1 tools\n  • update_resource_schema — Change a resource's properties" });

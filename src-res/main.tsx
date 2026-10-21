@@ -7,6 +7,7 @@
 // The host side is host/resources.js (it reads a resource and saves it the way Saturn's own app
 // does, with a backup and a read-back check). Changes stay here until Save, kept for each resource
 // separately (and in the webview's state); Save saves every resource with changes, one by one.
+import type { Subjects } from "../src-menus/model";
 import { createRoot } from "react-dom/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Cards, PropertyEditor, Switch, type Field, type Lookups } from "./editor";
@@ -144,6 +145,7 @@ function App() {
   const [adding, setAdding] = useState<{ label: string; key: string; keyTouched: boolean; type: string } | null>(null);
   // other resources' properties and core records, for the settings that pick one
   const [fields, setFields] = useState<Record<string, Field[] | "loading">>({});
+  const [subjects, setSubjects] = useState<Subjects | null>(null);
   const [records, setRecords] = useState<Record<string, [string, string][] | "loading">>({});
   // the workflows linked to each resource (its own, and the ones its lifecycle hooks run)
   const [linkedWorkflows, setLinkedWorkflows] = useState<Record<string, { id: string; name: string; via: "workflow" | "hook"; hooks: string[] }[]>>({});
@@ -221,6 +223,9 @@ function App() {
           queue.current = [];
           setSaving(false);
           setNotice({ kind: "error", resource: r, text: r ? `${r}: ${payload.message}` : payload.message, refused: /doesn't accept changes/.test(payload.message) });
+          break;
+        case "subjects":
+          setSubjects({ groups: payload.groups ?? [], users: payload.users ?? [], permissions: payload.permissions ?? [], error: payload.error ?? null });
           break;
         case "fields":
           setFields((before) => ({ ...before, [r]: payload.fields }));
@@ -452,6 +457,13 @@ function App() {
         send("fields", { resource: r });
       }
       return have === undefined || have === "loading" ? null : have;
+    },
+    subjects: () => {
+      if (!subjects && !asked.current.has("subjects")) {
+        asked.current.add("subjects");
+        send("subjects");
+      }
+      return subjects;
     },
     recordsOf: (r, value, label) => {
       const id = `${r}|${value}|${label}`;

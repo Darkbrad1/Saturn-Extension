@@ -1,4 +1,4 @@
-# sonover-code (v0.3.32)
+# sonover-code (v0.3.33)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,10 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.33 — Access rules for properties
+- The Access group's Access rules setting is a new kind, `{kind: "access"}` (`src-res/access.tsx`), in place of a JSON box. It reuses the Menus screen's rules editor, split out of `AccessBox` as `AccessRules` (`src-menus/access.tsx`), limited to User groups, Users and Permissions. Its styles moved from `menus.css` to `src-res/editor.css`.
+- Stored as seen on a real definition: `access_control: {list: [{method, lable, icon, data: [{ref, access_details}]}]}`, and `{}` with no rules. Kept as they were: other keys, an id's `access_details`, and rules of other kinds (Custom Function). The lists come from the host's `subjects` message (Resources) or `listAccessSubjects` (Form tab). `test20.mjs` (16).
 
 ## New in 0.3.32 — Every setting for several tabs
 - Menus screen: with several tabs picked, `TabSettings` (`ManyTabs` in `src-menus/tabsettings.tsx`) shows every section but the caption. What it opens (kind and resource / page / dashboard) shows Mixed when they differ and a pick goes to all. Filter, Views and Columns show when all the picked tabs open the same resource: the filter is set on all; views and columns are edited on the first tab and copied to all, and when the tabs' views differ a button ("Give all of them …'s views") does that first. `test19.mjs` (14).

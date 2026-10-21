@@ -721,8 +721,21 @@ export function App() {
         send("fetchLookupOptions", { resource, valueField, labelField });
       },
       openDesigner: () => wf && send("openWorkflow", { workflowId: wf.id }),
+      // the access editor's shape ({id, name, detail}) from the Workflows panel's lists
+      subjects: () => {
+        if (!subjects && !requestedLookups.current.has("\u0000subjects")) {
+          requestedLookups.current.add("\u0000subjects");
+          send("listAccessSubjects");
+        }
+        return subjects && {
+          groups: subjects.groups.map((g) => ({ id: g.id, name: g.name, detail: g.description ?? undefined })),
+          users: subjects.users.map((u) => ({ id: u.id, name: u.name, detail: u.email ?? undefined })),
+          permissions: subjects.permissions.map((p) => ({ id: p.id, name: p.name, detail: p.description ?? undefined })),
+          error: subjects.error,
+        };
+      },
     }),
-    [resourceNames, lookupOptions, wf],
+    [resourceNames, lookupOptions, wf, subjects],
   );
 
   /** Switch workflows through the list view, so both views always show the same one. */

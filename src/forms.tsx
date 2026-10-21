@@ -89,6 +89,8 @@ export interface FormEnv {
   openCode?: (param: string, label: string, language: string) => void;
   openEmail?: (param: string, label: string) => void;
   openDesigner?: () => void;
+  /** the user groups, users and permissions access rules can name (asks once): null while they load */
+  subjects?: () => import("../src-menus/model").Subjects | null;
 }
 export const FormEnvContext = createContext<FormEnv>({
   resourceNames: [],

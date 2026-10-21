@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.33",
+    title: "Access rules for properties",
+    items: [
+      "A property's Access rules (on the Resources screen and on the node view's Form tab) are no longer a text box. They work like the node view's and the Menus screen's: a switch for User groups, Users and Permissions, and a list to tick, with a search.",
+      "They are saved the way Saturn stores them. Rules this screen can't build yet (a Custom Function) are listed and kept as they are.",
+    ],
+  },
+  {
     version: "0.3.32",
     title: "Every setting for several tabs",
     items: [
