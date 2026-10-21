@@ -8,9 +8,22 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Resource settings (settings.tsx) */
 .rs-settings .rs-section-head { padding: 8px 0; }
 .rs-section-tools { display: flex; gap: 4px; }
-.rs-sec-props { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rs-sec-props { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .rs-sec-props li { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 5px; background: var(--rs-input); }
 .rs-sec-props li.is-unknown { outline: 1px solid var(--rs-error); }
 .rs-sec-prop { flex: 1; min-width: 0; font-size: 12px; }
 .rs-sec-prop .rs-item-key { display: inline; margin-left: 6px; }
 .rs-btn.is-on { border-color: var(--rs-accent); }
+.rs-sec-box { display: flex; flex-direction: column; gap: 6px; }
+.rs-sec-find { position: relative; }
+.rs-sec-offers { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); max-height: 240px; overflow: auto; background: var(--rs-panel); border: 1px solid var(--rs-edge); border-radius: 6px; padding: 4px; box-shadow: 0 6px 18px rgba(0, 0, 0, .4); }
+.rs-sec-offers button { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 4px; padding: 5px 8px; font-size: 12px; color: var(--rs-fg); cursor: pointer; }
+.rs-sec-offers button:hover { background: var(--rs-hover); }
+.rs-sec-offers .rs-item-key { display: inline; margin-left: 6px; }
+.rs-sec-offers .pe-hint { display: inline; }
+.rs-sec-props li[draggable="true"] { cursor: grab; }
+.rs-sec-props li.is-dragging { opacity: .4; }
+.rs-sec-props li.is-drop-before { box-shadow: 0 -2px 0 var(--rs-accent); }
+.rs-sec-props li.is-drop-after { box-shadow: 0 2px 0 var(--rs-accent); }
+.rs-sec-props li.rs-sec-none { background: none; }
+.rs-sec-grip { color: var(--rs-muted); font-size: 10px; letter-spacing: -2px; }

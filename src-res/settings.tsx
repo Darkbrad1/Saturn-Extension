@@ -3,6 +3,7 @@
 // drawer, and the sections of the record form (name, description, columns, own tab, and which
 // properties are in each, in order). Changes are kept as a draft per resource, like the properties',
 // and Save sends them (host/resources.js: saveSettings).
+import { useState } from "react";
 import { Switch } from "./editor";
 
 export interface Section { name: string; description?: string; number_of_columns: number; placeInTab?: boolean; properties: string[]; [k: string]: unknown }
@@ -71,7 +72,6 @@ export function SettingsPage(props: {
     [next[i], next[to]] = [next[to], next[i]];
     return next;
   };
-  const labelOf = (key: string) => properties.find((p) => p.key === key)?.label ?? null;
   const placed = new Set(now.sections.flatMap((s) => s.properties));
   const unplaced = properties.filter((p) => !placed.has(p.key));
   const columns = now.sections[0]?.number_of_columns ?? 2;
@@ -119,7 +119,6 @@ export function SettingsPage(props: {
             <p className="pe-blurb">How a record's form is split up. Each section shows its properties in this order. A property can be in more than one.</p>
             {now.sections.map((s, i) => {
               const changed = !same(s, was.sections[i]);
-              const missing = properties.filter((p) => !s.properties.includes(p.key));
               return (
                 <div key={i} className="pe-card rs-section" aria-label={`Section ${s.name || i + 1}`} style={{ marginBottom: 12 }}>
                   <div className="pe-row rs-section-head">
@@ -168,25 +167,15 @@ export function SettingsPage(props: {
                       <span className="pe-hint">{s.properties.length ? `${s.properties.length} in this section, in this order.` : "None yet."}</span>
                     </div>
                     <div className="pe-control">
-                      <ol className="rs-sec-props" aria-label={`Properties in ${s.name || `section ${i + 1}`}`}>
-                        {s.properties.map((key, k) => (
-                          <li key={`${key}-${k}`} className={labelOf(key) === null && !properties.some((p) => p.key === key) ? "is-unknown" : ""}>
-                            <span className="rs-sec-prop">
-                              {labelOf(key) ?? key} <span className="rs-item-key">{key}</span>
-                              {!properties.some((p) => p.key === key) && <span className="pe-error"> not a property of {resource}</span>}
-                            </span>
-                            <button className="rs-link" title="Move up" aria-label={`Move ${key} up`} disabled={disabled || k === 0} onClick={() => changeSection(i, { properties: moveIn(s.properties, k, -1) })}>↑</button>
-                            <button className="rs-link" title="Move down" aria-label={`Move ${key} down`} disabled={disabled || k === s.properties.length - 1} onClick={() => changeSection(i, { properties: moveIn(s.properties, k, 1) })}>↓</button>
-                            <button className="rs-link" title="Take it out of this section" aria-label={`Take ${key} out`} disabled={disabled} onClick={() => changeSection(i, { properties: s.properties.filter((_, j) => j !== k) })}>×</button>
-                          </li>
-                        ))}
-                      </ol>
-                      {missing.length > 0 && (
-                        <select className="pe-input" aria-label={`Add a property to ${s.name || `section ${i + 1}`}`} disabled={disabled} value="" onChange={(e) => e.target.value && changeSection(i, { properties: [...s.properties, e.target.value] })}>
-                          <option value="">Add a property…</option>
-                          {missing.map((p) => <option key={p.key} value={p.key}>{p.label ?? p.key} ({p.key}){placed.has(p.key) ? "" : " · in no section"}</option>)}
-                        </select>
-                      )}
+                      <SectionProps
+                        name={s.name || `section ${i + 1}`}
+                        keys={s.properties}
+                        properties={properties}
+                        placed={placed}
+                        resource={resource}
+                        disabled={disabled}
+                        onChange={(keys) => changeSection(i, { properties: keys })}
+                      />
                     </div>
                   </div>
                 </div>
@@ -202,5 +191,112 @@ export function SettingsPage(props: {
         </div>
       </div>
     </>
+  );
+}
+
+/** A section's properties: a search at the top that narrows the list and offers the properties not in it
+ *  yet (click or Enter adds), then the list in order. Drag a row (or ↑ / ↓) to move it; × takes it out.
+ *  Dragging is off while searching, like the properties list. */
+function SectionProps(props: {
+  name: string;
+  keys: string[];
+  properties: { key: string; label: string | null }[];
+  /** properties in some section */
+  placed: Set<string>;
+  resource: string;
+  disabled?: boolean;
+  onChange: (keys: string[]) => void;
+}) {
+  const { name, keys, properties, placed, resource, disabled, onChange } = props;
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [drag, setDrag] = useState<number | null>(null);
+  const [dropAt, setDropAt] = useState<number | null>(null);
+  const q = query.trim().toLowerCase();
+  const labelOf = (key: string) => properties.find((p) => p.key === key)?.label ?? null;
+  const hit = (key: string) => !q || key.toLowerCase().includes(q) || (labelOf(key) ?? "").toLowerCase().includes(q);
+  const offers = properties.filter((p) => !keys.includes(p.key) && hit(p.key));
+  const shown = keys.map((key, k) => ({ key, k })).filter((x) => hit(x.key));
+  const add = (key: string) => {
+    onChange([...keys, key]);
+    setQuery("");
+  };
+  const move = (from: number, to: number) => {
+    const next = keys.slice();
+    const [item] = next.splice(from, 1);
+    next.splice(to > from ? to - 1 : to, 0, item);
+    onChange(next);
+  };
+  const swap = (k: number, by: number) => move(k, by < 0 ? k - 1 : k + 2);
+  return (
+    <div className="rs-sec-box">
+      <div className="rs-sec-find">
+        <input
+          className="pe-input"
+          placeholder="Find or add a property"
+          aria-label={`Find or add a property in ${name}`}
+          disabled={disabled}
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && q && offers.length) { e.preventDefault(); add(offers[0].key); }
+            if (e.key === "Escape") { setQuery(""); setOpen(false); }
+          }}
+        />
+        {open && offers.length > 0 && (
+          <div className="rs-sec-offers" role="listbox" aria-label={`Properties to add to ${name}`}>
+            {offers.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                role="option"
+                aria-selected={false}
+                // mousedown, so the box doesn't lose focus (and close) first
+                onMouseDown={(e) => { e.preventDefault(); add(p.key); }}
+              >
+                + {p.label ?? p.key} <span className="rs-item-key">{p.key}</span>
+                {!placed.has(p.key) && <span className="pe-hint"> in no section</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {q && <span className="pe-hint">{shown.length} of {keys.length} in this section match. Clear the search to drag.</span>}
+      <ol
+        className="rs-sec-props"
+        aria-label={`Properties in ${name}`}
+        onDragOver={(e) => { if (drag !== null) e.preventDefault(); }}
+        onDrop={(e) => { e.preventDefault(); if (drag !== null && dropAt !== null) move(drag, dropAt); setDrag(null); setDropAt(null); }}
+      >
+        {shown.map(({ key, k }) => (
+          <li
+            key={`${key}-${k}`}
+            className={`${!properties.some((p) => p.key === key) ? "is-unknown" : ""}${drag === k ? " is-dragging" : ""}${dropAt === k && drag !== null ? " is-drop-before" : ""}${dropAt === keys.length && k === keys.length - 1 && drag !== null ? " is-drop-after" : ""}`}
+            draggable={!q && !disabled}
+            title={q ? "Clear the search to drag" : "Drag to move"}
+            onDragStart={(e) => { setDrag(k); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", key); }}
+            onDragEnd={() => { setDrag(null); setDropAt(null); }}
+            onDragOver={(e) => {
+              if (drag === null) return;
+              e.preventDefault();
+              const box = e.currentTarget.getBoundingClientRect();
+              setDropAt(e.clientY < box.top + box.height / 2 ? k : k + 1);
+            }}
+          >
+            {!q && <span className="rs-sec-grip" aria-hidden="true">⋮⋮</span>}
+            <span className="rs-sec-prop">
+              {labelOf(key) ?? key} <span className="rs-item-key">{key}</span>
+              {!properties.some((p) => p.key === key) && <span className="pe-error"> not a property of {resource}</span>}
+            </span>
+            <button className="rs-link" title="Move up" aria-label={`Move ${key} up`} disabled={disabled || k === 0} onClick={() => swap(k, -1)}>↑</button>
+            <button className="rs-link" title="Move down" aria-label={`Move ${key} down`} disabled={disabled || k === keys.length - 1} onClick={() => swap(k, 1)}>↓</button>
+            <button className="rs-link" title="Take it out of this section" aria-label={`Take ${key} out`} disabled={disabled} onClick={() => onChange(keys.filter((_, j) => j !== k))}>×</button>
+          </li>
+        ))}
+        {!keys.length && <li className="rs-sec-none pe-hint">None yet. Find one above to add it.</li>}
+      </ol>
+    </div>
   );
 }

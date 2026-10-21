@@ -7,6 +7,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
 
+## New in 0.3.47 — Finding and dragging a section's properties
+- `src-res/settings.tsx` `SectionProps`: the find-or-add box above a section's list (it narrows the list and offers the properties not in it; click or Enter adds, Esc clears), replacing the "Add a property…" dropdown under it. Rows drag to a new place (`draggable`, off while searching). `test34.mjs` (14); `test33.mjs` adds through the box.
+
 ## New in 0.3.46 — Resource settings
 - Resources screen: a "Resource settings" button (top bar, next to Reload) shows `src-res/settings.tsx` (`SettingsPage`) on the right: Description, Open records in a drawer (`drawer_enabled`, also written into `render_details`), and Sections (add, remove, reorder, name, description, `number_of_columns`, `placeInTab`, the ordered `properties`). Clicking a property goes back. Drafts per resource (`settingsWorks`) join the unsaved count, Discard and Save's queue.
 - Host (`host/resources.js`): `settings {resource}` → `settings {resource, id, detail}` (the resource's ResourceDetail record, `GET /resourceDetails/<id>`) or `{resource, problem}` (none, or two); `saveSettings {resource, id, changes}` (only `sections`, `description`, `drawer_enabled`, checked) → re-read, back up to `<resource>-settings-<time>.json`, `PUT /resourceDetails/<id>` with only those keys, read back → `settingsSaved` / `settingsMismatch` / `saveFailed`. `hosttest-resettings.cjs` (19), `test33.mjs` (26).

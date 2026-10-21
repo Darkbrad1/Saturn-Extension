@@ -1,6 +1,14 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.47",
+    title: "Finding and dragging a section's properties",
+    items: [
+      "In Resource settings, each section's property list now has a find-or-add box at the top. Typing narrows the list and offers the properties not in the section yet; click one, or press Enter for the first, to add it. Esc clears it.",
+      "Drag a property in the list to move it. Dragging is off while you search (like the properties list); the ↑ / ↓ buttons still work.",
+    ],
+  },
+  {
     version: "0.3.46",
     title: "Resource settings",
     items: [
