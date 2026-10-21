@@ -372,7 +372,9 @@ function Control(props: { setting: Setting; id: string; value: unknown; mixed: b
       if (!of) return <span className="pe-hint">Pick the reference first.</span>;
       const fields = props.lookups.fieldsOf(of);
       if (!fields) return <span className="pe-hint">Loading {of}'s properties…</span>;
-      return <Select id={id} value={mixed ? MIXED_VALUE : str} options={[["", "Pick a property"], ...fields.map((f): [string, string] => [f.key, f.label ? `${f.label} (${f.key})` : f.key])]} disabled={disabled} onPick={(v) => set(path, v)} />;
+      // the keys every record has (not in the schema) can be picked too, like id for Linked by
+      const builtIn = BUILT_IN.filter(([k]) => !fields.some((f) => f.key === k));
+      return <Select id={id} value={mixed ? MIXED_VALUE : str} options={[["", "Pick a property"], ...fields.map((f): [string, string] => [f.key, f.label ? `${f.label} (${f.key})` : f.key]), ...builtIn]} disabled={disabled} onPick={(v) => set(path, v)} />;
     }
     case "fields":
     case "ownFields": {
@@ -416,6 +418,9 @@ function Control(props: { setting: Setting; id: string; value: unknown; mixed: b
 function sharedShown(setting: Setting, draft: Prop) {
   return ALL.some(({ setting: other }) => other !== setting && other.path.join(".") === setting.path.join(".") && (!other.when || other.when(draft)));
 }
+
+/** Keys every record has without them being in its resource's schema. */
+const BUILT_IN: [string, string][] = [["id", "ID (id), built in"], ["created_at", "Created at (created_at), built in"], ["updated_at", "Updated at (updated_at), built in"]];
 
 /** The value a select shows when the properties don't share one. */
 const MIXED_VALUE = "\u0000mixed";

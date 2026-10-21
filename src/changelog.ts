@@ -1,6 +1,11 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.34",
+    title: "Pick id for Linked by",
+    items: ["Settings that pick a property of another resource (a dynamic source's Linked by and Value field, a map's fields) now also offer id, created_at and updated_at. Every record has them, but its resource doesn't list them, so they were missing."],
+  },
+  {
     version: "0.3.33",
     title: "Access rules for properties",
     items: [

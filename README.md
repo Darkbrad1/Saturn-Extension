@@ -1,4 +1,4 @@
-# sonover-code (v0.3.33)
+# sonover-code (v0.3.34)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.34 — Pick id for Linked by
+- `src-res/editor.tsx`: a `field` setting (one property of another resource) also lists `BUILT_IN` (`id`, `created_at`, `updated_at`) after the resource's own properties, unless it lists them itself. So a dynamic source's Linked by (`source_definition.bounded_property`) can be `id`. `test21.mjs` (7).
 
 ## New in 0.3.33 — Access rules for properties
 - The Access group's Access rules setting is a new kind, `{kind: "access"}` (`src-res/access.tsx`), in place of a JSON box. It reuses the Menus screen's rules editor, split out of `AccessBox` as `AccessRules` (`src-menus/access.tsx`), limited to User groups, Users and Permissions. Its styles moved from `menus.css` to `src-res/editor.css`.
