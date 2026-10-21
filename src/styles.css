@@ -3270,29 +3270,6 @@ body.nv-scrubbing * {
 #sonover-node-view .fg-changes .fg-link {
   margin-left: 8px;
 }
-#sonover-node-view .fg-release {
-  margin: 0 0 6px;
-  font-size: 11px;
-  color: #ccc;
-}
-#sonover-node-view .fg-release summary {
-  cursor: pointer;
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  padding: 3px 0;
-}
-#sonover-node-view .fg-release summary b {
-  color: #fff;
-}
-#sonover-node-view .fg-release-title {
-  color: #9a9a9a;
-}
-#sonover-node-view .fg-release ul {
-  margin: 2px 0 6px;
-  padding-left: 18px;
-  line-height: 1.5;
-}
 #sonover-node-view .fg-multi-chip {
   display: grid;
   place-items: center;

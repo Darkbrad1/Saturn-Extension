@@ -3,7 +3,6 @@ import { FormEnvContext, PanelEditor, type FormEnv, type FormError, type LoadedP
 import { ActionPanel, CommandPanel, StagePanel, WorkflowPanel, type SettingsOps } from "./settings";
 import { codeParams, isEmailSummary, operatorName, type NvEdge, type NvNode, type RowAction } from "./layout";
 import type { Catalog, CommandView, DraftState, Flow, Path, WorkflowView } from "./types";
-import { CHANGELOG } from "./changelog";
 import { LogsTab } from "./logs";
 import { FormTab, type FormOwner } from "./formtab";
 
@@ -237,21 +236,6 @@ function ChangesTab(props: { draft: DraftState | undefined; wf: WorkflowView; on
             </div>
           </>
         )}
-      </Section>
-      <Section title="What's new in the node view" id="changes-new">
-        {CHANGELOG.map((rel, i) => (
-          <details key={rel.version} className="fg-release" open={i === 0}>
-            <summary>
-              <b>{rel.version}</b>
-              <span className="fg-release-title">{rel.title}</span>
-            </summary>
-            <ul>
-              {rel.items.map((it, j) => (
-                <li key={j}>{it}</li>
-              ))}
-            </ul>
-          </details>
-        ))}
       </Section>
     </>
   );

@@ -149,7 +149,8 @@ await p.waitForTimeout(500);
 cmds = (await def("wf_orders")).stages[0].actions[0].task.commands;
 ok(cmds.length === 6, "Undo on the newest change undoes it");
 const newest = /version:\s*"([\d.]+)"/.exec((await import("node:fs")).readFileSync(new URL("src/changelog.ts", import.meta.url), "utf8"))[1];
-ok(await panel.locator(".fg-release").count() >= 4 && (await panel.locator(".fg-release").first().innerText()).includes(newest), `release notes are listed, newest (${newest}) first`);
+// 0.3.43: the release notes moved to their own What's new page (test30.mjs); the tab keeps only the unsaved changes
+ok(await panel.locator(".fg-release").count() === 0 && !(await panel.innerText()).includes("What's new") && !!newest, "the Changes tab shows only the unsaved changes (release notes are on the What's new page)");
 await p.screenshot({ path: out + "/96-changes.png" });
 await panel.locator(".fg-btn", { hasText: "Save to the instance" }).click();
 await p.waitForTimeout(500);

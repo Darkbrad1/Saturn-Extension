@@ -13035,6 +13035,10 @@ var SidebarProvider = class SelfSidebarProvider {
             });
             break;
           }
+        // Opens the What's new page (added by this project).
+        case "saturn:openWhatsNew":
+          await vscode4.commands.executeCommand("saturn.openWhatsNew");
+          break;
         // Opens the System Logs screen for the instance (added by this project).
         case "saturn:openSystemLogs":
           {
@@ -17990,6 +17994,9 @@ async function startExtension(context) {
       }).then(picked => picked?.instance);
     }
     instance && SystemLogsHost.open(context.extensionUri, manager, instance, context.globalState);
+  }), vscode.commands.registerCommand("saturn.openWhatsNew", () => {
+    // What's new: the release notes on their own page (host/whatsnew.js)
+    WhatsNewHost.open(context.extensionUri);
   }), (ResourcePropertiesHost.attach({
     globalStorageUri: context.globalStorageUri,
     globalState: context.globalState

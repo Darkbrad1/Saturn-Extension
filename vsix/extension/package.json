@@ -21,7 +21,8 @@
 		"onCommand:saturn.connect",
 		"onCommand:saturn.disconnect",
 		"onCommand:saturn.flushQueue",
-		"onCommand:saturn.openWorkflows"
+		"onCommand:saturn.openWorkflows",
+		"onCommand:saturn.openWhatsNew"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
@@ -189,6 +190,11 @@
 				"command": "saturn.openSystemLogs",
 				"title": "Saturn: Open System Logs",
 				"icon": "$(output)"
+			},
+			{
+				"command": "saturn.openWhatsNew",
+				"title": "Saturn: What's new",
+				"icon": "$(megaphone)"
 			},
 			{
 				"command": "saturn.openResources",

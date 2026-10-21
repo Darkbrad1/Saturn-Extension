@@ -11778,6 +11778,26 @@ function SystemLogsIcon({
     })]
   });
 }
+// WhatsNewIcon — Icon for the What's new entry (a megaphone), drawn like a lucide icon. Added by this project.
+function WhatsNewIcon({
+  className: className
+}) {
+  return (0, jsxForInstances.jsxs)("svg", {
+    className: className,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true",
+    children: [(0, jsxForInstances.jsx)("path", {
+      d: "M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"
+    }), (0, jsxForInstances.jsx)("path", {
+      d: "M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"
+    })]
+  });
+}
 // ResourcesIcon — Icon for the Resources entry (a database), drawn like a lucide icon. Added by this project.
 function ResourcesIcon({
   className: className
@@ -11893,6 +11913,17 @@ function AccountView({
       children: [(0, jsxForAccount.jsx)(SparklesIcon, {
         className: "h-4 w-4"
       }), "AI Skills"]
+    }), (0, jsxForAccount.jsxs)(Button, {
+      // this project: Sonover Code's release notes on their own page
+      variant: "secondary",
+      className: "w-full justify-start gap-2",
+      title: "What changed in each version of Sonover Code",
+      onClick: () => vscodeApi.postMessage({
+        type: "saturn:openWhatsNew"
+      }),
+      children: [(0, jsxForAccount.jsx)(WhatsNewIcon, {
+        className: "h-4 w-4"
+      }), "What's new"]
     }), (0, jsxForAccount.jsxs)("div", {
       className: "flex items-center justify-between mt-4 mb-1",
       children: [(0, jsxForAccount.jsx)(SectionHeading, {

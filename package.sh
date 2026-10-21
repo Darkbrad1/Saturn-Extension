@@ -35,13 +35,13 @@ node build.mjs --min
 
 echo "==> typecheck"
 npx --no-install tsc --noEmit --jsx react-jsx --strict --module esnext --moduleResolution bundler \
-  --target es2020 --skipLibCheck src/env.d.ts src/main.tsx src-logs/main.tsx src-res/main.tsx src-menus/main.tsx
+  --target es2020 --skipLibCheck src/env.d.ts src/main.tsx src-logs/main.tsx src-res/main.tsx src-menus/main.tsx src-news/main.tsx
 
 echo "==> host tests"
 ext="out/vsix/extension/dist/extension.js"
 node --check "$ext"
 failed=0
-for t in hosttest.cjs hosttest-move.cjs hosttest-reorder.cjs hosttest-command.cjs hosttest-field.cjs hosttest-bulk.cjs hosttest-logs.cjs hosttest-wflogs.cjs hosttest-wflogs-real.cjs hosttest-activate.cjs hosttest-resources.cjs hosttest-formtab.cjs hosttest-items.cjs hosttest-undo.cjs hosttest-menus.cjs; do
+for t in hosttest.cjs hosttest-move.cjs hosttest-reorder.cjs hosttest-command.cjs hosttest-field.cjs hosttest-bulk.cjs hosttest-logs.cjs hosttest-wflogs.cjs hosttest-wflogs-real.cjs hosttest-activate.cjs hosttest-resources.cjs hosttest-formtab.cjs hosttest-items.cjs hosttest-undo.cjs hosttest-menus.cjs hosttest-whatsnew.cjs; do
   if [ "$t" = hosttest-wflogs.cjs ]; then arg=host/syslogs.js; else arg="$ext"; fi
   if ! log="$(node "$t" "$arg" 2>&1)" || grep -q '^FAIL' <<<"$log"; then
     echo "   $t: FAILED"

@@ -1,5 +1,14 @@
-/** Release notes shown in the side panel's Changes tab (newest first). */
+/** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
+  {
+    version: "0.3.43",
+    title: "What's new has its own page",
+    items: [
+      "These release notes moved out of the node view onto their own page, a VS Code tab. Open it with the What's new button in the sidebar (under AI Skills) or the \"Saturn: What's new\" command.",
+      "The newest release is open and marked Installed; a search finds the releases that mention something.",
+      "The node view's Changes tab now shows only the workflow's unsaved changes.",
+    ],
+  },
   {
     version: "0.3.42",
     title: "Copy or Move",
