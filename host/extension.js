@@ -8987,12 +8987,28 @@ var draftHistoryLimit = 20,
     async undoLastEdit(workflowId) {
       let draft = this.drafts.get(workflowId);
       if (draft && draft.history.length > 0) {
-        draft.definition = draft.history.pop(), draft.summaries.pop(), draft.history.length === 0 && this.drafts.delete(workflowId), this.persistDrafts();
-        let catalog = await this.getOperatorCatalog();
-        this.panel.webview.postMessage({
-          type: "workflow",
-          payload: workflowView(draft.definition, catalog)
-        }), this.postDraftState(workflowId);
+        // Every undo answers with editSaved or editFailed: the webview counts it as a pending edit
+        // and shows "Applying…" until it gets one.
+        try {
+          draft.definition = draft.history.pop(), draft.summaries.pop(), draft.history.length === 0 && this.drafts.delete(workflowId), this.persistDrafts();
+          let catalog = await this.getOperatorCatalog();
+          this.panel.webview.postMessage({
+            type: "workflow",
+            payload: workflowView(draft.definition, catalog)
+          }), this.postDraftState(workflowId), this.panel.webview.postMessage({
+            type: "editSaved",
+            payload: {
+              canUndo: draft.history.length > 0
+            }
+          });
+        } catch (error) {
+          this.panel.webview.postMessage({
+            type: "editFailed",
+            payload: {
+              message: errorMessage(error, "Undo failed")
+            }
+          });
+        }
         return;
       }
       let snapshot = this.undoSnapshots.get(workflowId);
@@ -9005,12 +9021,8 @@ var draftHistoryLimit = 20,
         });
         return;
       }
-      this.undoSnapshots.delete(workflowId), await this.applyEdit(workflowId, "Restored the workflow to before the last change", () => snapshot), this.undoSnapshots.delete(workflowId), this.panel.webview.postMessage({
-        type: "editSaved",
-        payload: {
-          canUndo: !1
-        }
-      });
+      // applyEdit answers with editSaved or editFailed itself (a second editSaved would end another pending edit)
+      this.undoSnapshots.delete(workflowId), await this.applyEdit(workflowId, "Restored the workflow to before the last change", () => snapshot), this.undoSnapshots.delete(workflowId);
     }
     // Records an edit in the offline store while the instance is unreachable.
     async saveOffline(workflowId, before, after, summary) {

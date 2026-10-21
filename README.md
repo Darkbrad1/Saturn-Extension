@@ -1,4 +1,4 @@
-# sonover-code (v0.3.35)
+# sonover-code (v0.3.36)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,10 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.36 — Undo no longer gets stuck, and property names can be changed
+- Host: `WorkflowsPanel.undoLastEdit` answered an undo of a draft edit with `workflow` / `draftState` but no `editSaved`, so the node view (which counts each request until it hears `editSaved` or `editFailed`) stayed on "Applying…". It now sends `editSaved {canUndo}`, or `editFailed` if the undo throws. The session-snapshot path sent `editSaved` twice (once from `applyEdit`); the extra one is gone. `hosttest-undo.cjs` (8), which fails on the old code.
+- `src/forms.tsx` `KeyValueEditor`: each property's name is an input (`KvKey`, like `KvValue`): applied on Enter / blur, Esc puts it back; renamed in place with its value; an empty or doubled name is refused with a note. `test23.mjs` (12).
 
 ## New in 0.3.35 — Make a command from an action, and Duplicate
 - Layers panel (`src/outliner.tsx`): an action row dragged into Commands (the section, or a command row: before it) sends `actionToCommand {workflowId, path, index}`; the section is highlighted with a hint while dragging. The right-click menu of an action or command has Duplicate → `duplicateItem {workflowId, kind, path}`.

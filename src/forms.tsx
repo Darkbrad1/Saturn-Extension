@@ -531,6 +531,7 @@ function LookupPicker(props: { f: FieldSpec; value: string; onPick: (v: string) 
 function KeyValueEditor(props: { value: string; onChange: (v: string) => void }) {
   const [k, setK] = useState("");
   const [v, setV] = useState("");
+  const [keyNote, setKeyNote] = useState<string | null>(null);
   // null = not a plain object (shown as raw JSON); {} is just an empty map
   const parsed = useMemo<[string, string][] | null>(() => {
     if (!props.value.trim()) return [];
@@ -571,9 +572,18 @@ function KeyValueEditor(props: { value: string; onChange: (v: string) => void })
     >
       {rows.map(([a, b]) => (
         <div key={a} className="nv-kv-item">
-          <span className="nv-kv-k" title={a}>
-            {a}
-          </span>
+          <KvKey
+            value={a}
+            onCommit={(nk) => {
+              const key = nk.trim();
+              if (key === a) return setKeyNote(null);
+              if (!key) return setKeyNote(`A property needs a name; "${a}" is kept.`);
+              if (rows.some(([x]) => x === key)) return setKeyNote(`"${key}" is already in the list; "${a}" is kept.`);
+              setKeyNote(null);
+              // renamed in its place, with its value
+              write(rows.map(([x, y]) => [x === a ? key : x, y]));
+            }}
+          />
           <KvValue key={b} value={b} onCommit={(nv) => nv !== b && write(rows.map(([x, y]) => [x, x === a ? nv : y]))} />
           <button type="button" className="nv-kv-x" title={`Remove ${a}`} onClick={() => write(rows.filter(([x]) => x !== a))}>
             ×
@@ -609,8 +619,34 @@ function KeyValueEditor(props: { value: string; onChange: (v: string) => void })
           ＋
         </button>
       </div>
+      {keyNote && <span className="nv-field-caption is-warn">{keyNote}</span>}
       {!k.trim() && v.trim() !== "" && <span className="nv-field-caption is-warn">Give the property a name to add it.</span>}
     </div>
+  );
+}
+
+/** A property's name in the map, editable like its value: applied on Enter or leaving it, Esc puts it back.
+ *  (The map's own checks refuse an empty or doubled name and put the old one back.) */
+function KvKey(props: { value: string; onCommit: (v: string) => void }) {
+  const [v, setV] = useState(props.value);
+  useEffect(() => setV(props.value), [props.value]);
+  return (
+    <HighlightInput
+      className="nv-kv-k"
+      value={v}
+      onChange={setV}
+      onBlur={() => {
+        props.onCommit(v);
+        setV(props.value);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          setV(props.value);
+        }
+      }}
+    />
   );
 }
 

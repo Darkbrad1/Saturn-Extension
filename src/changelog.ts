@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.36",
+    title: "Undo no longer gets stuck, and property names can be changed",
+    items: [
+      "Fixed: after Undo the top bar could stay on \"Applying…\" for good. Undo now always finishes.",
+      "A property map (like Property Updater's properties) lets you change a property's name, not only its value. Click it, type, and press Enter or click away. A name that's empty or already in the list is put back, with a note saying why.",
+    ],
+  },
+  {
     version: "0.3.35",
     title: "Make a command from an action, and Duplicate",
     items: [

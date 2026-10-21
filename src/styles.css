@@ -2379,14 +2379,10 @@
   gap: 4px;
   align-items: center;
 }
+/* a property's name: an input like its value, in the mono font */
 #sonover-node-view .nv-kv-k {
-  padding: 0 7px;
   color: #cfcfcf;
   font-family: var(--nv-mono);
-  font-size: 10.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 #sonover-node-view .nv-kv-editor input {
   height: 26px !important;
