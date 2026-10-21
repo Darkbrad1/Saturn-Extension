@@ -60,12 +60,15 @@ export function Outliner(props: {
   onDelete: (kind: NodeKind, path: Path, label: string) => void;
   /** a copy of an action or command, right below it */
   onDuplicate: (kind: "action" | "command", path: Path) => void;
-  /** commands made from the actions dragged into Commands (they stay), from `index` (null: the end) */
-  onActionToCommand: (paths: Path[], index: number | null) => void;
-  /** actions made from the commands dragged into a stage (null: Global actions) (they stay), from `index` (null: the end) */
-  onCommandToAction: (paths: Path[], stageIndex: number | null, index: number | null) => void;
-  /** actions (one or several) moved into a stage (null: Global actions), before `index` there (null: the end) */
+  /** commands made from the actions dragged into Commands, from `index` (null: the end); `move` removes the actions */
+  onActionToCommand: (paths: Path[], index: number | null, move: boolean) => void;
+  /** actions made from the commands dragged into a stage (null: Global actions), from `index` (null: the end);
+   *  `move` removes the commands */
+  onCommandToAction: (paths: Path[], stageIndex: number | null, index: number | null, move: boolean) => void;
+  /** actions moved into a stage (null: Global actions), before `index` there (null: the end) */
   onMoveActions: (paths: Path[], stageIndex: number | null, index: number | null) => void;
+  /** copies of actions in a stage (null: Global actions), before `index` there (null: the end) */
+  onCopyActions: (paths: Path[], stageIndex: number | null, index: number | null) => void;
   onClearError: () => void;
 }) {
   const { wf } = props;
@@ -173,19 +176,12 @@ export function Outliner(props: {
     onDrop: (e: React.DragEvent) => {
       const d = drag.current;
       if (!d) return;
-      if (kind === "action" && d.kind === "command") {
+      if (kind === "action" && (d.kind === "command" || d.paths.length > 1 || d.stageIndex !== stageIndex)) {
         drag.current = null;
         setDropAt(null);
         e.preventDefault();
         e.stopPropagation();
-        return props.onCommandToAction(d.paths, stageIndex, index);
-      }
-      if (kind === "action" && d.kind === "action" && (d.paths.length > 1 || d.stageIndex !== stageIndex)) {
-        drag.current = null;
-        setDropAt(null);
-        e.preventDefault();
-        e.stopPropagation();
-        return props.onMoveActions(d.paths, stageIndex, index);
+        return land(d, { to: "actions", stageIndex, index }, e);
       }
       if (d.kind !== kind || d.index === index || d.paths.length > 1 || kind === "command") return;
       if (kind === "action" && d.stageIndex !== stageIndex) return;
@@ -213,10 +209,10 @@ export function Outliner(props: {
       setDropAt(null);
       e.preventDefault();
       e.stopPropagation();
-      props.onActionToCommand(d.paths, index);
+      land(d, { to: "commands", index }, e);
     },
   });
-  // commands (copied) or actions (moved) dropped on a stage or Global actions, not on one of its rows: at the end.
+  // commands or actions dropped on a stage or Global actions, not on one of its rows: at the end.
   // One action from this very list isn't moved (it's already here).
   const intoList = (d: Dragged | null, stageIndex: number | null) =>
     !!d && (d.kind === "command" || (d.kind === "action" && (d.paths.length > 1 || d.stageIndex !== stageIndex)));
@@ -224,7 +220,7 @@ export function Outliner(props: {
     onDragOver: (e: React.DragEvent) => {
       if (!intoList(drag.current, stageIndex)) return;
       e.preventDefault();
-      e.dataTransfer.dropEffect = drag.current!.kind === "command" ? "copy" : "move";
+      e.dataTransfer.dropEffect = "copy";
       setDropAt(`into:${stageIndex}:end`);
     },
     onDrop: (e: React.DragEvent) => {
@@ -233,8 +229,7 @@ export function Outliner(props: {
       drag.current = null;
       setDropAt(null);
       e.preventDefault();
-      if (d.kind === "command") props.onCommandToAction(d.paths, stageIndex, null);
-      else props.onMoveActions(d.paths, stageIndex, null);
+      land(d, { to: "actions", stageIndex, index: null }, e);
     },
     onDragLeave: (e: React.DragEvent) => {
       if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropAt((at) => (at?.startsWith(`into:${stageIndex}:`) ? null : at));
@@ -244,13 +239,48 @@ export function Outliner(props: {
   const draggingInto = (stageIndex: number | null) => dropAt?.startsWith(`into:${stageIndex}:`) ?? false;
   const many = (n: number, one: string, more: string) => (n === 1 ? one : more.replace("#", String(n)));
   const draggedCount = drag.current?.paths.length ?? 1;
-  const intoActionsHint = (
-    <div className="nv-ol-drop-hint">
-      {drag.current?.kind === "action"
-        ? many(draggedCount, "Drop to move this action here.", "Drop to move # actions here.")
-        : many(draggedCount, "Drop to make an action from this command. The command stays.", "Drop to make # actions from these commands. They stay.")}
-    </div>
-  );
+
+  // ---- where dragged items land: into another list, one or several, asks Copy or Move; several that are all
+  // already in that list just move there (a block) ----
+  type Target = { to: "actions"; stageIndex: number | null; index: number | null } | { to: "commands"; index: number | null };
+  const [ask, setAsk] = useState<{ x: number; y: number; d: Dragged; target: Target } | null>(null);
+  // Esc closes the box wherever the focus is (it opens after a drop, so it may not have it)
+  useEffect(() => {
+    if (!ask) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setAsk(null);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [ask]);
+  const listOf = (t: Target) => (t.to === "commands" ? "commands" : t.stageIndex === null ? "actions" : `stages.${t.stageIndex}.actions`);
+  const fromElsewhere = (d: Dragged, t: Target) => d.paths.some((path) => path.slice(0, -1).join(".") !== listOf(t));
+  const finish = (d: Dragged, t: Target, move: boolean) => {
+    if (t.to === "commands") props.onActionToCommand(d.paths, t.index, move);
+    else if (d.kind === "command") props.onCommandToAction(d.paths, t.stageIndex, t.index, move);
+    else if (move) props.onMoveActions(d.paths, t.stageIndex, t.index);
+    else props.onCopyActions(d.paths, t.stageIndex, t.index);
+  };
+  const land = (d: Dragged, t: Target, e: React.DragEvent) => {
+    if (!fromElsewhere(d, t)) return d.kind === "action" && t.to === "actions" && props.onMoveActions(d.paths, t.stageIndex, t.index);
+    setAsk({ x: e.clientX, y: e.clientY, d, target: t });
+  };
+  const targetName = (t: Target) => (t.to === "commands" ? "Commands" : t.stageIndex === null ? "Global actions" : wf.stages[t.stageIndex]?.label ?? "this stage");
+  // the hint while dragging over a stage or Global actions
+  const intoActionsHint = (stageIndex: number | null) => {
+    const d = drag.current;
+    const n = draggedCount;
+    const here = !!d && !fromElsewhere(d, { to: "actions", stageIndex, index: null });
+    return (
+      <div className="nv-ol-drop-hint">
+        {d?.kind === "action"
+          ? here ? "Drop to move them here." : many(n, "Drop to copy or move this action here.", "Drop to copy or move # actions here.")
+          : many(n, "Drop to copy or move this command here as an action.", "Drop to copy or move # commands here as actions.")}
+      </div>
+    );
+  };
 
   const startAdd = (kind: CreateKind, stageIndex: number | null) => {
     props.onClearError();
@@ -476,7 +506,7 @@ export function Outliner(props: {
               {isClosed(`stage:${st.stage}`) && isAdd("action", si) && (
                 <div className="nv-ol-edit is-indent">{inline("aa" + si, "New action name")}</div>
               )}
-              {draggingInto(si) && intoActionsHint}
+              {draggingInto(si) && intoActionsHint(si)}
             </div>
           );
         })}
@@ -502,7 +532,7 @@ export function Outliner(props: {
           renderRow({ tkey: `g:${a.id}`, label: a.label, kind: "action", path: ["actions", ai], dot: "#7a7a7a", drag: dragProps("action", null, ai, `g:${a.id}`), dropping: isDrop("action", null, ai) || dropAt === `into:null:${ai}` }),
         )}
         {isAdd("action", null) && <div className="nv-ol-edit">{inline("ag", "New global action name")}</div>}
-        {draggingInto(null) && intoActionsHint}
+        {draggingInto(null) && intoActionsHint(null)}
       </div>
 
       {/* Commands (an action dropped here becomes a command too) */}
@@ -519,11 +549,44 @@ export function Outliner(props: {
           renderRow({ tkey: `c:${c.id}`, label: c.label, kind: "command", path: ["commands", ci], dot: "#1f6e4a", drag: dragProps("command", null, ci, `c:${c.id}`), drop: commandDrop(ci), dropping: dropAt === `command:${ci}` }),
         )}
         {isAdd("command", null) && <div className="nv-ol-edit">{inline("ac", "New command name")}</div>}
-        {draggingIntoCommands && <div className="nv-ol-drop-hint">{many(draggedCount, "Drop to make a command from this action. The action stays.", "Drop to make # commands from these actions. They stay.")}</div>}
+        {draggingIntoCommands && <div className="nv-ol-drop-hint">{many(draggedCount, "Drop to copy or move this action into Commands.", "Drop to copy or move # actions into Commands.")}</div>}
       </div>
       </>
       )}
 
+      {ask && (
+        <div className="nv-menu-back" onMouseDown={() => setAsk(null)}>
+          <div
+            className="nv-ctx nv-ask"
+            role="dialog"
+            aria-label="Copy or move"
+            style={{ left: Math.min(ask.x, window.innerWidth - 280), top: Math.min(ask.y, window.innerHeight - 170) }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="nv-ask-title">
+              {ask.d.paths.length === 1 ? `1 ${ask.d.kind}` : `${ask.d.paths.length} ${ask.d.kind}s`} to {targetName(ask.target)}
+            </div>
+            {(() => {
+              // a command that reference steps call: moving it removes it, so those steps would stop working
+              if (ask.d.kind !== "command") return null;
+              const called = ask.d.paths.map((path) => wf.commands[Number(path[1])]).filter((c) => (c?.usageCount ?? 0) > 0);
+              if (!called.length) return null;
+              return (
+                <div className="nv-ask-warn">
+                  Move removes {called.map((c) => `${c.label} (called from ${c.usageCount} reference step${c.usageCount === 1 ? "" : "s"})`).join(", ")}. Those steps would stop working.
+                </div>
+              );
+            })()}
+            <button className="nv-ctx-item" autoFocus onClick={() => { finish(ask.d, ask.target, false); setAsk(null); }}>
+              Copy <small>the originals stay</small>
+            </button>
+            <button className="nv-ctx-item" onClick={() => { finish(ask.d, ask.target, true); setAsk(null); }}>
+              Move <small>the originals go</small>
+            </button>
+            <button className="nv-ctx-item" onClick={() => setAsk(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
       {menu && (
         <div className="nv-menu-back" onMouseDown={() => setMenu(null)}>
           <div

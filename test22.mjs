@@ -8,6 +8,7 @@ const errs = [];
 p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
 p.on("console", (m) => /Content Security|Refused/.test(m.text()) && errs.push("CSP: " + m.text()));
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
+const choose = async (what) => { await p.locator(".nv-ask").getByRole("button", { name: new RegExp(`^${what}`) }).click(); await p.waitForTimeout(500); };
 const def = () => p.evaluate(() => JSON.parse(JSON.stringify(window.__defs.wf_tickets)));
 const item = (label) => p.locator(".nv-ol-item", { has: p.locator(".nv-ol-label", { hasText: new RegExp(`^${label.replace(/[()]/g, "\\$&")}$`) }) });
 const commandsGroup = () => p.locator(".nv-ol-group", { has: p.locator(".nv-ol-head-label", { hasText: /^Commands$/ }) });
@@ -20,6 +21,7 @@ await p.waitForTimeout(900);
 // ===== drag a stage action into Commands =====
 ok((await def()).commands.length === 0, "the workflow starts with no commands");
 await item("Triage").dragTo(commandsGroup().locator(".nv-ol-head"));
+await choose("Copy");
 await p.waitForTimeout(500);
 let d = await def();
 ok(d.commands.length === 1 && d.commands[0].label === "Triage" && d.commands[0].name === "triage", "dropping a stage action on Commands makes a command from it");
@@ -29,6 +31,7 @@ ok((await item("Triage").count()) === 2, "both show in the layers panel");
 
 // ===== drag a global action onto a command: it goes before it =====
 await item("Escalate").dragTo(commandsGroup().locator(".nv-ol-item").first());
+await choose("Copy");
 await p.waitForTimeout(500);
 d = await def();
 ok(d.commands.map((c) => c.label).join() === "Escalate,Triage", "a global action dropped on a command goes in before it");

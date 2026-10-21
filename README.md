@@ -1,4 +1,4 @@
-# sonover-code (v0.3.41)
+# sonover-code (v0.3.42)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,10 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.42 — Copy or Move
+- Layers panel (`src/outliner.tsx`): `land` decides where dragged items go. Into another list (any item from elsewhere) opens the Copy or Move box (`ask`, `.nv-ask`, Esc / Cancel / a click outside close it); `finish` sends `copyActions` / `moveActions` between action lists, or `actionToCommand` / `commandToAction` with `move`. Several all already in the target list move as a block with no box. Moving a command whose `usageCount` > 0 shows a warning.
+- Host: `copyActions(definition, paths, stageIndex, index)` (copies with new ids and step ids, unused names; message `copyActions`); `copyItemsAs(…, move)` removes the originals afterwards (`removeItems`); the `actionToCommand` / `commandToAction` messages take `move`. `hosttest-items.cjs` (52), `test29.mjs` (15); `test22` / `test24` / `test28` click Copy or Move where the box now asks.
 
 ## New in 0.3.41 — Move actions between stages
 - Host: `moveActions(definition, paths, stageIndex, index)` (one draft edit): the picked actions out of their lists and into one list (a stage, or the global actions when `stageIndex` is null) before `index` (null: the end), in order; ids kept; a name taken there gets `_2` (`freeMachineName`); the drop point counts without the moved ones above it. Message `moveActions {workflowId, paths, stageIndex, index}`. `hosttest-items.cjs` (44).

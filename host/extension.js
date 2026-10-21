@@ -2323,17 +2323,57 @@ function moveActions(definition, paths, stageIndex, index) {
   list.splice(Math.min(Math.max(at, 0), list.length), 0, ...placed);
   return copy;
 }
+// copyActions — Copies of actions (stage or global ones, several at once) in one list: stage `stageIndex`, or the global
+// actions when it's null, before `index` there (null: at the end), in order. Each copy keeps its label and settings and
+// gets a new id, fresh step ids, and an unused machine name in that list (`_2`, `_3`, …). The originals stay.
+function copyActions(definition, paths, stageIndex, index) {
+  if (!Array.isArray(paths) || paths.length === 0) throw new Error("Nothing selected to copy.");
+  let listPath = typeof stageIndex == "number" ? ["stages", stageIndex, "actions"] : ["actions"];
+  if (typeof stageIndex == "number" && (!definition?.stages?.[stageIndex] || typeof definition.stages[stageIndex] != "object")) throw new Error("That stage is no longer there \u2014 reopen the workflow and try again.");
+  let copies = paths.map(path => {
+      let inActions = Array.isArray(path) && path.length >= 2 && path[path.length - 2] === "actions" && typeof path[path.length - 1] == "number",
+        action = inActions ? getAt(definition, path) : null;
+      if (!action || typeof action != "object" || Array.isArray(action)) throw new Error("A picked action is no longer where it was \u2014 reopen the workflow and try again.");
+      return action;
+    }),
+    taken = asArray(getAt(definition, listPath)).map(action => nonEmptyString(action?.action) ?? "").filter(Boolean),
+    used = collectIds(definition),
+    result = definition,
+    count = asArray(getAt(definition, listPath)).length,
+    at = typeof index == "number" && index >= 0 && index <= count ? index : count;
+  copies.forEach((action, i) => {
+    let copy = structuredClone(action),
+      id = unusedId(used);
+    used.add(id), copy.id = id;
+    let name = nonEmptyString(action.action);
+    name && (copy.action = freeMachineName(name, taken), taken.push(copy.action));
+    if (action.task && typeof action.task == "object") copy.task = cloneStep(action.task);
+    result = insertAt(result, listPath, at + i, copy);
+  });
+  return stampStepIds(result).definition;
+}
+// removeItems — A copy without the actions or commands at `paths` (last first in each list, so the others stay right).
+function removeItems(definition, paths) {
+  let ordered = [...paths].sort((left, right) => {
+      let a = left.slice(0, -1).join("."),
+        b = right.slice(0, -1).join(".");
+      return a < b ? -1 : a > b ? 1 : right[right.length - 1] - left[left.length - 1];
+    }),
+    result = definition;
+  for (let path of ordered) result = removeAt(result, path).next;
+  return result;
+}
 // copyItemsAs — Several actions made into commands ("command"), or commands into actions in one list ("action"), as
-// ONE change: each in the order given, placed one after another from `index` (null: the end). The originals stay,
-// so the paths stay valid while the copies go in.
-function copyItemsAs(definition, as, paths, stageIndex, index) {
+// ONE change: each in the order given, placed one after another from `index` (null: the end). The originals stay
+// while the copies go in (so the paths stay valid); with `move` they are then removed.
+function copyItemsAs(definition, as, paths, stageIndex, index, move = false) {
   if (!Array.isArray(paths) || paths.length === 0 || !paths.every(path => Array.isArray(path))) throw new Error("Nothing selected to copy.");
   let result = definition;
   paths.forEach((path, i) => {
     let at = typeof index == "number" ? index + i : null;
     result = as === "command" ? actionToCommand(result, path, at) : commandToAction(result, path, stageIndex, at);
   });
-  return result;
+  return move ? removeItems(result, paths) : result;
 }
 // updateFields (minified: Rr) — Changes the form-field list of an action / command at a path.
 function updateFields(definition, path, formKey, update) {
@@ -10563,6 +10603,18 @@ var draftHistoryLimit = 20,
             await this.applyEdit(workflowId, draft => `Duplicated ${kind} "${nonEmptyString(getAt(draft, nodePath)?.label) ?? kind}"`, draft => duplicateWorkflowItem(draft, kind, nodePath));
             break;
           }
+        // Copies actions (several dragged, "Copy" picked) into a stage or the global actions, at an index. One draft edit.
+        case "copyActions":
+          {
+            let {
+              workflowId: workflowId,
+              paths: nodePaths,
+              stageIndex: stageIndex,
+              index: index
+            } = message.payload ?? {};
+            await this.applyEdit(workflowId, () => `Copied ${Array.isArray(nodePaths) ? nodePaths.length : 0} action(s)`, draft => copyActions(draft, nodePaths, typeof stageIndex == "number" ? stageIndex : null, typeof index == "number" ? index : null));
+            break;
+          }
         // Moves actions (one or several) into a stage or the global actions, at an index. One draft edit.
         case "moveActions":
           {
@@ -10593,9 +10645,11 @@ var draftHistoryLimit = 20,
               } = message.payload ?? {},
               list = Array.isArray(nodePaths) ? nodePaths : Array.isArray(nodePath) ? [nodePath] : [],
               toCommand = message.type === "actionToCommand",
-              from = toCommand ? "action" : "command";
+              from = toCommand ? "action" : "command",
+              // `move`: the originals are removed too (asked for when several are dragged)
+              move = message.payload?.move === !0;
             // applyEdit answers with editSaved or editFailed, also when the paths are missing
-            await this.applyEdit(workflowId, draft => list.length === 1 ? `Made ${toCommand ? "a command" : "an action"} from ${from} "${nonEmptyString(getAt(draft, list[0])?.label) ?? from}"` : `Made ${list.length} ${toCommand ? "commands" : "actions"} from ${from}s`, draft => copyItemsAs(draft, toCommand ? "command" : "action", list, typeof stageIndex == "number" ? stageIndex : null, typeof index == "number" ? index : null));
+            await this.applyEdit(workflowId, draft => (move ? `Moved ${list.length} ${from}${list.length === 1 ? "" : "s"} into ${toCommand ? "Commands" : "actions"}` : list.length === 1 ? `Made ${toCommand ? "a command" : "an action"} from ${from} "${nonEmptyString(getAt(draft, list[0])?.label) ?? from}"` : `Made ${list.length} ${toCommand ? "commands" : "actions"} from ${from}s`), draft => copyItemsAs(draft, toCommand ? "command" : "action", list, typeof stageIndex == "number" ? stageIndex : null, typeof index == "number" ? index : null, move));
             break;
           }
         // Renames a stage, action or command (and sets a stage's colour, or a machine name).

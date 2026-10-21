@@ -1,6 +1,15 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.42",
+    title: "Copy or Move",
+    items: [
+      "In the layers panel, dragging actions or commands into another list (another stage, Global actions, Commands) now asks Copy or Move, for one item or several.",
+      "Copy keeps the originals (the copies get new ids). Move removes them, as one change. Moving a command that reference steps call warns first, because those steps would stop working.",
+      "Reordering inside the same list, or several that are all already in that list, still just moves without asking. Esc or Cancel closes the box and changes nothing.",
+    ],
+  },
+  {
     version: "0.3.41",
     title: "Move actions between stages",
     items: [

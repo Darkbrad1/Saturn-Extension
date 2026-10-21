@@ -9,6 +9,7 @@ const errs = [];
 p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
 p.on("console", (m) => /Content Security|Refused/.test(m.text()) && errs.push("CSP: " + m.text()));
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
+const choose = async (what) => { await p.locator(".nv-ask").getByRole("button", { name: new RegExp(`^${what}`) }).click(); await p.waitForTimeout(500); };
 const def = () => p.evaluate(() => JSON.parse(JSON.stringify(window.__defs.wf_tickets)));
 const group = (name) => p.locator(".nv-ol-group", { has: p.locator(".nv-ol-head-label", { hasText: new RegExp(`^${name}$`) }) });
 const stage = () => p.locator(".nv-ol-stage", { has: p.locator(".nv-ol-stagehead", { hasText: "Open" }) });
@@ -26,6 +27,7 @@ await row(group("Global actions"), "Escalate").click({ modifiers: ["Control"] })
 await p.waitForTimeout(150);
 ok((await p.locator(".nv-ol-item.is-picked").count()) === 2, "Ctrl+click picks two actions (from a stage and Global actions)");
 await row(stage(), "Triage").dragTo(group("Commands").locator(".nv-ol-head"));
+await choose("Copy");
 await p.waitForTimeout(500);
 let d = await def();
 ok(labels(d.commands) === "Triage,Escalate", "dragging one of them into Commands makes a command from each, in order: " + labels(d.commands));
@@ -36,6 +38,7 @@ ok((await p.locator(".nv-ol-item.is-picked").count()) === 0, "a plain click clea
 
 // ===== a command into a stage =====
 await row(group("Commands"), "Escalate").dragTo(p.locator(".nv-ol-stagehead", { hasText: "Open" }));
+await choose("Copy");
 await p.waitForTimeout(500);
 d = await def();
 ok(labels(d.stages[0].actions) === "Triage,Escalate" && d.commands.length === 2, "a command dropped on a stage becomes an action at its end; the command stays");
@@ -44,6 +47,7 @@ ok(made.action === "escalate" && made.task?.type === "series" && made.task.comma
 
 // a command onto an action row: before it
 await row(group("Commands"), "Triage").dragTo(row(stage(), "Triage"));
+await choose("Copy");
 await p.waitForTimeout(500);
 d = await def();
 ok(labels(d.stages[0].actions) === "Triage,Triage,Escalate" && d.stages[0].actions[0].action === "triage_2", "a command dropped on an action goes in before it, with an unused name: " + d.stages[0].actions.map((a) => a.action).join());
@@ -63,7 +67,7 @@ await p.evaluate(() => {
   target.querySelector(".nv-ol-head").dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt }));
 });
 await p.waitForTimeout(150);
-ok((await group("Global actions").locator(".nv-ol-drop-hint").innerText()).includes("2 actions from these commands"), "dragging two shows what will happen to both");
+ok((await group("Global actions").locator(".nv-ol-drop-hint").innerText()).includes("copy or move 2 commands here as actions"), "dragging two shows what will happen to both");
 await p.screenshot({ path: out + "/m1-commands-into-global.png" });
 await p.evaluate(() => {
   const groups = [...document.querySelectorAll(".nv-ol-group")];
@@ -71,6 +75,7 @@ await p.evaluate(() => {
   src.dispatchEvent(new DragEvent("dragend", { bubbles: true }));
 });
 await row(group("Commands"), "Triage").dragTo(group("Global actions").locator(".nv-ol-head"));
+await choose("Copy");
 await p.waitForTimeout(500);
 d = await def();
 ok(labels(d.actions) === "Escalate,Triage,Escalate" && d.actions[2].action === "escalate_2" && d.commands.length === 2, "two picked commands into Global actions make two actions; names stay unused: " + d.actions.map((a) => a.action).join());

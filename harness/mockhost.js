@@ -420,6 +420,21 @@
         const copy = JSON.parse(JSON.stringify(item)); let name = `${item[nk]}_copy`; for (let n = 2; list.some((x) => x[nk] === name); n++) name = `${item[nk]}_copy_${n}`;
         Object.assign(copy, { id: Math.random().toString(36).slice(2, 8), label: `${item.label} (copy)`, [nk]: name }); const strip = (o) => { if (o && typeof o === "object") { delete o.id; Object.entries(o).forEach(([k, v]) => k !== "data" && strip(v)); } }; strip(copy[sk]);
         list.splice(i + 1, 0, copy); }); break;
+      // like the host's copyActions: copies with new ids (step ids dropped) and unused names, the originals stay
+      case "copyActions": {
+        if (!(p.paths || []).length) { post("editFailed", { message: "Nothing selected to copy." }); break; }
+        apply(id, `Copied ${p.paths.length} action(s)`, (d) => {
+          const target = typeof p.stageIndex === "number" ? d.stages[p.stageIndex].actions : d.actions;
+          const copies = p.paths.map((path) => JSON.parse(JSON.stringify(get(d, path))));
+          const strip = (o) => { if (o && typeof o === "object") { delete o.id; Object.entries(o).forEach(([k, v]) => k !== "data" && strip(v)); } };
+          copies.forEach((c, i) => {
+            strip(c.task); c.id = Math.random().toString(36).slice(2, 8);
+            let name = c.action; for (let n = 2; target.some((y) => y.action === name); n++) name = `${c.action}_${n}`; c.action = name;
+            target.splice((typeof p.index === "number" ? p.index : target.length) + (typeof p.index === "number" ? i : 0), 0, c);
+          });
+        });
+        break;
+      }
       // like the host's moveActions: several at once into one list, in order, before the index (null: the end)
       case "moveActions": {
         if (!(p.paths || []).length) { post("editFailed", { message: "Nothing selected to move." }); break; }
@@ -446,7 +461,9 @@
         const toCommand = msg.type === "actionToCommand";
         if (!paths.length) { post("editFailed", { message: "Nothing selected to copy." }); break; }
         apply(id, toCommand ? `Made ${paths.length} command(s) from actions` : `Made ${paths.length} action(s) from commands`, (d) => {
+          const originals = paths.map((path) => ({ list: get(d, path.slice(0, -1)), item: get(d, path) }));
           const copies = paths.map((path) => get(d, path)).map((src) => JSON.parse(JSON.stringify(src)));
+          // with move, the originals go after the copies are in (like the host's removeItems)
           copies.forEach((src, i) => {
             const at = typeof p.index === "number" ? p.index + i : null;
             if (toCommand) {
@@ -459,6 +476,7 @@
               list.splice(at ?? list.length, 0, { id: Math.random().toString(36).slice(2, 8), action: name, label: src.label, actors: [], access_control: [], task: src.command ?? { type: "series", commands: [] }, ...(hasForm ? { form: src.parameters } : {}) });
             }
           });
+          if (p.move === true) for (const o of originals) o.list.splice(o.list.indexOf(o.item), 1);
         });
         break;
       }

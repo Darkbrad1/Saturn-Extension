@@ -1813,6 +1813,26 @@
   box-shadow: inset 0 2px 0 #0d99ff;
 }
 /* an action dragged over Commands: it becomes a command there */
+/* Copy or move? (several dragged into another list) */
+#sonover-node-view .nv-ask {
+  width: 260px;
+}
+#sonover-node-view .nv-ask-title {
+  padding: 6px 10px 4px;
+  font-weight: 600;
+}
+#sonover-node-view .nv-ask-warn {
+  margin: 0 8px 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(240, 173, 78, 0.12);
+  color: #f0c27a;
+  font-size: 11px;
+}
+#sonover-node-view .nv-ask .nv-ctx-item small {
+  margin-left: 6px;
+  color: #8a8a8a;
+}
 /* picked with Ctrl/Cmd or Shift+click */
 #sonover-node-view .nv-ol-item.is-picked {
   background: #2b3b57;

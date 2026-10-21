@@ -8,6 +8,7 @@ const errs = [];
 p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
 p.on("console", (m) => /Content Security|Refused/.test(m.text()) && errs.push("CSP: " + m.text()));
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
+const choose = async (what) => { await p.locator(".nv-ask").getByRole("button", { name: new RegExp(`^${what}`) }).click(); await p.waitForTimeout(500); };
 const def = () => p.evaluate(() => JSON.parse(JSON.stringify(window.__defs.wf_debug)));
 const stage = (name) => p.locator(".nv-ol-stage", { has: p.locator(".nv-ol-stagehead", { hasText: name }) });
 const global = () => p.locator(".nv-ol-group", { has: p.locator(".nv-ol-head-label", { hasText: /^Global actions$/ }) });
@@ -24,6 +25,7 @@ ok(labels(d.stages[0].actions) === "Submit,Check" && labels(d.stages[1].actions)
 
 // ===== one action to another stage =====
 await row(stage("Draft"), "Check").dragTo(p.locator(".nv-ol-stagehead", { hasText: "Done" }));
+await choose("Move");
 await p.waitForTimeout(500);
 d = await def();
 ok(labels(d.stages[0].actions) === "Submit" && labels(d.stages[1].actions) === "Close,Check", "an action dragged onto another stage moves to its end");
@@ -31,16 +33,19 @@ ok(d.stages[1].actions[1].id === ids0.Check, "it keeps its id");
 
 // onto an action in another stage: before it
 await row(stage("Done"), "Check").dragTo(row(stage("Draft"), "Submit"));
+await choose("Move");
 await p.waitForTimeout(500);
 d = await def();
 ok(labels(d.stages[0].actions) === "Check,Submit" && labels(d.stages[1].actions) === "Close", "dropped on an action in another stage, it goes in before it");
 
 // ===== into Global actions and back =====
 await row(stage("Done"), "Close").dragTo(global().locator(".nv-ol-head"));
+await choose("Move");
 await p.waitForTimeout(500);
 d = await def();
 ok(d.stages[1].actions.length === 0 && labels(d.actions).endsWith("Close"), "an action moves into Global actions: " + labels(d.actions));
 await row(global(), "Close").dragTo(p.locator(".nv-ol-stagehead", { hasText: "Done" }));
+await choose("Move");
 await p.waitForTimeout(500);
 d = await def();
 ok(labels(d.stages[1].actions) === "Close" && !labels(d.actions).includes("Close"), "and back from Global actions into a stage");
@@ -63,6 +68,7 @@ ok((await stage("Done").locator(".nv-ol-drop-hint").innerText()).includes("move 
 await p.screenshot({ path: out + "/m2-move-two.png" });
 await p.evaluate(() => [...document.querySelectorAll(".nv-ol-item")].find((r) => r.textContent.includes("Check")).dispatchEvent(new DragEvent("dragend", { bubbles: true })));
 await row(stage("Draft"), "Check").dragTo(row(stage("Done"), "Close"));
+await choose("Move");
 await p.waitForTimeout(500);
 d = await def();
 ok(d.stages[0].actions.length === 0 && labels(d.stages[1].actions) === "Check,Submit,Close", "two picked move together, in order, before the one dropped on: " + labels(d.stages[1].actions));
@@ -84,6 +90,7 @@ ok(labels((await def()).stages[1].actions) === "Submit,Close,Check", "one action
 
 // one Undo puts a move back
 await row(stage("Done"), "Close").dragTo(p.locator(".nv-ol-stagehead", { hasText: "Draft" }));
+await choose("Move");
 await p.waitForTimeout(500);
 ok(labels((await def()).stages[0].actions) === "Close", "moved Close to Draft");
 await p.locator("#sonover-node-view .nv-btn", { hasText: /^Undo$/ }).click();

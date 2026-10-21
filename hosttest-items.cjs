@@ -1,12 +1,12 @@
 // v0.3.35: duplicateWorkflowItem (an action or command copied right below it) and actionToCommand (a command
-// made from an action, which stays), each one draft edit. v0.3.37: commandToAction, and copyItemsAs for several. v0.3.41: moveActions.
+// made from an action, which stays), each one draft edit. v0.3.37: commandToAction, and copyItemsAs for several. v0.3.41: moveActions. v0.3.42: copyActions, and copyItemsAs with move.
 const fs = require("fs"), Module = require("module");
-const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={duplicateWorkflowItem,actionToCommand,commandToAction,copyItemsAs,moveActions,freeMachineName};";
+const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={duplicateWorkflowItem,actionToCommand,commandToAction,copyItemsAs,moveActions,copyActions,freeMachineName};";
 const stub = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => "" : stub), apply: () => stub, construct: () => stub });
 const m = new Module("ext"); m.filename = "/x/extension.js";
 const orig = Module._load; Module._load = (r, p, i) => (r === "vscode" ? stub : orig(r, p, i));
 m._compile(src, m.filename);
-const { duplicateWorkflowItem, actionToCommand, commandToAction, copyItemsAs, moveActions, freeMachineName } = m.exports.__t;
+const { duplicateWorkflowItem, actionToCommand, commandToAction, copyItemsAs, moveActions, copyActions, freeMachineName } = m.exports.__t;
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 const op = (o, id) => ({ type: "command", operator: o, id, data: { x: 1 } });
 const form = { fields: [{ key: "reason", label: "Reason", type: "string" }], sections: [] };
@@ -121,7 +121,25 @@ threw = false;
 try { moveActions(mk(), [["actions", 0]], 4, null); } catch (e) { threw = /stage is no longer there/.test(e.message); }
 ok(threw, "a stage that isn't there is refused");
 
+// copying actions into another list
+d = mk();
+out = copyActions(d, [["stages", 0, "actions", 0], ["actions", 0]], null, 0);
+ok(names(out.actions) === "approve,notify_2,notify" && names(out.stages[0].actions) === "approve,approve_copy", "two actions copied to the start of Global actions; the originals stay: " + names(out.actions));
+ok(out.actions[0].label === "Approve" && out.actions[0].id !== "act001" && out.actions[0].task.commands[0].id !== "stp001" && out.actions[0].task.id !== "ser001", "a copy keeps its label, with a new id and fresh step ids");
+ok(JSON.stringify(out.actions[0].access_control) === JSON.stringify(d.stages[0].actions[0].access_control), "and its settings");
+const all4 = ids(out);
+ok(all4.length === new Set(all4).size, "no id twice after copying");
+// move into Commands / into a stage: the originals go
+out = copyItemsAs(mk(), "command", [["stages", 0, "actions", 0], ["stages", 0, "actions", 1]], null, null, true);
+ok(out.stages[0].actions.length === 0 && out.commands.map((c) => c.label).join() === "Approve cmd,Approve,Other", "moving two actions into Commands removes them from their stage");
+const twoCmds = mk(); twoCmds.commands.push({ id: "cmd002", name: "ping", label: "Ping", command: { type: "series", commands: [] }, parameters: [] });
+out = copyItemsAs(twoCmds, "action", [["commands", 0], ["commands", 1]], null, null, true);
+ok(out.commands.length === 0 && out.actions.map((x) => x.label).join() === "Notify,Approve cmd,Ping", "moving two commands into Global actions removes the commands");
+out = copyItemsAs(mk(), "command", [["stages", 0, "actions", 1], ["actions", 0]], null, 0, true);
+ok(names(out.stages[0].actions) === "approve" && out.actions.length === 0 && out.commands.map((c) => c.label).join() === "Other,Notify,Approve cmd", "from a stage and Global actions together");
+
 const raw = fs.readFileSync(process.argv[2], "utf8");
+ok(raw.includes('case "copyActions"'), "the Workflows panel answers copyActions");
 ok(raw.includes('case "moveActions"'), "the Workflows panel answers moveActions");
 ok(raw.includes('case "commandToAction"'), "the Workflows panel answers commandToAction");
 ok(raw.includes('case "duplicateItem"') && raw.includes('case "actionToCommand"'), "the Workflows panel answers duplicateItem and actionToCommand");

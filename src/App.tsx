@@ -1163,9 +1163,14 @@ export function App() {
             edit("duplicateItem", { kind, path });
             sourceRef.current = "outliner";
           }}
-          onActionToCommand={(paths, index) => {
+          onActionToCommand={(paths, index, move) => {
             setOutlinerError(null);
-            edit("actionToCommand", { paths, index });
+            edit("actionToCommand", { paths, index, move });
+            sourceRef.current = "outliner";
+          }}
+          onCopyActions={(paths, stageIndex, index) => {
+            setOutlinerError(null);
+            edit("copyActions", { paths, stageIndex, index });
             sourceRef.current = "outliner";
           }}
           onMoveActions={(paths, stageIndex, index) => {
@@ -1173,9 +1178,9 @@ export function App() {
             edit("moveActions", { paths, stageIndex, index });
             sourceRef.current = "outliner";
           }}
-          onCommandToAction={(paths, stageIndex, index) => {
+          onCommandToAction={(paths, stageIndex, index, move) => {
             setOutlinerError(null);
-            edit("commandToAction", { paths, stageIndex, index });
+            edit("commandToAction", { paths, stageIndex, index, move });
             sourceRef.current = "outliner";
           }}
           onClearError={() => setOutlinerError(null)}
