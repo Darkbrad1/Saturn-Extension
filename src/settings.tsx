@@ -79,6 +79,8 @@ export interface Binding {
 
 /** Everything the settings panels can ask the extension to do. */
 export interface SettingsOps {
+  /** opens a resource on the Resources screen */
+  openResource: (resource: string) => void;
   busy: boolean;
   error: string | null;
   clearError: () => void;
@@ -640,6 +642,7 @@ export function WorkflowPanel(props: { wf: WorkflowView; ops: SettingsOps }) {
           <Btn onClick={ops.revealOffline} title="Show the offline copies in your file browser">Offline copies</Btn>
         </div>
       </Section>
+      <LinkedSection wf={wf} ops={ops} />
       <TriggersSection wf={wf} ops={ops} />
       <ResourcesSection wf={wf} ops={ops} />
       <Section title="Danger zone" id="wf-danger" defaultOpen={false}>
@@ -876,6 +879,55 @@ function TriggerEditor(props: {
 }
 
 const HOOK_OPS = ["create", "read", "get", "update", "delete", "list"];
+/** The resources this workflow is linked to: those that run on it (their ResourceDetail names it), and those whose
+ *  lifecycle hooks run its actions, each with just those hooks; by name. null when the details couldn't be read. */
+function linkedResources(bindings: Binding[] | null, wfId: string) {
+  return bindings
+    ? bindings
+        .map((b) => {
+          const bound = b.workflowId === wfId;
+          const hooks = b.hooks
+            .map((h) => ({ ...h, entries: h.entries.filter((e) => e.workflowId === wfId || (e.workflowId === null && bound)) }))
+            .filter((h) => h.entries.length > 0);
+          return { b, bound, hooks };
+        })
+        .filter((x) => x.bound || x.hooks.length > 0)
+        .sort((a, b) => a.b.resource.localeCompare(b.b.resource))
+    : null;
+}
+
+/** Every resource linked to this workflow, as a button that opens it on the Resources screen. */
+function LinkedSection(props: { wf: WorkflowView; ops: SettingsOps }) {
+  const rows = useMemo(() => linkedResources(props.ops.bindings, props.wf.id), [props.ops.bindings, props.wf.id]);
+  // one per resource (a resource may have two ResourceDetail records)
+  const seen = new Set<string>();
+  const list = (rows ?? []).filter(({ b }) => !seen.has(b.resource) && !!seen.add(b.resource));
+  const how = (resource: string) => {
+    const mine = (rows ?? []).filter((r) => r.b.resource === resource);
+    const bound = mine.find((r) => r.bound);
+    const hooks = mine.reduce((n, r) => n + r.hooks.length, 0);
+    return [bound ? (bound.b.boundedProperty ? `runs on this workflow (on ${bound.b.boundedProperty})` : "runs on this workflow") : null, hooks ? `${hooks} hook${hooks === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ");
+  };
+  return (
+    <Section title="Linked resources" id="wf-linked">
+      {rows === null ? (
+        <p className="fg-hint">Could not read this instance's resource details, so the linked resources are unknown.</p>
+      ) : list.length === 0 ? (
+        <p className="fg-hint">No resource is linked to this workflow.</p>
+      ) : (
+        <div className="fg-linked">
+          {list.map(({ b }) => (
+            <button key={b.resource} type="button" className="fg-linked-btn" title={`Open ${b.resource} on the Resources screen`} onClick={() => props.ops.openResource(b.resource)}>
+              <b>{b.resource}</b>
+              <small>{how(b.resource)}</small>
+            </button>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 function ResourcesSection(props: { wf: WorkflowView; ops: SettingsOps }) {
   const { wf, ops } = props;
   const [adding, setAdding] = useState<string | null>(null);
@@ -887,22 +939,7 @@ function ResourcesSection(props: { wf: WorkflowView; ops: SettingsOps }) {
     ],
     [wf],
   );
-  const rows = useMemo(
-    () =>
-      ops.bindings
-        ? ops.bindings
-            .map((b) => {
-              const bound = b.workflowId === wf.id;
-              const hooks = b.hooks
-                .map((h) => ({ ...h, entries: h.entries.filter((e) => e.workflowId === wf.id || (e.workflowId === null && bound)) }))
-                .filter((h) => h.entries.length > 0);
-              return { b, bound, hooks };
-            })
-            .filter((x) => x.bound || x.hooks.length > 0)
-            .sort((a, b) => a.b.resource.localeCompare(b.b.resource))
-        : null,
-    [ops.bindings, wf.id],
-  );
+  const rows = useMemo(() => linkedResources(ops.bindings, wf.id), [ops.bindings, wf.id]);
   const label = (id: string) => allActions.find((a) => a.id === id)?.label ?? id;
   return (
     <Section title="Hooks" id="wf-resources" defaultOpen={false}>
@@ -914,7 +951,7 @@ function ResourcesSection(props: { wf: WorkflowView; ops: SettingsOps }) {
         rows.map(({ b, bound, hooks }) => (
           <div key={b.resource + (b.recordId ?? "")} className="fg-resource">
             <div className="fg-resource-head">
-              <b>{b.resource}</b>
+              <button type="button" className="fg-link fg-resource-name" title={`Open ${b.resource} on the Resources screen`} onClick={() => ops.openResource(b.resource)}>{b.resource}</button>
               <span className="fg-badge">{bound ? (b.boundedProperty ? `bound on ${b.boundedProperty}` : "bound") : "hooks only"}</span>
               {b.duplicate && <span className="fg-badge is-amber">duplicate record</span>}
               <span className="nv-spacer" />

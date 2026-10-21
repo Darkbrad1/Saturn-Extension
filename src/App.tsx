@@ -671,6 +671,7 @@ export function App() {
         wf && send("openAccessFunction", { workflowId: wf.id, path, workflowName: wf.name, contextName }),
       openUsage,
       openInInstance: () => wf && send("openWorkflow", { workflowId: wf.id }),
+      openResource: (resource) => send("openResourceScreen", { resource }),
       viewRaw: () => wf && send("viewRawWorkflow", { workflowId: wf.id }),
       reload: () => {
         if (!wf) return;

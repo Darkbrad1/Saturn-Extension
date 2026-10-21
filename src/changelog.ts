@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.39",
+    title: "Linked resources in Workflow settings",
+    items: [
+      "Workflow settings has a new Linked resources section near the top: a green button for each resource the workflow is linked to, saying how (it runs on this workflow, or its hooks run this workflow's actions). Click one to open that resource on the Resources screen.",
+      "The resource names in the Hooks section open it too.",
+    ],
+  },
+  {
     version: "0.3.38",
     title: "Property rows on the card, and colours",
     items: [

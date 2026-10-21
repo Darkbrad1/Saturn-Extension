@@ -1,4 +1,4 @@
-# sonover-code (v0.3.38)
+# sonover-code (v0.3.39)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.39 — Linked resources in Workflow settings
+- `src/settings.tsx`: `LinkedSection` ("Linked resources", open, right after Workflow) lists `linkedResources(bindings, wfId)` (also used by the Hooks section: resources whose ResourceDetail names the workflow, or whose lifecycle hooks run its actions), one green button per resource with how it's linked. A click, or a resource name in Hooks, calls `ops.openResource` → `openResourceScreen {resource}` (the Form tab's message, so no host change). `test26.mjs` (9).
 
 ## New in 0.3.38 — Property rows on the card, and colours
 - `src/layout.ts` `operatorRows`: a parameter of type `object` (not code, a lookup or merged; the one the side panel edits with `KeyValueEditor`) whose value is a map with properties becomes one row per property (`entryRows`, `NvRow.entry`), up to `MAX_ENTRIES` (10), then a `more` row. A card with such rows isn't cut at `MAX_ROWS` (6).
