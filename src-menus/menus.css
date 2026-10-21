@@ -40,6 +40,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .mn-pick-hint { padding: 4px 2px 16px; }
 .mn-sub-of { margin: 0 0 12px; color: var(--rs-muted); font-size: 11px; }
 .mn-others { margin: 0 0 16px; }
+.mn-note { margin: 0; padding: 4px 0; }
 .mn-grow { flex: 1; align-self: center; }
 
 /* problems, under their setting */

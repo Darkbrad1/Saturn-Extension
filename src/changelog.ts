@@ -1,6 +1,15 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.32",
+    title: "Every setting for several tabs",
+    items: [
+      "On the Menus screen, picking several tabs now shows all their settings, not only Look and Behaviour. A change goes to all of them; a setting they don't share shows Mixed. Each tab's caption is still changed one at a time.",
+      "What it opens can be set for all of them at once. Filter, Views and Columns show when the picked tabs open the same resource.",
+      "If the picked tabs have different views, a button gives them all the first tab's views, so you can then change them together.",
+    ],
+  },
+  {
     version: "0.3.31",
     title: "One icon picker everywhere",
     items: ["A property's Icon and Tab icon, on the Resources screen and on the node view's Form tab, now use the Menus screen's icon picker: a button that opens a popup with a search, and the icon's name when you hover it."],

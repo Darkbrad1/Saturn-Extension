@@ -1,14 +1,15 @@
 // The settings of the picked tab (or tabs), on the right of the Menus screen, in the Resources
 // screen's style: sections as cards, one row per setting (name and hint on the left, the control on
 // the right), switches for on/off, cards for a few choices. A problem shows under the setting it's
-// about. With several tabs picked, only the settings they can share are shown; one they don't
-// share shows Mixed.
+// about. With several tabs picked, every setting but the caption shows; a change goes to all of
+// them, and one they don't share shows Mixed. Filter, views and columns need the tabs to open the
+// same resource.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Cards, Switch } from "../src-res/editor";
 import { IconField } from "../src-res/icons";
 import {
-  BUILT_IN_FIELDS, FILTER_OPS, VIEW_LABELS, VIEW_TYPES, addSavedView, addTableView, buildFilter, captionFor, customPageTab, defaultRow, hasTable, isDateType,
-  moveItem, newResourceTab, newViewProblems, parseFilter, removeView, reorderViews, same, setTableColumns, setTarget, tabCaption, tabTarget, tableColumns, viewRows,
+  BUILT_IN_FIELDS, FILTER_OPS, VIEW_LABELS, VIEW_TYPES, addSavedView, addTableView, buildFilter, captionFor, clone, customPageTab, defaultRow, hasTable, isDateType,
+  moveItem, newResourceTab, newViewProblems, parseFilter, removeView, reorderViews, same, setTableColumns, setTarget, tabCaption, tabName, tabTarget, tableColumns, viewRows,
   type Field, type FilterModel, type Page, type Problem, type ProblemField, type SavedView, type Tab, type ViewSpec,
 } from "./model";
 
@@ -40,7 +41,7 @@ export function Mark(props: { level: "error" | "warning"; title?: string }) {
 }
 
 /** One setting: name and hint on the left, the control on the right (or underneath when wide), problems under it. */
-export function Row(props: { label: string; hint?: ReactNode; id?: string; wide?: boolean; mixed?: boolean; problems?: Problem[]; children: ReactNode }) {
+export function Row(props: { label: string; hint?: ReactNode; id?: string; wide?: boolean; mixed?: boolean; problems?: Problem[]; children?: ReactNode }) {
   const bad = props.problems?.some((p) => p.level === "error") ? " is-error" : props.problems?.length ? " is-warning" : "";
   return (
     <div className={`pe-row${props.wide ? " is-wide" : ""}${bad}`}>
@@ -116,16 +117,115 @@ export function TabSettings(props: { tabs: Tab[]; nested: boolean; parentName?: 
     </Section>
   );
 
-  if (!one) {
-    return (
-      <>
-        <p className="pe-many">Editing {tabs.length} tabs. A change here goes to all of them; a setting they don't share shows Mixed. Pick one tab to change what it opens, its caption, filter and views.</p>
-        {look}
-        {behaviour}
-      </>
-    );
-  }
+  if (!one) return <ManyTabs {...props} look={look} behaviour={behaviour} of={of} shared={shared} mixed={mixed} />;
   return <OneTab {...props} tab={one} look={look} behaviour={behaviour} of={of} />;
+}
+
+const OPENS: [string, string, string][] = [["resource", "A resource", "Its records, in views."], ["custom_page", "A custom page", "A page built in Saturn."], ["dashboard", "A dashboard", "By its id."]];
+/** What a tab opens, for the Opens cards (a tab with no target counts as a resource). */
+const kindOf = (tab: Tab) => { const k = tabTarget(tab).kind; return k === "unknown" ? "resource" : k; };
+/** The tab made to open another kind of thing, keeping its caption. */
+function toKind(tab: Tab, k: string): Tab {
+  const caption = tabCaption(tab);
+  if (k === kindOf(tab)) return tab;
+  if (k === "custom_page") return customPageTab(null, caption);
+  if (k === "resource") return newResourceTab("", caption);
+  return setTarget(tab, "dashboard", "");
+}
+/** The tab pointed at a custom page by its slug, keeping its caption. */
+function toPage(tab: Tab, slug: string, pages: Page[] | null): Tab {
+  const page = pages?.find((p) => p.slug === slug) ?? { slug, title: slug, enabled: true };
+  return customPageTab(page, tabCaption(tab) || page.title, tab);
+}
+
+/** Several tabs: every setting but the caption. A change goes to all of them. */
+function ManyTabs(props: {
+  tabs: Tab[]; host: Host; onChange: (tabs: Tab[]) => void; look: ReactNode; behaviour: ReactNode; of: (f: ProblemField) => Problem[];
+  shared: (get: (t: Tab) => unknown) => unknown; mixed: (get: (t: Tab) => unknown) => boolean;
+}) {
+  const { tabs, host, of, shared, mixed } = props;
+  const all = (f: (t: Tab) => Tab) => props.onChange(tabs.map(f));
+  const kind = str(shared(kindOf));
+  const targetMixed = mixed((t) => tabTarget(t).value);
+  const target = str(shared((t) => tabTarget(t).value));
+  const resource = kind === "resource" ? target : "";
+  useEffect(() => { if (resource) host.loadFields(resource); }, [resource, host]);
+  const fields = resource ? host.fields.get(resource) ?? null : null;
+  const viewsOf = (t: Tab) => [t.views, t.default_view];
+  const viewsMixed = mixed(viewsOf);
+  /** a change made to the first tab's views, given to all of them */
+  const setViews = (t: Tab) => all((x) => ({ ...x, views: clone(t.views), default_view: t.default_view }));
+  const first = tabs[0];
+
+  return (
+    <>
+      <p className="pe-many">Editing {tabs.length} tabs. A change here goes to all of them; a setting they don't share shows Mixed. Pick one tab to change its caption.</p>
+      <Section title="What it opens" id="opens">
+        <Row label="Opens" wide mixed={!kind}>
+          <Cards label="Opens" value={kind} options={OPENS} onPick={(k) => all((t) => toKind(t, k))} />
+        </Row>
+        {kind === "custom_page" ? (
+          <Row label="Custom page" id="mn-page" mixed={targetMixed} hint={host.pages ? undefined : "Custom pages couldn't be listed; type the page's slug."} problems={of("target")}>
+            {host.pages ? (
+              <select id="mn-page" className="pe-input" value={target} onChange={(e) => all((t) => toPage(t, e.target.value, host.pages))}>
+                {!target && <option value="">{targetMixed ? "Mixed" : "Pick a custom page"}</option>}
+                {target && !host.pages.some((p) => p.slug === target) && <option value={target}>{target} (not found)</option>}
+                {host.pages.map((p) => <option key={p.slug} value={p.slug}>{p.title}{p.title !== p.slug ? ` (${p.slug})` : ""}{p.enabled ? "" : " (switched off)"}</option>)}
+              </select>
+            ) : <input id="mn-page" className="pe-input" placeholder={targetMixed ? "Mixed" : ""} value={target} onChange={(e) => all((t) => toPage(t, e.target.value, host.pages))} />}
+          </Row>
+        ) : kind === "dashboard" ? (
+          <Row label="Dashboard id" id="mn-dash" mixed={targetMixed} hint="Check the tabs show it once saved." problems={of("target")}>
+            <input id="mn-dash" className="pe-input is-mono" placeholder={targetMixed ? "Mixed" : ""} value={target} onChange={(e) => all((t) => setTarget(t, "dashboard", e.target.value))} />
+          </Row>
+        ) : kind === "resource" ? (
+          <Row label="Resource" id="mn-resource" mixed={targetMixed} problems={of("target")}>
+            {host.resources ? (
+              <select id="mn-resource" className="pe-input" value={resource} onChange={(e) => all((t) => setTarget(t, "resource", e.target.value))}>
+                {!resource && <option value="">{targetMixed ? "Mixed" : "Pick a resource"}</option>}
+                {resource && !host.resources.includes(resource) && <option value={resource}>{resource} (not found)</option>}
+                {host.resources.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            ) : <input id="mn-resource" className="pe-input" placeholder={targetMixed ? "Mixed" : ""} value={resource} onChange={(e) => all((t) => setTarget(t, "resource", e.target.value))} />}
+          </Row>
+        ) : (
+          <p className="pe-hint mn-note">The picked tabs open different kinds of things. Pick one kind above to give them all the same.</p>
+        )}
+      </Section>
+      {resource ? (
+        <>
+          <Section title="Filter" id="filter" blurb="Which records the tabs show. Who may read them is set by the resource's own access rules.">
+            <Row label="Records shown" wide mixed={mixed((t) => str(t.filter))} hint={mixed((t) => str(t.filter)) ? "The tabs have different filters. One set here goes to all of them." : undefined} problems={of("filter")}>
+              <FilterEditor resource={resource} value={str(shared((t) => str(t.filter)))} onChange={(f) => all((t) => ({ ...t, filter: f }))} host={host} />
+            </Row>
+          </Section>
+          <Section title="Views" id="views" blurb="How the records are shown, and which view opens first.">
+            {viewsMixed ? (
+              <>
+                <Row label="Views" wide mixed hint="The picked tabs have different views and columns, so they can't be changed together.">
+                  <button type="button" className="rs-btn" onClick={() => setViews(first)}>Give all of them {tabName(first)}'s views</button>
+                </Row>
+                <Row label="Columns" wide mixed hint="The columns belong to the views. Give the tabs the same views first, or pick one tab." />
+              </>
+            ) : (
+              <>
+                <Row label="Views" wide problems={of("views")}>
+                  <ViewsEditor tab={first} resource={resource} host={host} onChange={setViews} />
+                </Row>
+                <Row label="Columns" wide hint={hasTable(first) ? "The tables' columns, in order. None picked: Saturn's default columns." : "These tabs have no table of their own, so they have no columns to pick."} problems={of("columns")}>
+                  {hasTable(first) && <Columns tab={first} fields={fields} resource={resource} onChange={setViews} />}
+                </Row>
+              </>
+            )}
+          </Section>
+        </>
+      ) : kind === "resource" && targetMixed ? (
+        <p className="pe-hint mn-note">Filter, views and columns can be changed together only when the picked tabs open the same resource.</p>
+      ) : null}
+      {props.look}
+      {props.behaviour}
+    </>
+  );
 }
 
 function OneTab(props: { tab: Tab; nested: boolean; parentName?: string; host: Host; onChange: (tabs: Tab[]) => void; onPickParent?: () => void; look: ReactNode; behaviour: ReactNode; of: (f: ProblemField) => Problem[] }) {
@@ -133,21 +233,12 @@ function OneTab(props: { tab: Tab; nested: boolean; parentName?: string; host: H
   const set = (t: Tab) => props.onChange([t]);
   const patch = (p: Tab) => set({ ...tab, ...p });
   const target = tabTarget(tab);
-  const kind = target.kind === "unknown" ? "resource" : target.kind;
+  const kind = kindOf(tab);
   const resource = target.kind === "resource" ? target.value : "";
   useEffect(() => { if (resource) host.loadFields(resource); }, [resource, host]);
   const fields = resource ? host.fields.get(resource) ?? null : null;
-  const changeKind = (k: string) => {
-    const caption = tabCaption(tab);
-    if (k === kind) return;
-    if (k === "custom_page") return set(customPageTab(null, caption));
-    if (k === "resource") return set(newResourceTab("", caption));
-    set(setTarget(tab, "dashboard", ""));
-  };
-  const choosePage = (slug: string) => {
-    const page = host.pages?.find((p) => p.slug === slug) ?? { slug, title: slug, enabled: true };
-    set(customPageTab(page, tabCaption(tab) || page.title, tab));
-  };
+  const changeKind = (k: string) => { if (k !== kind) set(toKind(tab, k)); };
+  const choosePage = (slug: string) => set(toPage(tab, slug, host.pages));
   const known = new Set(["type", "resource", "page", "dashboard", "resource_label", "title", "filter", "views", "default_view", "tab_icon", "tab_bg_color", "tab_active_bg_color", "create_label", "openOnCreate", "disableBatchActions", "reloadOnStatusChange", "sub_menus"]);
   const others = Object.keys(tab).filter((k) => !known.has(k));
 
@@ -158,7 +249,7 @@ function OneTab(props: { tab: Tab; nested: boolean; parentName?: string; host: H
       )}
       <Section title="What it opens" id="opens">
         <Row label="Opens" wide>
-          <Cards label="Opens" value={kind} options={[["resource", "A resource", "Its records, in views."], ["custom_page", "A custom page", "A page built in Saturn."], ["dashboard", "A dashboard", "By its id."]]} onPick={changeKind} />
+          <Cards label="Opens" value={kind} options={OPENS} onPick={changeKind} />
         </Row>
         {kind === "custom_page" ? (
           <Row label="Custom page" id="mn-page" hint={host.pages ? undefined : "Custom pages couldn't be listed; type the page's slug."} problems={of("target")}>
