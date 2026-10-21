@@ -22,6 +22,18 @@ export interface Host {
   loadFields: (resource: string) => void;
   count: (resource: string, filter: string) => Promise<{ count: number | null; error?: string }>;
   createView: (spec: ViewSpec) => Promise<{ view?: SavedView; error?: string }>;
+  /** opens a resource on the Resources screen */
+  openResource: (resource: string) => void;
+}
+
+/** A resource's chip, like the Resources screen's for a mapped property: opens it there. */
+function ResourceChip(props: { resource: string; host: Host }) {
+  if (!props.resource) return null;
+  return (
+    <button type="button" className="rs-chip is-static" title={`Open ${props.resource} on the Resources screen`} onClick={() => props.host.openResource(props.resource)}>
+      {props.resource} ›
+    </button>
+  );
 }
 
 /** The problems a row shows, under it. */
@@ -181,11 +193,14 @@ function ManyTabs(props: {
         ) : kind === "resource" ? (
           <Row label="Resource" id="mn-resource" mixed={targetMixed} problems={of("target")}>
             {host.resources ? (
-              <select id="mn-resource" className="pe-input" value={resource} onChange={(e) => all((t) => setTarget(t, "resource", e.target.value))}>
-                {!resource && <option value="">{targetMixed ? "Mixed" : "Pick a resource"}</option>}
-                {resource && !host.resources.includes(resource) && <option value={resource}>{resource} (not found)</option>}
-                {host.resources.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
+              <span className="pe-ref">
+                <select id="mn-resource" className="pe-input" value={resource} onChange={(e) => all((t) => setTarget(t, "resource", e.target.value))}>
+                  {!resource && <option value="">{targetMixed ? "Mixed" : "Pick a resource"}</option>}
+                  {resource && !host.resources.includes(resource) && <option value={resource}>{resource} (not found)</option>}
+                  {host.resources.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <ResourceChip resource={resource} host={host} />
+              </span>
             ) : <input id="mn-resource" className="pe-input" placeholder={targetMixed ? "Mixed" : ""} value={resource} onChange={(e) => all((t) => setTarget(t, "resource", e.target.value))} />}
           </Row>
         ) : (
@@ -268,11 +283,14 @@ function OneTab(props: { tab: Tab; nested: boolean; parentName?: string; host: H
         ) : (
           <Row label="Resource" id="mn-resource" problems={of("target")}>
             {host.resources ? (
-              <select id="mn-resource" className="pe-input" value={resource} onChange={(e) => set(setTarget(tab, "resource", e.target.value))}>
-                {!resource && <option value="">Pick a resource</option>}
-                {resource && !host.resources.includes(resource) && <option value={resource}>{resource} (not found)</option>}
-                {host.resources.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
+              <span className="pe-ref">
+                <select id="mn-resource" className="pe-input" value={resource} onChange={(e) => set(setTarget(tab, "resource", e.target.value))}>
+                  {!resource && <option value="">Pick a resource</option>}
+                  {resource && !host.resources.includes(resource) && <option value={resource}>{resource} (not found)</option>}
+                  {host.resources.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <ResourceChip resource={resource} host={host} />
+              </span>
             ) : <input id="mn-resource" className="pe-input" value={resource} onChange={(e) => set(setTarget(tab, "resource", e.target.value))} />}
           </Row>
         )}

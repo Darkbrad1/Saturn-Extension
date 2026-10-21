@@ -4,7 +4,7 @@
 // own label, icon and who can see it at the top, the picked tab's settings below. A problem shows
 // beside the menu, tab or setting it's about. Each menu keeps its own unsaved changes; Save writes
 // them all, one menu after another, then the new order. The host side is MenusPanel in
-// host/extension.js (the same messages the old screen used, plus openInSaturn).
+// host/extension.js (the same messages the old screen used, plus openInSaturn and openResourceScreen).
 import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Switch } from "../src-res/editor";
@@ -133,6 +133,7 @@ function App() {
     resources, pages, savedViews, dialect, fields, loadFields,
     count: (resource: string, filter: string) => ask<{ count: number | null; error?: string }>("count", { resource, filter }),
     createView: (view: ViewSpec) => ask<{ view?: SavedView; error?: string }>("createView", { view }),
+    openResource: (resource: string) => post({ type: "openResourceScreen", resource }),
   }), [resources, pages, savedViews, dialect, fields, loadFields, ask]);
 
   // ---- menus, as saved and as edited ----------------------------------------------------------------

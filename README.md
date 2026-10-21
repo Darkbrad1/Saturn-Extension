@@ -1,4 +1,4 @@
-# sonover-code (v0.3.39)
+# sonover-code (v0.3.40)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,10 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.40 — Every resource links back to itself
+- Menus screen: `ResourceChip` (`src-menus/tabsettings.tsx`, the Resources screen's `rs-chip` look) beside a tab's Resource, for one tab and for several sharing a resource; `Host.openResource` → `openResourceScreen {resource}`, which `MenusPanel.handle` now answers with `ResourcePropertiesHost.open`. `hosttest-menus.cjs` (2) checks it, and now runs in `package.sh` too.
+- Node view (`src/forms.tsx`): a `resource` setting (a step parameter with `lookupKind: "resources"`) shows a chip (`.nv-res-open`) beside its picker when a resource is picked (not for a `{{ template }}`); `FormEnv.openResource` → `openResourceScreen`. `test27.mjs` (9).
 
 ## New in 0.3.39 — Linked resources in Workflow settings
 - `src/settings.tsx`: `LinkedSection` ("Linked resources", open, right after Workflow) lists `linkedResources(bindings, wfId)` (also used by the Hooks section: resources whose ResourceDetail names the workflow, or whose lifecycle hooks run its actions), one green button per resource with how it's linked. A click, or a resource name in Hooks, calls `ops.openResource` → `openResourceScreen {resource}` (the Form tab's message, so no host change). `test26.mjs` (9).

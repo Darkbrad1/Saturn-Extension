@@ -722,6 +722,7 @@ export function App() {
         send("fetchLookupOptions", { resource, valueField, labelField });
       },
       openDesigner: () => wf && send("openWorkflow", { workflowId: wf.id }),
+      openResource: (resource) => send("openResourceScreen", { resource }),
       // the access editor's shape ({id, name, detail}) from the Workflows panel's lists
       subjects: () => {
         if (!subjects && !requestedLookups.current.has("\u0000subjects")) {

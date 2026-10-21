@@ -1,6 +1,7 @@
 // v0.3.30: the Menus panel's openInSaturn message opens <instance url>/menus in the browser.
+// v0.3.40: openResourceScreen opens a tab's resource on the Resources screen.
 const fs = require("fs"), Module = require("module");
-const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={MenusPanel};";
+const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={MenusPanel,ResourcePropertiesHost};";
 const opened = [];
 const stub = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => "" : stub), apply: () => stub, construct: () => stub });
 // the bundle reads vscode through an import wrapper that copies its listed keys, so env and Uri are listed
@@ -14,7 +15,7 @@ const vs = new Proxy({}, {
 const m = new Module("ext"); m.filename = "/x/extension.js";
 const orig = Module._load; Module._load = (r, p, i) => (r === "vscode" ? vs : orig(r, p, i));
 m._compile(src, m.filename);
-const { MenusPanel } = m.exports.__t;
+const { MenusPanel, ResourcePropertiesHost } = m.exports.__t;
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 (async () => {
   for (const url of ["https://loanapp.saturn.gd", "https://loanapp.saturn.gd/"]) {
@@ -23,4 +24,10 @@ const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
     await panel.handle({ type: "openInSaturn" });
   }
   ok(opened.length === 2 && opened.every((u) => u === "https://loanapp.saturn.gd/menus"), `Open in Saturn opens <instance>/menus (${opened.join(", ")})`);
+  const shown = [];
+  ResourcePropertiesHost.open = (uri, manager, instance, resource) => shown.push({ uri, manager, instance, resource });
+  const panel = Object.create(MenusPanel.prototype);
+  Object.assign(panel, { extensionUri: "ext", manager: "mgr", instance: { id: "i", url: "https://x" }, post() {} });
+  await panel.handle({ type: "openResourceScreen", resource: "Loan" });
+  ok(shown.length === 1 && shown[0].resource === "Loan" && shown[0].uri === "ext" && shown[0].manager === "mgr" && shown[0].instance.id === "i", "openResourceScreen opens that resource on the Resources screen");
 })();

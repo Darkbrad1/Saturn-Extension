@@ -2226,6 +2226,34 @@
 }
 
 /* resources */
+/* a picked resource and a chip that opens it on the Resources screen */
+#sonover-node-view .nv-res-pick {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+#sonover-node-view .nv-res-pick select {
+  flex: 1;
+  min-width: 0;
+}
+#sonover-node-view .nv-res-open {
+  flex: none;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 7px;
+  border: 1px solid #2a5a8a;
+  border-radius: 10px;
+  background: #1c3550;
+  color: #9cc8f5;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+#sonover-node-view .nv-res-open:hover {
+  background: #24456a;
+}
 /* Linked resources: a green button per resource, like the Resources screen's workflow buttons */
 #sonover-node-view .fg-linked {
   display: flex;

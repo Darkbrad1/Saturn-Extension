@@ -1,6 +1,15 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.40",
+    title: "Every resource links back to itself",
+    items: [
+      "Menus screen: a tab's resource has a chip beside it (also when several picked tabs share one). Click it to open that resource on the Resources screen.",
+      "Node view: a step setting that picks a resource (like Update Record's Resource) has the same chip beside it.",
+      "With 0.3.39's Linked resources, the Hooks names, and the chips the Resources screen and the Form tab already had, every place that names a resource now opens it.",
+    ],
+  },
+  {
     version: "0.3.39",
     title: "Linked resources in Workflow settings",
     items: [

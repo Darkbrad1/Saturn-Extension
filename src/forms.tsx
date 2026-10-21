@@ -89,6 +89,8 @@ export interface FormEnv {
   openCode?: (param: string, label: string, language: string) => void;
   openEmail?: (param: string, label: string) => void;
   openDesigner?: () => void;
+  /** opens a resource on the Resources screen */
+  openResource?: (resource: string) => void;
   /** the user groups, users and permissions access rules can name (asks once): null while they load */
   subjects?: () => import("../src-menus/model").Subjects | null;
 }
@@ -327,7 +329,7 @@ export function FieldControl(props: {
         f.kind === "resource"
           ? [{ value: "", label: "— not set —" }, ...env.resourceNames.map((n) => ({ value: n, label: n }))]
           : f.options ?? [];
-      control = (
+      const select = (
         <select value={props.value} onChange={(e) => pick(e.target.value)}>
           {!opts.some((o) => o.value === props.value) && props.value !== "" && (
             <option value={props.value}>{props.value}</option>
@@ -339,6 +341,18 @@ export function FieldControl(props: {
           ))}
         </select>
       );
+      // a picked resource can be opened on the Resources screen
+      control =
+        f.kind === "resource" && props.value && env.openResource && !/\{\{/.test(props.value) ? (
+          <span className="nv-res-pick">
+            {select}
+            <button type="button" className="nv-res-open" title={`Open ${props.value} on the Resources screen`} onClick={() => env.openResource!(props.value)}>
+              {props.value} ›
+            </button>
+          </span>
+        ) : (
+          select
+        );
       break;
     }
     case "lookup":
