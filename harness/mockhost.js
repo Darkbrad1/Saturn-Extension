@@ -420,6 +420,26 @@
         const copy = JSON.parse(JSON.stringify(item)); let name = `${item[nk]}_copy`; for (let n = 2; list.some((x) => x[nk] === name); n++) name = `${item[nk]}_copy_${n}`;
         Object.assign(copy, { id: Math.random().toString(36).slice(2, 8), label: `${item.label} (copy)`, [nk]: name }); const strip = (o) => { if (o && typeof o === "object") { delete o.id; Object.entries(o).forEach(([k, v]) => k !== "data" && strip(v)); } }; strip(copy[sk]);
         list.splice(i + 1, 0, copy); }); break;
+      // like the host's moveActions: several at once into one list, in order, before the index (null: the end)
+      case "moveActions": {
+        if (!(p.paths || []).length) { post("editFailed", { message: "Nothing selected to move." }); break; }
+        apply(id, `Moved ${p.paths.length} action(s)`, (d) => {
+          const listOf = (si) => (typeof si === "number" ? d.stages[si].actions : d.actions);
+          const target = listOf(p.stageIndex);
+          const items = p.paths.map((path) => ({ list: get(d, path.slice(0, -1)), at: path[path.length - 1] })).map((x) => ({ ...x, action: x.list[x.at] }));
+          let at = typeof p.index === "number" ? p.index : target.length;
+          at -= items.filter((x) => x.list === target && x.at < at).length;
+          const moved = items.map((x) => x.action);
+          for (const x of [...items].sort((a, b) => b.at - a.at)) x.list.splice(x.list.indexOf(x.action), 1);
+          const placed = moved.map((a, i) => {
+            const from = items[i].list;
+            if (from !== target && target.some((y) => y.action === a.action)) { let n = 2; while (target.some((y) => y.action === `${a.action}_${n}`)) n++; return { ...a, action: `${a.action}_${n}` }; }
+            return a;
+          });
+          target.splice(Math.max(0, Math.min(at, target.length)), 0, ...placed);
+        });
+        break;
+      }
       // several at once, in order from the index, as one change; the originals stay
       case "actionToCommand": case "commandToAction": {
         const paths = p.paths ?? (p.path ? [p.path] : []);

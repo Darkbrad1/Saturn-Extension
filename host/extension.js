@@ -2276,6 +2276,53 @@ function commandToAction(definition, path, stageIndex, index) {
     at = typeof index == "number" && index >= 0 && index <= list.length ? index : null;
   return stampStepIds(insertAt(definition, listPath, at, action)).definition;
 }
+// moveActions — Moves actions (stage actions or global ones, several at once) into one list: stage `stageIndex`, or the
+// global actions when it's null, before the action at `index` there (null: at the end), keeping their order. They
+// keep their ids; one that comes from another list and whose machine name is taken there gets `_2`, `_3`, ….
+function moveActions(definition, paths, stageIndex, index) {
+  if (!Array.isArray(paths) || paths.length === 0) throw new Error("Nothing selected to move.");
+  let copy = structuredClone(definition),
+    listPath = typeof stageIndex == "number" ? ["stages", stageIndex, "actions"] : ["actions"],
+    listKey = listPath.join("."),
+    target = getAt(copy, listPath);
+  if (typeof stageIndex == "number" && (!copy?.stages?.[stageIndex] || typeof copy.stages[stageIndex] != "object")) throw new Error("That stage is no longer there \u2014 reopen the workflow and try again.");
+  if (!Array.isArray(target)) target = [];
+  let moving = paths.map(path => {
+    let inActions = Array.isArray(path) && path.length >= 2 && path[path.length - 2] === "actions" && typeof path[path.length - 1] == "number",
+      action = inActions ? getAt(copy, path) : null;
+    if (!action || typeof action != "object" || Array.isArray(action)) throw new Error("A picked action is no longer where it was \u2014 reopen the workflow and try again.");
+    return {
+      path: path,
+      from: path.slice(0, -1).join("."),
+      at: path[path.length - 1],
+      action: action
+    };
+  });
+  // the drop point counted without the moved actions that were above it in the same list
+  let at = typeof index == "number" && index >= 0 && index <= target.length ? index : target.length;
+  at -= moving.filter(item => item.from === listKey && item.at < at).length;
+  // take them out, last first in each list so the earlier positions stay right
+  for (let item of [...moving].sort((left, right) => left.from < right.from ? -1 : left.from > right.from ? 1 : right.at - left.at)) getAt(copy, item.path.slice(0, -1)).splice(item.at, 1);
+  let list = getAt(copy, listPath);
+  if (!Array.isArray(list)) {
+    if (typeof stageIndex == "number") copy.stages[stageIndex].actions = [];else copy.actions = [];
+    list = getAt(copy, listPath);
+  }
+  let taken = list.map(action => nonEmptyString(action?.action) ?? "").filter(Boolean),
+    placed = moving.map(item => {
+      let action = item.action,
+        name = nonEmptyString(action.action);
+      if (item.from !== listKey && name && taken.includes(name)) action = {
+        ...action,
+        action: freeMachineName(name, taken)
+      };
+      let finalName = nonEmptyString(action.action);
+      finalName && taken.push(finalName);
+      return action;
+    });
+  list.splice(Math.min(Math.max(at, 0), list.length), 0, ...placed);
+  return copy;
+}
 // copyItemsAs — Several actions made into commands ("command"), or commands into actions in one list ("action"), as
 // ONE change: each in the order given, placed one after another from `index` (null: the end). The originals stay,
 // so the paths stay valid while the copies go in.
@@ -10514,6 +10561,22 @@ var draftHistoryLimit = 20,
               path: nodePath
             } = message.payload ?? {};
             await this.applyEdit(workflowId, draft => `Duplicated ${kind} "${nonEmptyString(getAt(draft, nodePath)?.label) ?? kind}"`, draft => duplicateWorkflowItem(draft, kind, nodePath));
+            break;
+          }
+        // Moves actions (one or several) into a stage or the global actions, at an index. One draft edit.
+        case "moveActions":
+          {
+            let {
+              workflowId: workflowId,
+              paths: nodePaths,
+              stageIndex: stageIndex,
+              index: index
+            } = message.payload ?? {};
+            await this.applyEdit(workflowId, draft => {
+              let count = Array.isArray(nodePaths) ? nodePaths.length : 0,
+                where = typeof stageIndex == "number" ? `stage "${nonEmptyString(draft?.stages?.[stageIndex]?.label) ?? stageIndex}"` : "Global actions";
+              return count === 1 ? `Moved action "${nonEmptyString(getAt(draft, nodePaths[0])?.label) ?? "action"}" to ${where}` : `Moved ${count} actions to ${where}`;
+            }, draft => moveActions(draft, nodePaths, typeof stageIndex == "number" ? stageIndex : null, typeof index == "number" ? index : null));
             break;
           }
         // Makes commands from actions dragged into Commands (`paths`, or one `path`); the actions stay. One draft edit.

@@ -1,6 +1,15 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.41",
+    title: "Move actions between stages",
+    items: [
+      "In the layers panel, drag an action onto another stage or Global actions to move it there: dropped on the stage or the heading it goes at the end, dropped on an action it goes before it.",
+      "It works with several picked (Ctrl/Cmd or Shift+click), also from different stages. Several picked in one stage now move together as a block.",
+      "Moved actions keep their ids, so triggers and hooks that use them keep working. If the name is already taken where it lands, it gets _2. One Undo puts a move back.",
+    ],
+  },
+  {
     version: "0.3.40",
     title: "Every resource links back to itself",
     items: [

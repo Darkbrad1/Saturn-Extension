@@ -64,6 +64,8 @@ export function Outliner(props: {
   onActionToCommand: (paths: Path[], index: number | null) => void;
   /** actions made from the commands dragged into a stage (null: Global actions) (they stay), from `index` (null: the end) */
   onCommandToAction: (paths: Path[], stageIndex: number | null, index: number | null) => void;
+  /** actions (one or several) moved into a stage (null: Global actions), before `index` there (null: the end) */
+  onMoveActions: (paths: Path[], stageIndex: number | null, index: number | null) => void;
   onClearError: () => void;
 }) {
   const { wf } = props;
@@ -128,8 +130,8 @@ export function Outliner(props: {
     props.onSelect(tkey);
   };
 
-  // ---- dragging: stages and actions reorder in their list (one at a time); actions (several if picked) into
-  // Commands make commands; commands (several if picked) into a stage or Global actions make actions ----
+  // ---- dragging: a stage reorders; actions (several if picked) move into any stage or Global actions (one in its
+  // own list reorders); actions into Commands make commands; commands into a stage or Global actions make actions ----
   type Dragged = { kind: "stage" | "action" | "command"; stageIndex: number | null; index: number; paths: Path[] };
   const drag = useRef<Dragged | null>(null);
   const [dropAt, setDropAt] = useState<string | null>(null);
@@ -157,6 +159,13 @@ export function Outliner(props: {
         e.dataTransfer.dropEffect = "copy";
         return setDropAt(`into:${stageIndex}:${index}`);
       }
+      // actions from another list, or several: they move in before this one
+      if (kind === "action" && d.kind === "action" && (d.paths.length > 1 || d.stageIndex !== stageIndex)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        return setDropAt(`into:${stageIndex}:${index}`);
+      }
       if (d.kind !== kind || d.paths.length > 1 || kind === "command" || (kind === "action" && d.stageIndex !== stageIndex)) return;
       e.preventDefault();
       setDropAt(`${kind}:${stageIndex}:${index}`);
@@ -170,6 +179,13 @@ export function Outliner(props: {
         e.preventDefault();
         e.stopPropagation();
         return props.onCommandToAction(d.paths, stageIndex, index);
+      }
+      if (kind === "action" && d.kind === "action" && (d.paths.length > 1 || d.stageIndex !== stageIndex)) {
+        drag.current = null;
+        setDropAt(null);
+        e.preventDefault();
+        e.stopPropagation();
+        return props.onMoveActions(d.paths, stageIndex, index);
       }
       if (d.kind !== kind || d.index === index || d.paths.length > 1 || kind === "command") return;
       if (kind === "action" && d.stageIndex !== stageIndex) return;
@@ -200,21 +216,25 @@ export function Outliner(props: {
       props.onActionToCommand(d.paths, index);
     },
   });
-  // commands dropped on a stage or Global actions (not on one of its rows): at the end of that list
+  // commands (copied) or actions (moved) dropped on a stage or Global actions, not on one of its rows: at the end.
+  // One action from this very list isn't moved (it's already here).
+  const intoList = (d: Dragged | null, stageIndex: number | null) =>
+    !!d && (d.kind === "command" || (d.kind === "action" && (d.paths.length > 1 || d.stageIndex !== stageIndex)));
   const actionListDrop = (stageIndex: number | null) => ({
     onDragOver: (e: React.DragEvent) => {
-      if (drag.current?.kind !== "command") return;
+      if (!intoList(drag.current, stageIndex)) return;
       e.preventDefault();
-      e.dataTransfer.dropEffect = "copy";
+      e.dataTransfer.dropEffect = drag.current!.kind === "command" ? "copy" : "move";
       setDropAt(`into:${stageIndex}:end`);
     },
     onDrop: (e: React.DragEvent) => {
       const d = drag.current;
-      if (d?.kind !== "command") return;
+      if (!d || !intoList(d, stageIndex)) return;
       drag.current = null;
       setDropAt(null);
       e.preventDefault();
-      props.onCommandToAction(d.paths, stageIndex, null);
+      if (d.kind === "command") props.onCommandToAction(d.paths, stageIndex, null);
+      else props.onMoveActions(d.paths, stageIndex, null);
     },
     onDragLeave: (e: React.DragEvent) => {
       if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropAt((at) => (at?.startsWith(`into:${stageIndex}:`) ? null : at));
@@ -225,7 +245,11 @@ export function Outliner(props: {
   const many = (n: number, one: string, more: string) => (n === 1 ? one : more.replace("#", String(n)));
   const draggedCount = drag.current?.paths.length ?? 1;
   const intoActionsHint = (
-    <div className="nv-ol-drop-hint">{many(draggedCount, "Drop to make an action from this command. The command stays.", "Drop to make # actions from these commands. They stay.")}</div>
+    <div className="nv-ol-drop-hint">
+      {drag.current?.kind === "action"
+        ? many(draggedCount, "Drop to move this action here.", "Drop to move # actions here.")
+        : many(draggedCount, "Drop to make an action from this command. The command stays.", "Drop to make # actions from these commands. They stay.")}
+    </div>
   );
 
   const startAdd = (kind: CreateKind, stageIndex: number | null) => {
@@ -305,7 +329,7 @@ export function Outliner(props: {
         onKeyDown={(e) => e.key === "Enter" && clickRow(e, p.tkey)}
         onDoubleClick={() => setEditing({ mode: "rename", kind: p.kind, path: p.path, label: p.label })}
         onContextMenu={(e) => openMenu(e, p.kind, p.path, p.label)}
-        title={p.kind === "action" ? "Double-click to rename · right-click for more · Ctrl/Cmd or Shift+click to pick several · drag into Commands to make a command" : "Double-click to rename · right-click for more · Ctrl/Cmd or Shift+click to pick several · drag into a stage or Global actions to make an action"}
+        title={p.kind === "action" ? "Double-click to rename · right-click for more · Ctrl/Cmd or Shift+click to pick several · drag to another stage or Global actions to move · drag into Commands to make a command" : "Double-click to rename · right-click for more · Ctrl/Cmd or Shift+click to pick several · drag into a stage or Global actions to make an action"}
       >
         <span className="nv-ol-dot" style={{ background: p.dot }} />
         <span className="nv-ol-label">{p.label}</span>

@@ -1168,6 +1168,11 @@ export function App() {
             edit("actionToCommand", { paths, index });
             sourceRef.current = "outliner";
           }}
+          onMoveActions={(paths, stageIndex, index) => {
+            setOutlinerError(null);
+            edit("moveActions", { paths, stageIndex, index });
+            sourceRef.current = "outliner";
+          }}
           onCommandToAction={(paths, stageIndex, index) => {
             setOutlinerError(null);
             edit("commandToAction", { paths, stageIndex, index });

@@ -81,12 +81,7 @@ await p.waitForTimeout(150);
 await row(stage(), "Escalate").dragTo(row(stage(), "Triage").first());
 await p.waitForTimeout(500);
 ok(labels((await def()).stages[0].actions) === "Escalate,Triage,Triage", "dragging one action within its stage still reorders");
-// several picked don't reorder (nothing happens)
-await row(stage(), "Escalate").click({ modifiers: ["Control"] });
-await row(stage(), "Triage").first().click({ modifiers: ["Control"] });
-await row(stage(), "Escalate").dragTo(row(stage(), "Triage").last());
-await p.waitForTimeout(400);
-ok(labels((await def()).stages[0].actions) === "Escalate,Triage,Triage", "dragging several within a stage changes nothing");
+// (0.3.41: several picked in one stage now move as a block; test28.mjs covers it)
 // a command dropped on Commands does nothing
 const before = (await def()).commands.length;
 await row(group("Commands"), "Escalate").dragTo(group("Commands").locator(".nv-ol-head"));

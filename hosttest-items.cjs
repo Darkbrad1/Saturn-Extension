@@ -1,12 +1,12 @@
 // v0.3.35: duplicateWorkflowItem (an action or command copied right below it) and actionToCommand (a command
-// made from an action, which stays), each one draft edit. v0.3.37: commandToAction, and copyItemsAs for several.
+// made from an action, which stays), each one draft edit. v0.3.37: commandToAction, and copyItemsAs for several. v0.3.41: moveActions.
 const fs = require("fs"), Module = require("module");
-const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={duplicateWorkflowItem,actionToCommand,commandToAction,copyItemsAs,freeMachineName};";
+const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={duplicateWorkflowItem,actionToCommand,commandToAction,copyItemsAs,moveActions,freeMachineName};";
 const stub = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => "" : stub), apply: () => stub, construct: () => stub });
 const m = new Module("ext"); m.filename = "/x/extension.js";
 const orig = Module._load; Module._load = (r, p, i) => (r === "vscode" ? stub : orig(r, p, i));
 m._compile(src, m.filename);
-const { duplicateWorkflowItem, actionToCommand, commandToAction, copyItemsAs, freeMachineName } = m.exports.__t;
+const { duplicateWorkflowItem, actionToCommand, commandToAction, copyItemsAs, moveActions, freeMachineName } = m.exports.__t;
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 const op = (o, id) => ({ type: "command", operator: o, id, data: { x: 1 } });
 const form = { fields: [{ key: "reason", label: "Reason", type: "string" }], sections: [] };
@@ -88,6 +88,40 @@ threw = false;
 try { copyItemsAs(mk(), "command", [], null, null); } catch (e) { threw = /Nothing selected/.test(e.message); }
 ok(threw, "an empty selection is refused (so the node view hears back)");
 
+// moving actions between lists
+const names = (list) => list.map((x) => x.action).join();
+d = mk();
+out = moveActions(d, [["actions", 0]], 0, 1);
+ok(names(out.stages[0].actions) === "approve,notify,approve_copy" && out.actions.length === 0, "a global action moves into a stage, at the index: " + names(out.stages[0].actions));
+ok(out.stages[0].actions[1].id === "act003" && out.stages[0].actions[1].task.commands[0].id === "stp002", "it keeps its id and its steps' ids");
+ok(d.actions.length === 1, "the original isn't changed");
+out = moveActions(mk(), [["stages", 0, "actions", 0], ["stages", 0, "actions", 1]], null, null);
+ok(out.stages[0].actions.length === 0 && names(out.actions) === "notify,approve,approve_copy", "two stage actions move to the end of Global actions, in order: " + names(out.actions));
+const clash = mk(); clash.actions.push({ id: "act009", action: "approve", label: "Approve again", task: { type: "series", commands: [] } });
+out = moveActions(clash, [["stages", 0, "actions", 0]], null, 0);
+ok(names(out.actions) === "approve_2,notify,approve", "a name taken in the target list gets _2: " + names(out.actions));
+// several within one list: a block
+const three = mk(); three.stages[0].actions.push({ id: "act004", action: "third", label: "Third", task: { type: "series", commands: [] } });
+out = moveActions(three, [["stages", 0, "actions", 0], ["stages", 0, "actions", 1]], 0, 3);
+ok(names(out.stages[0].actions) === "third,approve,approve_copy", "two picked in one stage move as a block, and keep their names: " + names(out.stages[0].actions));
+out = moveActions(three, [["stages", 0, "actions", 2]], 0, 0);
+ok(names(out.stages[0].actions) === "third,approve,approve_copy", "one moves up in its own list");
+// from both lists at once
+out = moveActions(mk(), [["stages", 0, "actions", 1], ["actions", 0]], 0, 0);
+ok(names(out.stages[0].actions) === "approve_copy,notify,approve" && out.actions.length === 0, "picked from a stage and Global actions together: " + names(out.stages[0].actions));
+const all3 = ids(out);
+ok(all3.length === new Set(all3).size, "no id twice after moving");
+threw = false;
+try { moveActions(mk(), [["commands", 0]], 0, null); } catch (e) { threw = /no longer where it was/.test(e.message); }
+ok(threw, "only actions move");
+threw = false;
+try { moveActions(mk(), [], 0, null); } catch (e) { threw = /Nothing selected/.test(e.message); }
+ok(threw, "an empty selection is refused");
+threw = false;
+try { moveActions(mk(), [["actions", 0]], 4, null); } catch (e) { threw = /stage is no longer there/.test(e.message); }
+ok(threw, "a stage that isn't there is refused");
+
 const raw = fs.readFileSync(process.argv[2], "utf8");
+ok(raw.includes('case "moveActions"'), "the Workflows panel answers moveActions");
 ok(raw.includes('case "commandToAction"'), "the Workflows panel answers commandToAction");
 ok(raw.includes('case "duplicateItem"') && raw.includes('case "actionToCommand"'), "the Workflows panel answers duplicateItem and actionToCommand");
