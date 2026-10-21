@@ -9,6 +9,7 @@ import {
 } from "@xyflow/react";
 import { createContext, useContext } from "react";
 import type { Flow } from "./types";
+import { highlight, langFor, type HlLang } from "./controls";
 import type { InsertPoint, LayoutDir, NvEdge, NvNode, NvRow, RowAction } from "./layout";
 
 /** Which way the flow runs; decides where sockets sit. */
@@ -95,16 +96,27 @@ export function NvNodeView({ data, selected }: NodeProps<NvNode>) {
   );
 }
 
+/** How a card's value is coloured: code in its language, JSON as JSON, anything else for {{ templates }},
+ *  numbers and true / false / null. */
+function langOf(r: NvRow): HlLang {
+  if (r.action?.kind === "code") return langFor(r.action.language);
+  if (r.action?.kind === "email") return "plain";
+  return /^\s*[[{]/.test(r.value) ? "json" : "tpl";
+}
+
 function Row({ r, flow }: { r: NvRow; flow?: Flow }) {
   const actions = useContext(NodeActions);
-  const short = r.value.length > 60 ? r.value.slice(0, 60) + "…" : r.value;
+  if (r.more) return <div className="nv-row nv-more">+{r.more} more {r.more === 1 ? "property" : "properties"}…</div>;
+  const short = (r.value.length > 60 ? r.value.slice(0, 60) + "…" : r.value).replace(/\s+/g, " ");
   const a = r.action;
   return (
-    <div className="nv-row" title={`${r.key}: ${r.value}`}>
+    <div className={`nv-row ${r.entry ? "is-entry" : ""}`} title={`${r.key}: ${r.value}`}>
       <span className="nv-row-k">{r.key}</span>
-      <span className={`nv-row-v ${a ? "has-action" : ""}`}>
-        {short.replace(/\s+/g, " ") || (a?.kind === "code" ? "empty" : "")}
-      </span>
+      {short ? (
+        <span className={`nv-row-v ${a ? "has-action" : ""}`} dangerouslySetInnerHTML={{ __html: highlight(short, langOf(r)) }} />
+      ) : (
+        <span className={`nv-row-v ${a ? "has-action" : ""}`}>{a?.kind === "code" ? "empty" : ""}</span>
+      )}
       {a && flow && actions && (
         <button
           className={`nv-row-btn nodrag is-${a.kind}`}

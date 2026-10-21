@@ -281,6 +281,8 @@
   window.__mockLog = [];
   window.__getDef = (id) => defs[id ?? cur];
   window.__defs = defs;
+  // sends the open workflow again, after a test changed __defs directly
+  window.__reply = (id) => reply(id ?? cur);
   window.__triggers = () => triggers;
   window.__bindings = () => bindings;
   window.__post = post;

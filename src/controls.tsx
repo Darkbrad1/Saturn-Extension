@@ -16,7 +16,13 @@ const TEMPLATE = {
     "template-expression": { pattern: /[\s\S]+/, inside: Prism.languages.javascript },
   },
 };
-Prism.languages.tpl = { template: TEMPLATE };
+// a value: {{ templates }}, and a value that is just a number or true / false / null
+Prism.languages.tpl = {
+  template: TEMPLATE,
+  boolean: /^\s*(?:true|false)\s*$/,
+  null: /^\s*null\s*$/,
+  number: /^\s*-?\d+(?:\.\d+)?\s*$/,
+};
 Prism.languages.json_t = Prism.languages.extend("json", {});
 Prism.languages.insertBefore("json_t", "property", { template: TEMPLATE });
 Prism.languages.markup_t = Prism.languages.extend("markup", {});

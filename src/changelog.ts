@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.38",
+    title: "Property rows on the card, and colours",
+    items: [
+      "A step's property map (like Property Updater's properties) now shows on its card as one row per property: the name in grey, the value in its box, like Write Store Value. Up to 10 show; more say \"+N more properties\".",
+      "Every value on the cards is coloured: {{ templates }}, JSON, numbers, true / false / null, and code in its own language. In the side panel a value that is just a number or true / false is coloured too.",
+    ],
+  },
+  {
     version: "0.3.37",
     title: "Pick several, and make actions from commands",
     items: [

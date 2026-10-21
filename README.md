@@ -1,4 +1,4 @@
-# sonover-code (v0.3.37)
+# sonover-code (v0.3.38)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,11 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.38 — Property rows on the card, and colours
+- `src/layout.ts` `operatorRows`: a parameter of type `object` (not code, a lookup or merged; the one the side panel edits with `KeyValueEditor`) whose value is a map with properties becomes one row per property (`entryRows`, `NvRow.entry`), up to `MAX_ENTRIES` (10), then a `more` row. A card with such rows isn't cut at `MAX_ROWS` (6).
+- `src/nodes.tsx` `Row`: the value is highlighted (`highlight` from `controls.tsx`; `langOf`: code in its language, JSON when it starts with `{` or `[`, else `tpl`). `src/controls.tsx`: `tpl` also colours a value that is only a number or `true` / `false` / `null`. The token colours in `styles.css` apply to `.nv-row-v` too.
+- `harness/mockhost.js`: `__reply(id)` sends the workflow again after a test changed `__defs`. `test25.mjs` (20).
 
 ## New in 0.3.37 — Pick several, and make actions from commands
 - Layers panel (`src/outliner.tsx`): `picked` (row keys; Ctrl/Cmd+click toggles, Shift+click a run of one kind, a plain click clears and opens). One drag code path (`dragProps`, `commandDrop`, `actionListDrop`) for: a stage or one action reordering in its list (several picked don't reorder); actions (every picked one of the dragged kind, in panel order) into Commands → `actionToCommand {paths, index}`; commands into a stage or Global actions → `commandToAction {paths, stageIndex, index}` (on the list: the end; on an action row: before it). Picked rows show `.is-picked`; the target shows a hint that counts them.

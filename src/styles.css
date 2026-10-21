@@ -2665,36 +2665,36 @@
   white-space: nowrap;
 }
 /* tokens (Figma dark / VS Code Dark+ inspired) */
-#sonover-node-view .nv-hl-pre .token.template { color: #c586c0; }
-#sonover-node-view .nv-hl-pre .token.template-punctuation { color: #da70d6; font-weight: 600; }
-#sonover-node-view .nv-hl-pre .token.template .token.template-expression { color: #9cdcfe; }
-#sonover-node-view .nv-hl-pre .token.comment,
-#sonover-node-view .nv-hl-pre .token.prolog,
-#sonover-node-view .nv-hl-pre .token.doctype,
-#sonover-node-view .nv-hl-pre .token.cdata { color: #6a9955; }
-#sonover-node-view .nv-hl-pre .token.punctuation { color: #a8a8a8; }
-#sonover-node-view .nv-hl-pre .token.property,
-#sonover-node-view .nv-hl-pre .token.attr-name { color: #9cdcfe; }
-#sonover-node-view .nv-hl-pre .token.tag { color: #569cd6; }
-#sonover-node-view .nv-hl-pre .token.boolean,
-#sonover-node-view .nv-hl-pre .token.null,
-#sonover-node-view .nv-hl-pre .token.constant { color: #569cd6; }
-#sonover-node-view .nv-hl-pre .token.number,
-#sonover-node-view .nv-hl-pre .token.cron-name { color: #b5cea8; }
-#sonover-node-view .nv-hl-pre .token.string,
-#sonover-node-view .nv-hl-pre .token.attr-value,
-#sonover-node-view .nv-hl-pre .token.template-string { color: #ce9178; }
-#sonover-node-view .nv-hl-pre .token.operator,
-#sonover-node-view .nv-hl-pre .token.cron-special { color: #d4d4d4; }
-#sonover-node-view .nv-hl-pre .token.cron-special { color: #ffa033; font-weight: 600; }
-#sonover-node-view .nv-hl-pre .token.keyword { color: #c586c0; }
-#sonover-node-view .nv-hl-pre .token.function { color: #dcdcaa; }
-#sonover-node-view .nv-hl-pre .token.class-name { color: #4ec9b0; }
-#sonover-node-view .nv-hl-pre .token.regex { color: #d16969; }
-#sonover-node-view .nv-hl-pre .token.selector { color: #d7ba7d; }
-#sonover-node-view .nv-hl-pre .token.atrule,
-#sonover-node-view .nv-hl-pre .token.rule { color: #c586c0; }
-#sonover-node-view .nv-hl-pre .token.url { color: #ce9178; text-decoration: underline; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.template { color: #c586c0; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.template-punctuation { color: #da70d6; font-weight: 600; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.template .token.template-expression { color: #9cdcfe; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.comment,
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.prolog,
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.doctype,
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.cdata { color: #6a9955; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.punctuation { color: #a8a8a8; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.property,
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.attr-name { color: #9cdcfe; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.tag { color: #569cd6; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.boolean,
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.null,
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.constant { color: #569cd6; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.number,
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.cron-name { color: #b5cea8; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.string,
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.attr-value,
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.template-string { color: #ce9178; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.operator,
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.cron-special { color: #d4d4d4; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.cron-special { color: #ffa033; font-weight: 600; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.keyword { color: #c586c0; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.function { color: #dcdcaa; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.class-name { color: #4ec9b0; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.regex { color: #d16969; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.selector { color: #d7ba7d; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.atrule,
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.rule { color: #c586c0; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.url { color: #ce9178; text-decoration: underline; }
 
 /* ===== scrubbing ===== */
 #sonover-node-view .nv-scrub {

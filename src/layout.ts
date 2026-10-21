@@ -41,6 +41,29 @@ export interface NvRow {
   key: string;
   value: string;
   action?: RowAction;
+  /** one property of a property map (like Property Updater's), shown as its own row */
+  entry?: boolean;
+  /** how many more properties the map has than the card shows */
+  more?: number;
+}
+
+/** How many of a property map's properties a card shows. */
+const MAX_ENTRIES = 10;
+
+/** A property map's properties as rows (its value as text), or null when the value isn't a map with any. */
+function entryRows(value: string): NvRow[] | null {
+  let map: unknown;
+  try {
+    map = JSON.parse(value);
+  } catch {
+    return null;
+  }
+  if (!map || typeof map !== "object" || Array.isArray(map)) return null;
+  const all = Object.entries(map as Record<string, unknown>);
+  if (!all.length) return null;
+  const rows: NvRow[] = all.slice(0, MAX_ENTRIES).map(([k, v]) => ({ key: k, value: typeof v === "string" ? v : JSON.stringify(v), entry: true }));
+  if (all.length > MAX_ENTRIES) rows.push({ key: "", value: "", entry: true, more: all.length - MAX_ENTRIES });
+  return rows;
 }
 
 export interface NvNodeData extends Record<string, unknown> {
@@ -166,8 +189,9 @@ function stepBlock(f: Flow, catalog: Catalog): Block {
       title: f.label,
       subtitle: entry?.category ?? f.operator ?? undefined,
       color: categoryColor(entry?.category ?? f.operator),
-      rows: rows.slice(0, MAX_ROWS),
-      moreRows: Math.max(0, rows.length - MAX_ROWS),
+      // a property map shows up to MAX_ENTRIES of its own rows, so its card isn't cut at MAX_ROWS
+      rows: rows.slice(0, rows.some((r) => r.entry) ? rows.length : MAX_ROWS),
+      moreRows: rows.some((r) => r.entry) ? 0 : Math.max(0, rows.length - MAX_ROWS),
       inputs: true,
       outputs: "flow",
       invalid: !!f.operator && !entry && Object.keys(catalog).length > 0,
@@ -546,6 +570,8 @@ export function codeParams(operator: string | null | undefined, catalog: Catalog
 export function operatorRows(f: Extract<Flow, { kind: "operator" }>, catalog: Catalog): NvRow[] {
   const code = codeParams(f.operator, catalog);
   const secret = new Set((f.operator ? catalog[f.operator]?.params ?? [] : []).filter((p) => p.sensitive).map((p) => p.param));
+  // key/value map parameters (the side panel's property map editor): each property its own row
+  const maps = new Set((f.operator ? catalog[f.operator]?.params ?? [] : []).filter((p) => p.type === "object" && !p.codeLanguage && !p.lookupResource && !p.mergedInto).map((p) => p.param));
   const first: NvRow[] = [];
   const rest: NvRow[] = [];
   for (const p of f.params) {
@@ -559,7 +585,11 @@ export function operatorRows(f: Extract<Flow, { kind: "operator" }>, catalog: Ca
       first.push({ key: p.label, value: line, action: { kind: "code", ...c } });
     } else if (isEmailSummary(p.value)) {
       first.push({ key: p.label, value: p.value.split(" \u2014 ")[0], action: { kind: "email", param: p.key, label: p.label } });
-    } else rest.push({ key: p.label, value: p.value });
+    } else {
+      const entries = maps.has(p.key) ? entryRows(p.value) : null;
+      if (entries) rest.push(...entries);
+      else rest.push({ key: p.label, value: p.value });
+    }
   }
   // code params that are still empty can be opened too
   for (const c of code)
