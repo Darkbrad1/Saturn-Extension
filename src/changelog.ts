@@ -1,6 +1,15 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.37",
+    title: "Pick several, and make actions from commands",
+    items: [
+      "In the layers panel, Ctrl/Cmd+click picks several actions or commands, and Shift+click picks a run of them. A plain click goes back to one.",
+      "Drag one of the picked actions into Commands to make a command from each. Drag commands into a stage or Global actions to make an action from each: dropped on the stage or the heading they go at the end, dropped on an action they go before it.",
+      "As before, the originals stay where they were. An action made from a command gets its steps and its parameters as the form, with no actors or access rules yet.",
+    ],
+  },
+  {
     version: "0.3.36",
     title: "Undo no longer gets stuck, and property names can be changed",
     items: [

@@ -1,4 +1,4 @@
-# sonover-code (v0.3.36)
+# sonover-code (v0.3.37)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,10 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.37 — Pick several, and make actions from commands
+- Layers panel (`src/outliner.tsx`): `picked` (row keys; Ctrl/Cmd+click toggles, Shift+click a run of one kind, a plain click clears and opens). One drag code path (`dragProps`, `commandDrop`, `actionListDrop`) for: a stage or one action reordering in its list (several picked don't reorder); actions (every picked one of the dragged kind, in panel order) into Commands → `actionToCommand {paths, index}`; commands into a stage or Global actions → `commandToAction {paths, stageIndex, index}` (on the list: the end; on an action row: before it). Picked rows show `.is-picked`; the target shows a hint that counts them.
+- Host (`host/extension.js`): `commandToAction` (label, `name` as the machine name made unused in that list, new id, the steps with fresh ids as `task`, non-empty `parameters` as `form`, no actors or access rules) and `copyItemsAs` (several, as ONE draft edit, in order from `index`). The two messages share one case; a missing selection now answers with `editFailed` (it used to send nothing). `hosttest-items.cjs` (31), `test24.mjs` (15).
 
 ## New in 0.3.36 — Undo no longer gets stuck, and property names can be changed
 - Host: `WorkflowsPanel.undoLastEdit` answered an undo of a draft edit with `workflow` / `draftState` but no `editSaved`, so the node view (which counts each request until it hears `editSaved` or `editFailed`) stayed on "Applying…". It now sends `editSaved {canUndo}`, or `editFailed` if the undo throws. The session-snapshot path sent `editSaved` twice (once from `applyEdit`); the extra one is gone. `hosttest-undo.cjs` (8), which fails on the old code.

@@ -60,8 +60,10 @@ export function Outliner(props: {
   onDelete: (kind: NodeKind, path: Path, label: string) => void;
   /** a copy of an action or command, right below it */
   onDuplicate: (kind: "action" | "command", path: Path) => void;
-  /** a command made from an action dragged into Commands (the action stays), at `index` (null: the end) */
-  onActionToCommand: (path: Path, index: number | null) => void;
+  /** commands made from the actions dragged into Commands (they stay), from `index` (null: the end) */
+  onActionToCommand: (paths: Path[], index: number | null) => void;
+  /** actions made from the commands dragged into a stage (null: Global actions) (they stay), from `index` (null: the end) */
+  onCommandToAction: (paths: Path[], stageIndex: number | null, index: number | null) => void;
   onClearError: () => void;
 }) {
   const { wf } = props;
@@ -94,15 +96,51 @@ export function Outliner(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.addRequest?.n]);
 
-  // ---- drag to reorder (stages among stages, actions within their list), or an action into Commands ----
-  const drag = useRef<{ kind: "stage" | "action"; stageIndex: number | null; index: number } | null>(null);
+  // ---- picking several actions / commands (Ctrl/Cmd+click toggles, Shift+click a run of one kind) ----
+  const [picked, setPicked] = useState<string[]>([]);
+  const lastPick = useRef<string | null>(null);
+  useEffect(() => setPicked([]), [wf.id]);
+  // every action and command in the panel's order, with its path
+  const items: { tkey: string; kind: "action" | "command"; path: Path }[] = [
+    ...wf.stages.flatMap((st, si) => st.actions.map((a, ai) => ({ tkey: `s:${st.stage}:${a.id}`, kind: "action" as const, path: ["stages", si, "actions", ai] as Path }))),
+    ...wf.actions.map((a, ai) => ({ tkey: `g:${a.id}`, kind: "action" as const, path: ["actions", ai] as Path })),
+    ...wf.commands.map((c, ci) => ({ tkey: `c:${c.id}`, kind: "command" as const, path: ["commands", ci] as Path })),
+  ];
+  const kindOf = (tkey: string) => items.find((it) => it.tkey === tkey)?.kind;
+  // the row clicked: with Ctrl/Cmd or Shift it's picked (not opened)
+  const clickRow = (e: React.MouseEvent | React.KeyboardEvent, tkey: string) => {
+    const from = picked.length ? picked : props.activeKey && kindOf(props.activeKey) ? [props.activeKey] : [];
+    if (e.ctrlKey || e.metaKey) {
+      setPicked(from.includes(tkey) ? from.filter((k) => k !== tkey) : [...from, tkey]);
+      lastPick.current = tkey;
+      return;
+    }
+    if (e.shiftKey) {
+      const anchor = lastPick.current ?? props.activeKey ?? tkey;
+      const kind = kindOf(tkey);
+      const run = items.filter((it) => it.kind === kind);
+      const a = run.findIndex((it) => it.tkey === anchor), b = run.findIndex((it) => it.tkey === tkey);
+      setPicked(a < 0 ? [tkey] : run.slice(Math.min(a, b), Math.max(a, b) + 1).map((it) => it.tkey));
+      return;
+    }
+    setPicked([]);
+    lastPick.current = tkey;
+    props.onSelect(tkey);
+  };
+
+  // ---- dragging: stages and actions reorder in their list (one at a time); actions (several if picked) into
+  // Commands make commands; commands (several if picked) into a stage or Global actions make actions ----
+  type Dragged = { kind: "stage" | "action" | "command"; stageIndex: number | null; index: number; paths: Path[] };
+  const drag = useRef<Dragged | null>(null);
   const [dropAt, setDropAt] = useState<string | null>(null);
-  const dragProps = (kind: "stage" | "action", stageIndex: number | null, index: number) => ({
+  const dragProps = (kind: "stage" | "action" | "command", stageIndex: number | null, index: number, tkey?: string) => ({
     draggable: true,
     onDragStart: (e: React.DragEvent) => {
-      drag.current = { kind, stageIndex, index };
-      // an action can also be copied into Commands
-      e.dataTransfer.effectAllowed = kind === "action" ? "copyMove" : "move";
+      const own: Path = kind === "command" ? ["commands", index] : kind === "action" ? (stageIndex === null ? ["actions", index] : ["stages", stageIndex, "actions", index]) : ["stages", index];
+      // dragging a picked row takes every picked row of its kind, in the panel's order
+      const group = tkey && picked.includes(tkey) ? items.filter((it) => it.kind === kind && picked.includes(it.tkey)).map((it) => it.path) : [];
+      drag.current = { kind, stageIndex, index, paths: group.length > 1 ? group : [own] };
+      e.dataTransfer.effectAllowed = kind === "stage" ? "move" : "copyMove";
       e.dataTransfer.setData("text/plain", `${kind}:${stageIndex}:${index}`);
     },
     onDragEnd: () => {
@@ -111,24 +149,39 @@ export function Outliner(props: {
     },
     onDragOver: (e: React.DragEvent) => {
       const d = drag.current;
-      if (!d || d.kind !== kind || (kind === "action" && d.stageIndex !== stageIndex)) return;
+      if (!d) return;
+      // a command onto an action row: it goes in before it
+      if (kind === "action" && d.kind === "command") {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "copy";
+        return setDropAt(`into:${stageIndex}:${index}`);
+      }
+      if (d.kind !== kind || d.paths.length > 1 || kind === "command" || (kind === "action" && d.stageIndex !== stageIndex)) return;
       e.preventDefault();
       setDropAt(`${kind}:${stageIndex}:${index}`);
     },
     onDrop: (e: React.DragEvent) => {
       const d = drag.current;
+      if (!d) return;
+      if (kind === "action" && d.kind === "command") {
+        drag.current = null;
+        setDropAt(null);
+        e.preventDefault();
+        e.stopPropagation();
+        return props.onCommandToAction(d.paths, stageIndex, index);
+      }
+      if (d.kind !== kind || d.index === index || d.paths.length > 1 || kind === "command") return;
+      if (kind === "action" && d.stageIndex !== stageIndex) return;
       drag.current = null;
       setDropAt(null);
-      if (!d || d.kind !== kind || d.index === index) return;
-      if (kind === "action" && d.stageIndex !== stageIndex) return;
       e.preventDefault();
       if (kind === "stage") props.onMoveStage(d.index, index);
       else props.onMoveAction(stageIndex, d.index, index);
     },
   });
   const isDrop = (kind: string, si: number | null, i: number) => dropAt === `${kind}:${si}:${i}`;
-  // an action dropped on Commands (on a command: before it; elsewhere in the section: at the end)
-  const actionPath = (d: { stageIndex: number | null; index: number }): Path => (d.stageIndex === null ? ["actions", d.index] : ["stages", d.stageIndex, "actions", d.index]);
+  // actions dropped on Commands (on a command: before it; elsewhere in the section: at the end)
   const commandDrop = (index: number | null) => ({
     onDragOver: (e: React.DragEvent) => {
       if (drag.current?.kind !== "action") return;
@@ -139,15 +192,41 @@ export function Outliner(props: {
     },
     onDrop: (e: React.DragEvent) => {
       const d = drag.current;
+      if (d?.kind !== "action") return;
       drag.current = null;
       setDropAt(null);
-      if (d?.kind !== "action") return;
       e.preventDefault();
       e.stopPropagation();
-      props.onActionToCommand(actionPath(d), index);
+      props.onActionToCommand(d.paths, index);
+    },
+  });
+  // commands dropped on a stage or Global actions (not on one of its rows): at the end of that list
+  const actionListDrop = (stageIndex: number | null) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (drag.current?.kind !== "command") return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      setDropAt(`into:${stageIndex}:end`);
+    },
+    onDrop: (e: React.DragEvent) => {
+      const d = drag.current;
+      if (d?.kind !== "command") return;
+      drag.current = null;
+      setDropAt(null);
+      e.preventDefault();
+      props.onCommandToAction(d.paths, stageIndex, null);
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropAt((at) => (at?.startsWith(`into:${stageIndex}:`) ? null : at));
     },
   });
   const draggingIntoCommands = dropAt?.startsWith("command:") ?? false;
+  const draggingInto = (stageIndex: number | null) => dropAt?.startsWith(`into:${stageIndex}:`) ?? false;
+  const many = (n: number, one: string, more: string) => (n === 1 ? one : more.replace("#", String(n)));
+  const draggedCount = drag.current?.paths.length ?? 1;
+  const intoActionsHint = (
+    <div className="nv-ol-drop-hint">{many(draggedCount, "Drop to make an action from this command. The command stays.", "Drop to make # actions from these commands. They stay.")}</div>
+  );
 
   const startAdd = (kind: CreateKind, stageIndex: number | null) => {
     props.onClearError();
@@ -210,7 +289,7 @@ export function Outliner(props: {
   const allStagesClosed = wf.stages.length > 0 && wf.stages.every((st) => isClosed(`stage:${st.stage}`));
 
   // a render function (not a component) so rows keep their identity across re-renders
-  const renderRow = (p: { tkey: string; label: string; kind: NodeKind; path: Path; dot: string; indent?: boolean; drag?: ReturnType<typeof dragProps>; drop?: ReturnType<typeof commandDrop>; dropping?: boolean }) =>
+  const renderRow = (p: { tkey: string; label: string; kind: NodeKind; path: Path; dot: string; indent?: boolean; drag?: ReturnType<typeof dragProps>; drop?: Partial<ReturnType<typeof commandDrop>>; dropping?: boolean }) =>
     isRename(p.path) ? (
       <div key={p.tkey} className={`nv-ol-edit ${p.indent ? "is-indent" : ""}`}>{inline("r" + p.tkey, "Name", p.label)}</div>
     ) : (
@@ -218,14 +297,15 @@ export function Outliner(props: {
         key={p.tkey}
         {...(p.drag ?? {})}
         {...(p.drop ?? {})}
-        className={`nv-ol-item ${props.activeKey === p.tkey ? "is-active" : ""} ${p.indent ? "is-indent" : ""} ${p.dropping ? "is-drop" : ""}`}
+        className={`nv-ol-item ${props.activeKey === p.tkey ? "is-active" : ""} ${picked.includes(p.tkey) ? "is-picked" : ""} ${p.indent ? "is-indent" : ""} ${p.dropping ? "is-drop" : ""}`}
         role="button"
         tabIndex={0}
-        onClick={() => props.onSelect(p.tkey)}
-        onKeyDown={(e) => e.key === "Enter" && props.onSelect(p.tkey)}
+        aria-selected={picked.includes(p.tkey)}
+        onClick={(e) => clickRow(e, p.tkey)}
+        onKeyDown={(e) => e.key === "Enter" && clickRow(e, p.tkey)}
         onDoubleClick={() => setEditing({ mode: "rename", kind: p.kind, path: p.path, label: p.label })}
         onContextMenu={(e) => openMenu(e, p.kind, p.path, p.label)}
-        title={p.kind === "action" ? "Double-click to rename · right-click for more · drag into Commands to make a command" : "Double-click to rename · right-click for more"}
+        title={p.kind === "action" ? "Double-click to rename · right-click for more · Ctrl/Cmd or Shift+click to pick several · drag into Commands to make a command" : "Double-click to rename · right-click for more · Ctrl/Cmd or Shift+click to pick several · drag into a stage or Global actions to make an action"}
       >
         <span className="nv-ol-dot" style={{ background: p.dot }} />
         <span className="nv-ol-label">{p.label}</span>
@@ -307,7 +387,7 @@ export function Outliner(props: {
         {!isClosed("group:stages") && wf.stages.map((st, si) => {
           const spath: Path = ["stages", si];
           return (
-            <div key={st.stage || si} className="nv-ol-stage">
+            <div key={st.stage || si} className={`nv-ol-stage ${draggingInto(si) ? "is-drop-into" : ""}`} {...actionListDrop(si)}>
               {isRename(spath) ? (
                 <div className="nv-ol-edit">{inline("rs" + si, "Stage name", st.label)}</div>
               ) : (
@@ -354,8 +434,8 @@ export function Outliner(props: {
                   path: ["stages", si, "actions", ai],
                   dot: "#7a7a7a",
                   indent: true,
-                  drag: dragProps("action", si, ai),
-                  dropping: isDrop("action", si, ai),
+                  drag: dragProps("action", si, ai, `s:${st.stage}:${a.id}`),
+                  dropping: isDrop("action", si, ai) || dropAt === `into:${si}:${ai}`,
                 }),
               )}
               {isAdd("action", si) ? (
@@ -372,6 +452,7 @@ export function Outliner(props: {
               {isClosed(`stage:${st.stage}`) && isAdd("action", si) && (
                 <div className="nv-ol-edit is-indent">{inline("aa" + si, "New action name")}</div>
               )}
+              {draggingInto(si) && intoActionsHint}
             </div>
           );
         })}
@@ -383,8 +464,8 @@ export function Outliner(props: {
         )}
       </div>
 
-      {/* Global actions */}
-      <div className="nv-ol-group">
+      {/* Global actions (a command dropped here becomes an action too) */}
+      <div className={`nv-ol-group ${draggingInto(null) ? "is-drop-into" : ""}`} {...actionListDrop(null)}>
         <div className="nv-ol-head" onClick={() => props.onToggleCollapse("group:global")}>
           {chevron("group:global", "global actions")}
           <span className="nv-ol-head-label">Global actions</span>
@@ -394,9 +475,10 @@ export function Outliner(props: {
           </button>
         </div>
         {!isClosed("group:global") && wf.actions.map((a, ai) =>
-          renderRow({ tkey: `g:${a.id}`, label: a.label, kind: "action", path: ["actions", ai], dot: "#7a7a7a", drag: dragProps("action", null, ai), dropping: isDrop("action", null, ai) }),
+          renderRow({ tkey: `g:${a.id}`, label: a.label, kind: "action", path: ["actions", ai], dot: "#7a7a7a", drag: dragProps("action", null, ai, `g:${a.id}`), dropping: isDrop("action", null, ai) || dropAt === `into:null:${ai}` }),
         )}
         {isAdd("action", null) && <div className="nv-ol-edit">{inline("ag", "New global action name")}</div>}
+        {draggingInto(null) && intoActionsHint}
       </div>
 
       {/* Commands (an action dropped here becomes a command too) */}
@@ -410,10 +492,10 @@ export function Outliner(props: {
           </button>
         </div>
         {!isClosed("group:commands") && wf.commands.map((c, ci) =>
-          renderRow({ tkey: `c:${c.id}`, label: c.label, kind: "command", path: ["commands", ci], dot: "#1f6e4a", drop: commandDrop(ci), dropping: dropAt === `command:${ci}` }),
+          renderRow({ tkey: `c:${c.id}`, label: c.label, kind: "command", path: ["commands", ci], dot: "#1f6e4a", drag: dragProps("command", null, ci, `c:${c.id}`), drop: commandDrop(ci), dropping: dropAt === `command:${ci}` }),
         )}
         {isAdd("command", null) && <div className="nv-ol-edit">{inline("ac", "New command name")}</div>}
-        {draggingIntoCommands && <div className="nv-ol-drop-hint">Drop to make a command from this action. The action stays.</div>}
+        {draggingIntoCommands && <div className="nv-ol-drop-hint">{many(draggedCount, "Drop to make a command from this action. The action stays.", "Drop to make # commands from these actions. They stay.")}</div>}
       </div>
       </>
       )}

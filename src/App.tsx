@@ -1161,9 +1161,14 @@ export function App() {
             edit("duplicateItem", { kind, path });
             sourceRef.current = "outliner";
           }}
-          onActionToCommand={(path, index) => {
+          onActionToCommand={(paths, index) => {
             setOutlinerError(null);
-            edit("actionToCommand", { path, index });
+            edit("actionToCommand", { paths, index });
+            sourceRef.current = "outliner";
+          }}
+          onCommandToAction={(paths, stageIndex, index) => {
+            setOutlinerError(null);
+            edit("commandToAction", { paths, stageIndex, index });
             sourceRef.current = "outliner";
           }}
           onClearError={() => setOutlinerError(null)}

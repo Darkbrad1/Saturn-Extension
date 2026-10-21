@@ -1,12 +1,12 @@
 // v0.3.35: duplicateWorkflowItem (an action or command copied right below it) and actionToCommand (a command
-// made from an action, which stays), each one draft edit.
+// made from an action, which stays), each one draft edit. v0.3.37: commandToAction, and copyItemsAs for several.
 const fs = require("fs"), Module = require("module");
-const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={duplicateWorkflowItem,actionToCommand,freeMachineName};";
+const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={duplicateWorkflowItem,actionToCommand,commandToAction,copyItemsAs,freeMachineName};";
 const stub = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => "" : stub), apply: () => stub, construct: () => stub });
 const m = new Module("ext"); m.filename = "/x/extension.js";
 const orig = Module._load; Module._load = (r, p, i) => (r === "vscode" ? stub : orig(r, p, i));
 m._compile(src, m.filename);
-const { duplicateWorkflowItem, actionToCommand, freeMachineName } = m.exports.__t;
+const { duplicateWorkflowItem, actionToCommand, commandToAction, copyItemsAs, freeMachineName } = m.exports.__t;
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 const op = (o, id) => ({ type: "command", operator: o, id, data: { x: 1 } });
 const form = { fields: [{ key: "reason", label: "Reason", type: "string" }], sections: [] };
@@ -57,5 +57,37 @@ ok(threw, "only an action can become a command");
 threw = false;
 try { duplicateWorkflowItem(mk(), "action", ["actions", 5]); } catch (e) { threw = /no longer where it was/.test(e.message); }
 ok(threw, "a stale path is refused");
+// command to action
+d = mk();
+out = commandToAction(d, ["commands", 0], 0, null);
+const a = out.stages[0].actions[2];
+ok(out.stages[0].actions.length === 3 && out.commands.length === 1, "an action is added to the stage; the command stays");
+ok(a.label === "Approve cmd" && a.action === "approve_2" && a.id !== "cmd001", "label kept; name made unused in that stage (approve was taken), a new id: " + a.action);
+ok(a.task.commands[0].operator === "Log" && a.task.commands[0].id !== "stp003" && Array.isArray(a.actors) && Array.isArray(a.access_control) && !("form" in a), "its steps as the task (fresh ids), no actors or rules, no form for empty parameters");
+ok(!("command" in a) && !("name" in a) && !("parameters" in a), "command-only keys aren't carried over");
+const withParams = mk(); withParams.commands[0].parameters = form;
+out = commandToAction(withParams, ["commands", 0], null, 0);
+ok(out.actions[0].label === "Approve cmd" && out.actions[0].action === "approve" && JSON.stringify(out.actions[0].form) === JSON.stringify(form), "into the global actions, at the index; its parameters become the form");
+threw = false;
+try { commandToAction(mk(), ["actions", 0], null, null); } catch (e) { threw = /no longer where it was/.test(e.message); }
+ok(threw, "only a command can become an action");
+threw = false;
+try { commandToAction(mk(), ["commands", 0], 7, null); } catch (e) { threw = /stage is no longer there/.test(e.message); }
+ok(threw, "a stage that isn't there is refused");
+
+// several at once, one change
+out = copyItemsAs(mk(), "command", [["stages", 0, "actions", 0], ["actions", 0]], null, 0);
+ok(out.commands.map((c) => c.label).join() === "Approve,Notify,Approve cmd", "several actions become commands, in order, from the index");
+ok(out.commands[0].name === "approve_2" && out.commands[1].name === "notify", "each gets an unused name");
+const many = mk(); many.commands.push({ id: "cmd002", name: "ping", label: "Ping", command: { type: "series", commands: [] }, parameters: [] });
+out = copyItemsAs(many, "action", [["commands", 0], ["commands", 1]], 0, null);
+ok(out.stages[0].actions.map((x) => x.label).join() === "Approve,Other,Approve cmd,Ping" && out.commands.length === 2, "several commands become actions at the end of a stage; the commands stay");
+const all2 = ids(out);
+ok(all2.length === new Set(all2).size, "still no id twice");
+threw = false;
+try { copyItemsAs(mk(), "command", [], null, null); } catch (e) { threw = /Nothing selected/.test(e.message); }
+ok(threw, "an empty selection is refused (so the node view hears back)");
+
 const raw = fs.readFileSync(process.argv[2], "utf8");
+ok(raw.includes('case "commandToAction"'), "the Workflows panel answers commandToAction");
 ok(raw.includes('case "duplicateItem"') && raw.includes('case "actionToCommand"'), "the Workflows panel answers duplicateItem and actionToCommand");

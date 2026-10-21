@@ -2210,6 +2210,7 @@ function freeMachineName(base, taken) {
 // duplicateWorkflowItem — A copy of the action or command at `path`, right below it: "<label> (copy)", an unused
 // machine name (`<name>_copy`), a new id, and its steps copied with fresh ids. Everything else is copied as it is.
 function duplicateWorkflowItem(definition, kind, path) {
+  if (!["action", "command"].includes(kind) || !Array.isArray(path)) throw new Error("Only an action or a command can be duplicated.");
   let item = getAt(definition, path);
   if (!item || typeof item != "object" || Array.isArray(item) || typeof path[path.length - 1] != "number") throw new Error("That item is no longer where it was \u2014 reopen the workflow and try again.");
   let listPath = path.slice(0, -1),
@@ -2246,6 +2247,46 @@ function actionToCommand(definition, path, index) {
     count = asArray(definition?.commands).length,
     at = typeof index == "number" && index >= 0 && index <= count ? index : null;
   return stampStepIds(insertAt(definition, ["commands"], at, command)).definition;
+}
+// commandToAction — A new action made from the command at `path` (which stays), in stage `stageIndex` (null: the
+// global actions): its label, its name as the action's machine name (made unused in that list), a new id, its steps
+// with fresh ids as the task, and its parameters as the form; no actors and no access rules, like a new action.
+// Inserted at `index`, else at the end.
+function commandToAction(definition, path, stageIndex, index) {
+  let command = getAt(definition, path),
+    inCommands = path.length === 2 && path[0] === "commands" && typeof path[1] == "number";
+  if (!inCommands || !command || typeof command != "object" || Array.isArray(command)) throw new Error("That command is no longer where it was \u2014 reopen the workflow and try again.");
+  let listPath = typeof stageIndex == "number" ? ["stages", stageIndex, "actions"] : ["actions"];
+  if (typeof stageIndex == "number" && (!definition?.stages?.[stageIndex] || typeof definition.stages[stageIndex] != "object")) throw new Error("That stage is no longer there \u2014 reopen the workflow and try again.");
+  let label = nonEmptyString(command.label) ?? nonEmptyString(command.name) ?? "Action",
+    list = asArray(getAt(definition, listPath)),
+    taken = list.map(action => nonEmptyString(action?.action) ?? "").filter(Boolean),
+    params = command.parameters,
+    hasForm = params && typeof params == "object" && (Array.isArray(params) ? params.length > 0 : true),
+    action = {
+      ...newAction(label, freeMachineName(nonEmptyString(command.name) ?? toMachineName(label), taken), unusedId(collectIds(definition))),
+      task: command.command && typeof command.command == "object" ? cloneStep(command.command) : {
+        type: "series",
+        commands: []
+      },
+      ...(hasForm ? {
+        form: structuredClone(params)
+      } : {})
+    },
+    at = typeof index == "number" && index >= 0 && index <= list.length ? index : null;
+  return stampStepIds(insertAt(definition, listPath, at, action)).definition;
+}
+// copyItemsAs — Several actions made into commands ("command"), or commands into actions in one list ("action"), as
+// ONE change: each in the order given, placed one after another from `index` (null: the end). The originals stay,
+// so the paths stay valid while the copies go in.
+function copyItemsAs(definition, as, paths, stageIndex, index) {
+  if (!Array.isArray(paths) || paths.length === 0 || !paths.every(path => Array.isArray(path))) throw new Error("Nothing selected to copy.");
+  let result = definition;
+  paths.forEach((path, i) => {
+    let at = typeof index == "number" ? index + i : null;
+    result = as === "command" ? actionToCommand(result, path, at) : commandToAction(result, path, stageIndex, at);
+  });
+  return result;
 }
 // updateFields (minified: Rr) — Changes the form-field list of an action / command at a path.
 function updateFields(definition, path, formKey, update) {
@@ -10472,20 +10513,26 @@ var draftHistoryLimit = 20,
               kind: kind,
               path: nodePath
             } = message.payload ?? {};
-            if (!["action", "command"].includes(kind) || !Array.isArray(nodePath)) break;
             await this.applyEdit(workflowId, draft => `Duplicated ${kind} "${nonEmptyString(getAt(draft, nodePath)?.label) ?? kind}"`, draft => duplicateWorkflowItem(draft, kind, nodePath));
             break;
           }
-        // Makes a command from an action (dragged into Commands); the action stays.
+        // Makes commands from actions dragged into Commands (`paths`, or one `path`); the actions stay. One draft edit.
+        // Makes actions from commands dragged into a stage or the global actions (`stageIndex`: null); they stay too.
         case "actionToCommand":
+        case "commandToAction":
           {
             let {
-              workflowId: workflowId,
-              path: nodePath,
-              index: index
-            } = message.payload ?? {};
-            if (!Array.isArray(nodePath)) break;
-            await this.applyEdit(workflowId, draft => `Made a command from action "${nonEmptyString(getAt(draft, nodePath)?.label) ?? "action"}"`, draft => actionToCommand(draft, nodePath, typeof index == "number" ? index : null));
+                workflowId: workflowId,
+                path: nodePath,
+                paths: nodePaths,
+                stageIndex: stageIndex,
+                index: index
+              } = message.payload ?? {},
+              list = Array.isArray(nodePaths) ? nodePaths : Array.isArray(nodePath) ? [nodePath] : [],
+              toCommand = message.type === "actionToCommand",
+              from = toCommand ? "action" : "command";
+            // applyEdit answers with editSaved or editFailed, also when the paths are missing
+            await this.applyEdit(workflowId, draft => list.length === 1 ? `Made ${toCommand ? "a command" : "an action"} from ${from} "${nonEmptyString(getAt(draft, list[0])?.label) ?? from}"` : `Made ${list.length} ${toCommand ? "commands" : "actions"} from ${from}s`, draft => copyItemsAs(draft, toCommand ? "command" : "action", list, typeof stageIndex == "number" ? stageIndex : null, typeof index == "number" ? index : null));
             break;
           }
         // Renames a stage, action or command (and sets a stage's colour, or a machine name).
