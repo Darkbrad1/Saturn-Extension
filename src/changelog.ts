@@ -1,6 +1,14 @@
 /** Release notes shown in the side panel's Changes tab (newest first). */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.35",
+    title: "Make a command from an action, and Duplicate",
+    items: [
+      "In the layers panel, drag an action (from a stage or from Global actions) into Commands to make a command from it. It gets the action's steps, and the action's form becomes its parameters. The action stays where it was. Drop it on a command to put the new one before it.",
+      "Actions and commands now have Duplicate in their right-click menu. The copy goes right below, named \"… (copy)\", with its own id and steps.",
+    ],
+  },
+  {
     version: "0.3.34",
     title: "Pick id for Linked by",
     items: ["Settings that pick a property of another resource (a dynamic source's Linked by and Value field, a map's fields) now also offer id, created_at and updated_at. Every record has them, but its resource doesn't list them, so they were missing."],

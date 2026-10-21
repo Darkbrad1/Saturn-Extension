@@ -1812,6 +1812,17 @@
 #sonover-node-view .is-drop {
   box-shadow: inset 0 2px 0 #0d99ff;
 }
+/* an action dragged over Commands: it becomes a command there */
+#sonover-node-view .nv-ol-group.is-drop-into {
+  background: rgba(31, 110, 74, 0.18);
+  outline: 1px dashed #1f6e4a;
+  outline-offset: -1px;
+}
+#sonover-node-view .nv-ol-drop-hint {
+  padding: 4px 12px 2px;
+  color: #8fd1b0;
+  font-size: 11px;
+}
 
 /* ---- settings panels (fg-*) */
 #sonover-node-view .fg-pad {

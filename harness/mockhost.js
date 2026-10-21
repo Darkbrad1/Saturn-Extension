@@ -412,6 +412,16 @@
           if (p.machineName !== undefined) { const k = p.kind === "stage" ? "stage" : p.kind === "action" ? "action" : "name"; n[k] = p.machineName; }
           if (p.color !== undefined) { if (p.color && !/^#[0-9a-f]{6}$/i.test(p.color)) throw new Error(`"${p.color}" is not a colour`); n.color = p.color; } });
         break;
+      // like the host's duplicateWorkflowItem / actionToCommand (new ids; step ids dropped, as the host gives fresh ones)
+      case "duplicateItem": apply(id, `Duplicated ${p.kind}`, (d) => {
+        const list = get(d, p.path.slice(0, -1)), i = p.path[p.path.length - 1], item = list[i], nk = p.kind === "command" ? "name" : "action", sk = p.kind === "command" ? "command" : "task";
+        const copy = JSON.parse(JSON.stringify(item)); let name = `${item[nk]}_copy`; for (let n = 2; list.some((x) => x[nk] === name); n++) name = `${item[nk]}_copy_${n}`;
+        Object.assign(copy, { id: Math.random().toString(36).slice(2, 8), label: `${item.label} (copy)`, [nk]: name }); const strip = (o) => { if (o && typeof o === "object") { delete o.id; Object.entries(o).forEach(([k, v]) => k !== "data" && strip(v)); } }; strip(copy[sk]);
+        list.splice(i + 1, 0, copy); }); break;
+      case "actionToCommand": apply(id, "Made a command from an action", (d) => {
+        const a = get(d, p.path); let name = a.action; for (let n = 2; d.commands.some((x) => x.name === name); n++) name = `${a.action}_${n}`;
+        const cmd = { id: Math.random().toString(36).slice(2, 8), name, label: a.label, command: JSON.parse(JSON.stringify(a.task ?? { type: "series", commands: [] })), parameters: JSON.parse(JSON.stringify(a.form ?? [])) };
+        d.commands.splice(typeof p.index === "number" ? p.index : d.commands.length, 0, cmd); }); break;
       case "deleteNode": apply(id, `Deleted ${p.kind}`, (d) => { const parent = get(d, p.path.slice(0, -1)); parent.splice(p.path[p.path.length - 1], 1); }); break;
       case "createFormField": {
         const key = ze(p.label);

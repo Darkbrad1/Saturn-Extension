@@ -1,4 +1,4 @@
-# sonover-code (v0.3.34)
+# sonover-code (v0.3.35)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,10 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.35 — Make a command from an action, and Duplicate
+- Layers panel (`src/outliner.tsx`): an action row dragged into Commands (the section, or a command row: before it) sends `actionToCommand {workflowId, path, index}`; the section is highlighted with a hint while dragging. The right-click menu of an action or command has Duplicate → `duplicateItem {workflowId, kind, path}`.
+- Host (`host/extension.js`): both are one draft edit. `duplicateWorkflowItem` (copy right below, "<label> (copy)", machine name `<name>_copy` made unused in its list by `freeMachineName`, new id, steps copied with fresh ids through `cloneStep` + `stampStepIds`) and `actionToCommand` (a new command: label, machine name made unused among commands, new id, the task's steps with fresh ids as `command`, `form` as `parameters`; actors, access rules and other action-only settings aren't carried over; the action stays). `hosttest-items.cjs` (18), `test22.mjs` (16). (The existing `duplicateNode` message is a step's duplicate, so this one is `duplicateItem`.)
 
 ## New in 0.3.34 — Pick id for Linked by
 - `src-res/editor.tsx`: a `field` setting (one property of another resource) also lists `BUILT_IN` (`id`, `created_at`, `updated_at`) after the resource's own properties, unless it lists them itself. So a dynamic source's Linked by (`source_definition.bounded_property`) can be `id`. `test21.mjs` (7).

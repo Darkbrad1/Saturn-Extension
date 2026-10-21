@@ -58,6 +58,10 @@ export function Outliner(props: {
   onCreate: (r: CreateRequest) => void;
   onRename: (kind: NodeKind, path: Path, label: string) => void;
   onDelete: (kind: NodeKind, path: Path, label: string) => void;
+  /** a copy of an action or command, right below it */
+  onDuplicate: (kind: "action" | "command", path: Path) => void;
+  /** a command made from an action dragged into Commands (the action stays), at `index` (null: the end) */
+  onActionToCommand: (path: Path, index: number | null) => void;
   onClearError: () => void;
 }) {
   const { wf } = props;
@@ -90,14 +94,15 @@ export function Outliner(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.addRequest?.n]);
 
-  // ---- drag to reorder (stages among stages, actions within their list) ----
+  // ---- drag to reorder (stages among stages, actions within their list), or an action into Commands ----
   const drag = useRef<{ kind: "stage" | "action"; stageIndex: number | null; index: number } | null>(null);
   const [dropAt, setDropAt] = useState<string | null>(null);
   const dragProps = (kind: "stage" | "action", stageIndex: number | null, index: number) => ({
     draggable: true,
     onDragStart: (e: React.DragEvent) => {
       drag.current = { kind, stageIndex, index };
-      e.dataTransfer.effectAllowed = "move";
+      // an action can also be copied into Commands
+      e.dataTransfer.effectAllowed = kind === "action" ? "copyMove" : "move";
       e.dataTransfer.setData("text/plain", `${kind}:${stageIndex}:${index}`);
     },
     onDragEnd: () => {
@@ -122,6 +127,27 @@ export function Outliner(props: {
     },
   });
   const isDrop = (kind: string, si: number | null, i: number) => dropAt === `${kind}:${si}:${i}`;
+  // an action dropped on Commands (on a command: before it; elsewhere in the section: at the end)
+  const actionPath = (d: { stageIndex: number | null; index: number }): Path => (d.stageIndex === null ? ["actions", d.index] : ["stages", d.stageIndex, "actions", d.index]);
+  const commandDrop = (index: number | null) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (drag.current?.kind !== "action") return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "copy";
+      setDropAt(`command:${index ?? "end"}`);
+    },
+    onDrop: (e: React.DragEvent) => {
+      const d = drag.current;
+      drag.current = null;
+      setDropAt(null);
+      if (d?.kind !== "action") return;
+      e.preventDefault();
+      e.stopPropagation();
+      props.onActionToCommand(actionPath(d), index);
+    },
+  });
+  const draggingIntoCommands = dropAt?.startsWith("command:") ?? false;
 
   const startAdd = (kind: CreateKind, stageIndex: number | null) => {
     props.onClearError();
@@ -184,13 +210,14 @@ export function Outliner(props: {
   const allStagesClosed = wf.stages.length > 0 && wf.stages.every((st) => isClosed(`stage:${st.stage}`));
 
   // a render function (not a component) so rows keep their identity across re-renders
-  const renderRow = (p: { tkey: string; label: string; kind: NodeKind; path: Path; dot: string; indent?: boolean; drag?: ReturnType<typeof dragProps>; dropping?: boolean }) =>
+  const renderRow = (p: { tkey: string; label: string; kind: NodeKind; path: Path; dot: string; indent?: boolean; drag?: ReturnType<typeof dragProps>; drop?: ReturnType<typeof commandDrop>; dropping?: boolean }) =>
     isRename(p.path) ? (
       <div key={p.tkey} className={`nv-ol-edit ${p.indent ? "is-indent" : ""}`}>{inline("r" + p.tkey, "Name", p.label)}</div>
     ) : (
       <div
         key={p.tkey}
         {...(p.drag ?? {})}
+        {...(p.drop ?? {})}
         className={`nv-ol-item ${props.activeKey === p.tkey ? "is-active" : ""} ${p.indent ? "is-indent" : ""} ${p.dropping ? "is-drop" : ""}`}
         role="button"
         tabIndex={0}
@@ -198,7 +225,7 @@ export function Outliner(props: {
         onKeyDown={(e) => e.key === "Enter" && props.onSelect(p.tkey)}
         onDoubleClick={() => setEditing({ mode: "rename", kind: p.kind, path: p.path, label: p.label })}
         onContextMenu={(e) => openMenu(e, p.kind, p.path, p.label)}
-        title="Double-click to rename · right-click for more"
+        title={p.kind === "action" ? "Double-click to rename · right-click for more · drag into Commands to make a command" : "Double-click to rename · right-click for more"}
       >
         <span className="nv-ol-dot" style={{ background: p.dot }} />
         <span className="nv-ol-label">{p.label}</span>
@@ -372,8 +399,8 @@ export function Outliner(props: {
         {isAdd("action", null) && <div className="nv-ol-edit">{inline("ag", "New global action name")}</div>}
       </div>
 
-      {/* Commands */}
-      <div className="nv-ol-group">
+      {/* Commands (an action dropped here becomes a command too) */}
+      <div className={`nv-ol-group ${draggingIntoCommands ? "is-drop-into" : ""}`} {...commandDrop(null)} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropAt(null); }}>
         <div className="nv-ol-head" onClick={() => props.onToggleCollapse("group:commands")}>
           {chevron("group:commands", "commands")}
           <span className="nv-ol-head-label">Commands</span>
@@ -383,9 +410,10 @@ export function Outliner(props: {
           </button>
         </div>
         {!isClosed("group:commands") && wf.commands.map((c, ci) =>
-          renderRow({ tkey: `c:${c.id}`, label: c.label, kind: "command", path: ["commands", ci], dot: "#1f6e4a" }),
+          renderRow({ tkey: `c:${c.id}`, label: c.label, kind: "command", path: ["commands", ci], dot: "#1f6e4a", drop: commandDrop(ci), dropping: dropAt === `command:${ci}` }),
         )}
         {isAdd("command", null) && <div className="nv-ol-edit">{inline("ac", "New command name")}</div>}
+        {draggingIntoCommands && <div className="nv-ol-drop-hint">Drop to make a command from this action. The action stays.</div>}
       </div>
       </>
       )}
@@ -419,6 +447,18 @@ export function Outliner(props: {
             >
               Rename
             </button>
+            {menu.kind !== "stage" && (
+              <button
+                className="nv-ctx-item"
+                onClick={() => {
+                  setMenu(null);
+                  props.onClearError();
+                  props.onDuplicate(menu.kind as "action" | "command", menu.path);
+                }}
+              >
+                Duplicate
+              </button>
+            )}
             <button
               className="nv-ctx-item is-danger"
               onClick={() => {

@@ -1156,6 +1156,16 @@ export function App() {
             edit("deleteNode", { kind, path });
             sourceRef.current = "outliner";
           }}
+          onDuplicate={(kind, path) => {
+            setOutlinerError(null);
+            edit("duplicateItem", { kind, path });
+            sourceRef.current = "outliner";
+          }}
+          onActionToCommand={(path, index) => {
+            setOutlinerError(null);
+            edit("actionToCommand", { path, index });
+            sourceRef.current = "outliner";
+          }}
           onClearError={() => setOutlinerError(null)}
         />
 
