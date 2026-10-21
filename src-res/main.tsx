@@ -12,7 +12,7 @@ import { createRoot } from "react-dom/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Cards, PropertyEditor, Switch, type Field, type Lookups } from "./editor";
 import { setAt } from "./editor";
-import { GROUPS, KEY_PATTERN, TYPES, diff, get, keyFrom, mappedOf, newProperty, type Prop } from "./spec";
+import { ALL, GROUPS, KEY_PATTERN, TYPES, diff, get, keyFrom, mappedOf, newProperty, type Prop } from "./spec";
 import css from "./res.css";
 import editorCss from "./editor.css";
 
@@ -113,6 +113,9 @@ function App() {
   const [resource, setResource] = useState<string | null>(saved.resource ?? null);
   // each resource's properties as the instance has them (read when it's opened)
   const [loaded, setLoaded] = useState<Record<string, Property[]>>({});
+  // for messages handled outside a render (a code file saved): what each resource has on the instance
+  const loadedRef = useRef(loaded);
+  loadedRef.current = loaded;
   const [works, setWorks] = useState<Record<string, Work>>(() => {
     if (saved.works) return saved.works;
     // carried over from the first versions (one resource's changes)
@@ -193,6 +196,29 @@ function App() {
           setResource(payload.resource);
           setSelected([]);
           break;
+        // a code setting's file was saved ("Open in a file"): its text goes into that property's draft
+        case "codeFromFile": {
+          const { id, path, text } = payload as { id: string; path: string[]; text: string };
+          const original = (loadedRef.current[r] ?? []).find((p) => p.key === id);
+          const along = ALL.find(({ setting }) => setting.path.join(".") === path.join("."))?.setting.alongside ?? [];
+          const put = (prop: Prop) => {
+            let next = setAt(prop, path, text);
+            for (const a of along) if (get(next, a.path) === undefined) next = setAt(next, a.path, a.value);
+            return next;
+          };
+          setWork(r, (w) => {
+            const added = w.added.find((a) => a.id === id);
+            if (added) return { ...w, added: w.added.map((a) => (a.id === id ? { ...a, prop: put(a.prop) } : a)) };
+            if (!original) return w;
+            const next = put(w.drafts[id] ?? asProp(original));
+            const drafts = { ...w.drafts };
+            if (same(asProp(original), next)) delete drafts[id];
+            else drafts[id] = next;
+            return { ...w, drafts };
+          });
+          setNotice({ kind: "ok", text: `${r}.${id}: the file's code is in, not saved yet. Save sends it to the instance.` });
+          break;
+        }
         case "properties":
           setLoading(false);
           setLoaded((before) => ({ ...before, [r]: payload.properties }));
@@ -450,6 +476,8 @@ function App() {
     own: all.filter((p) => !deleted.has(p.key)).map((p) => ({ key: p.shownKey, label: p.label, type: p.type })),
     keyTaken: (key) => all.filter((p) => p.key !== current?.key && !deleted.has(p.key)).some((p) => p.shownKey === key),
     openResource,
+    // a code setting in its own editor tab (one property picked); saving the file comes back as codeFromFile
+    openCode: resource && current ? (path, language, text) => send("openCode", { resource, id: current.key, path, language, text }) : undefined,
     fieldsOf: (r) => {
       const have = fields[r];
       if (have === undefined && !asked.current.has(`fields:${r}`)) {

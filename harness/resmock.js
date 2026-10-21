@@ -19,6 +19,12 @@
       { ...prop("payments", "Payments", "array"), source: "dynamic", source_type: "resource_lookup", source_definition: { reference: "Application", bounded_property: "loan", default_limit: 10 } },
     ],
     User: [prop("email", "Email", "string", true)],
+    // an inline component, as a real definition has it (Application's Parties property)
+    Deal: [
+      { ...prop("parties", "Parties", "array"), lookup_type: "map", map: { type: "model", value_field: "id", label_field: "label", reference: "ApplicationParty" }, placeInOwnTab: true, tabIcon: "male",
+        rendering: { component: "inline-component", options: { code: { type: "property", value: "<template>\n  <ApplicationPartyDirectory :model-value=\"modelValue\" :record=\"record\" @refresh=\"$emit('refresh')\" />\n</template>\n<script>\nexport default { props: { modelValue: { type: [Array, Object], default: null }, record: { type: Object, default: null } }, emits: ['refresh'] }\n</script>" } } } },
+      prop("amount", "Amount", "number"),
+    ],
     LoanCategory: [prop("id", "ID", "string"), prop("label", "Label", "string"), prop("code", "Code", "string")],
   };
   const view = (list) => list.map((p) => ({ key: p.key, label: p.label, type: p.type, required: p.required === true, editable: true, definition: p }));
@@ -59,6 +65,11 @@
         reply("saved", { resource: p.resource, ok: true, backup: "/backups/Application-1.json", properties: view(saved) });
       }
       if (m.type === "fields") reply("fields", { resource: p.resource, fields: (data[p.resource] || []).map((x) => ({ key: x.key, label: x.label, type: x.type })) });
+      // "Open in a file": logged in __opened; __saveCodeFile(text) stands in for saving that file
+      if (m.type === "openCode") {
+        (window.__opened = window.__opened || []).push({ type: m.type, ...p });
+        window.__saveCodeFile = (text) => reply("codeFromFile", { resource: p.resource, id: p.id, path: p.path, text });
+      }
       if (m.type === "subjects") reply("subjects", { groups: [{ id: "g-staff", name: "Staff", detail: "Everyone at the branch" }, { id: "g-admin", name: "Admins" }], users: [{ id: "u-ada", name: "Ada", detail: "ada@example.com" }], permissions: [{ id: "p-approve", name: "loans.approve" }], error: null });
       if (m.type === "options") reply("options", { resource: p.resource, value: p.value, label: p.label, options: [["attachmentgroup-1", "Loan documents"], ["attachmentgroup-2", "ID documents"]] });
       if (m.type === "workflows") reply("workflows", { resource: p.resource, workflows: p.resource === "Application" ? [{ id: "wf-1", name: "Loan process", via: "workflow", hooks: [] }, { id: "wf-2", name: "Notify", via: "hook", hooks: ["after create"] }] : [] });

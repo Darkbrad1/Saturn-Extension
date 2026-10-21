@@ -42,6 +42,9 @@ export interface Setting {
   single?: boolean;
   /** a switch that adds (on) or removes (off) a whole part of the property */
   toggles?: { on: unknown };
+  /** values Saturn keeps next to this one, written too when this is set and they're missing (as seen in real
+   *  definitions, e.g. a renderer option's `type: "property"`) */
+  alongside?: { path: Path; value: unknown }[];
   edit: Kind;
 }
 
@@ -333,7 +336,17 @@ export const GROUPS: Group[] = [
             path: ["rendering", "options", "currency", "value"],
             label: "Currency",
             when: (p) => get(p, ["rendering", "component"]) === "currency",
+            alongside: [{ path: ["rendering", "options", "currency", "type"], value: "property" }],
             edit: { kind: "text", mono: true, placeholder: "USD" },
+          },
+          {
+            // as a real definition stores it: rendering.options.code = {type: "property", value: "<template>…"}
+            path: ["rendering", "options", "code", "value"],
+            label: "Component code",
+            hint: "The Vue component that shows the value: its <template>, and its <script> if it has one.",
+            when: (p) => get(p, ["rendering", "component"]) === "inline-component",
+            alongside: [{ path: ["rendering", "options", "code", "type"], value: "property" }],
+            edit: { kind: "code", lang: "html", empty: "<template>\n  <div>{{ value }}</div>\n</template>\n" },
           },
           { path: ["format"], label: "Date format", when: (p) => p.type === "date" || p.format !== undefined, edit: { kind: "text", mono: true, placeholder: "DD/MM/YYYY" } },
         ],

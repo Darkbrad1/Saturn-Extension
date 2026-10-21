@@ -1,6 +1,15 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.45",
+    title: "Inline component code",
+    items: [
+      "A property whose renderer is Inline component now shows its Vue component as Component code (in Display), highlighted, on the Resources screen and the Form tab.",
+      "Picking Inline component for a property shows it with a starting template. It's saved the way Saturn stores it (rendering.options.code, with type \"property\"), and so is a Currency renderer's currency.",
+      "On the Resources screen, code settings (Component code, the visibility function, lookup functions, …) now have Open in a file, like the code step. Saving the file puts the code in the screen as an unsaved change; Save sends it.",
+    ],
+  },
+  {
     version: "0.3.44",
     title: "Find a setting finds more",
     items: [

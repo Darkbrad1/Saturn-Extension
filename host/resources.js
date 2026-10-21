@@ -29,6 +29,42 @@ var ResourcePropertiesHost = (() => {
   let extensionRoot = null;
   // instance id -> the resource to open the screen on (asked before the screen was made)
   const pendingShow = new Map();
+  // a code setting opened as a file ("Open in a file"): file uri -> {instanceId, resource, id, path}
+  const codeFiles = new Map();
+  let codeSaveSub = null;
+
+  /** A file's name part: letters, digits, dot, dash and underscore only. */
+  const safeName = (text) => String(text).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "_";
+
+  /** Opens one property's code setting as a file beside the screen; saving the file sends its text back to the
+   *  screen (codeFromFile), as an unsaved change there, like typing it. Nothing goes to Saturn until Save. */
+  async function openCode(instance, payload) {
+    const { resource, id, path, language, text } = payload ?? {};
+    if (typeof resource !== "string" || !resource || typeof id !== "string" || !id) throw new Error("Pick one property to open its code.");
+    if (!Array.isArray(path) || !path.length || !path.every((part) => typeof part === "string" && part && !["__proto__", "constructor", "prototype"].includes(part)) || ["key", "label", "type"].includes(path[0]))
+      throw new Error("That setting can't be opened as a file.");
+    if (!storageUri) throw new Error("The extension has no storage folder to put the file in.");
+    const ext = language === "html" ? "html" : "js";
+    const folder = vs.Uri.joinPath(storageUri, "resource-code", safeName(instance.id), safeName(resource));
+    const file = vs.Uri.joinPath(folder, `${safeName(id)}.${safeName(path.join("."))}.${ext}`);
+    await vs.workspace.fs.createDirectory(folder);
+    await vs.workspace.fs.writeFile(file, new TextEncoder().encode(typeof text === "string" ? text : ""));
+    codeFiles.set(file.toString(), { instanceId: instance.id, resource, id, path });
+    if (!codeSaveSub)
+      codeSaveSub = vs.workspace.onDidSaveTextDocument((document) => {
+        const target = codeFiles.get(document.uri.toString());
+        if (!target) return;
+        const panel = panels.get(target.instanceId);
+        if (!panel) {
+          vs.window.showWarningMessage(`The Resources screen is closed, so ${target.resource}'s ${target.id} wasn't changed. Open it again and use Open in a file.`);
+          return;
+        }
+        panel.webview.postMessage({ type: "codeFromFile", payload: { resource: target.resource, id: target.id, path: target.path, text: document.getText() } });
+      });
+    const document = await vs.workspace.openTextDocument(file);
+    await vs.window.showTextDocument(document, { viewColumn: vs.ViewColumn.Beside, preview: false });
+    vs.window.setStatusBarMessage(`$(edit) ${resource}.${id}: save this file to put it in the Resources screen (then Save there)`, 6000);
+  }
 
   /** GET /Resources/<name> -> {body, data} (data: the property list or map). */
   async function readResource(manager, instance, resource) {
@@ -502,6 +538,11 @@ var ResourcePropertiesHost = (() => {
         await vs.env.clipboard.writeText(String(payload.text ?? ""));
         break;
       }
+      // a code setting (like an inline component) in its own editor tab
+      case "openCode": {
+        await openCode(instance, payload);
+        break;
+      }
       // The resource's page in Saturn's web app: <instance url>/resources/<name>.
       case "openInSaturn": {
         const resource = message.payload?.resource;
@@ -557,5 +598,5 @@ var ResourcePropertiesHost = (() => {
     storageUri = options.globalStorageUri ?? null;
   }
 
-  return { open, attach, handle, propertiesOf, applyChanges, applyRequired, applyAdds, applyOrder, applyRemoves, applyRenames, newProperty, differences, entriesOf };
+  return { open, attach, handle, openCode, codeFiles, propertiesOf, applyChanges, applyRequired, applyAdds, applyOrder, applyRemoves, applyRenames, newProperty, differences, entriesOf };
 })();

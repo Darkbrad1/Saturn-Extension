@@ -89,13 +89,19 @@ export function PropertyEditor(props: {
   // the part of the page in view: "group" or "group-part"
   const [inView, setInView] = useState(props.group);
   const page = useRef<HTMLDivElement>(null);
-  const set = (path: Path, value: unknown, remove = false) =>
+  const set = (path: Path, value: unknown, remove = false) => {
+    // what Saturn keeps next to this setting (like a renderer option's type), filled in when it's missing
+    const along = ALL.find(({ setting }) => setting.path.join(".") === path.join("."))?.setting.alongside ?? [];
     props.onChange(
-      items.map((it) =>
+      items.map((it) => {
         // "not set" again when it wasn't set before
-        setAt(it.draft, path, value, remove || (value === "" && get(it.original, path) === undefined)),
-      ),
+        let next = setAt(it.draft, path, value, remove || (value === "" && get(it.original, path) === undefined));
+        if (!remove && value !== undefined && get(next, path) !== undefined)
+          for (const a of along) if (get(next, a.path) === undefined) next = setAt(next, a.path, a.value);
+        return next;
+      }),
     );
+  };
   const revert = (path: Path) => props.onChange(items.map((it) => setAt(it.draft, path, get(it.original, path), get(it.original, path) === undefined)));
 
   const q = find.trim().toLowerCase();

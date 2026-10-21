@@ -1,4 +1,4 @@
-# sonover-code (v0.3.44)
+# sonover-code (v0.3.45)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,10 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.45 — Inline component code
+- `src-res/spec.ts`: "Component code" (`rendering.options.code.value`, `code` / `html`), shown when `rendering.component` is `inline-component`, from a real definition (Application's Parties). A setting's new `alongside` writes what Saturn keeps next to it when that's missing: `type: "property"` beside the component code and the Currency renderer's currency (`src-res/editor.tsx` `set`). `harness/resmock.js` has a `Deal` resource with that property.
+- Open in a file on the Resources screen: `lookups.openCode` → `openCode {resource, id, path, language, text}`; `ResourcePropertiesHost.openCode` writes `<globalStorage>/resource-code/<instance>/<resource>/<id>.<path>.<html|js>`, opens it beside, and on its save posts `codeFromFile {resource, id, path, text}`, which the screen puts in that property's draft (with `alongside`). Refuses `key` / `label` / `type` and prototype paths. `hosttest-rescode.cjs` (9), `test32.mjs` (16).
 
 ## New in 0.3.44 — Find a setting finds more
 - `src-res/editor.tsx`: the settings search (`matches`, `textOf`) also reads the setting's section heading, its group's title and its choices' labels (`options`). Several words: as a phrase when some setting has them together (`asPhrase`), else each word anywhere. `test31.mjs` (9).
