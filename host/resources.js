@@ -423,6 +423,106 @@ var ResourcePropertiesHost = (() => {
 </html>`;
   }
 
+  // ── Resource settings: the resource's ResourceDetail record (GET /resourceDetails/<id>) ──
+  // Only these keys are written (PUT /resourceDetails/<id> with just them, like saveLifecycleHooks);
+  // drawer_enabled is also written into render_details, where Saturn keeps a copy of it.
+  const SETTING_KEYS = ["sections", "description", "drawer_enabled"];
+  // keys on the record that are about who's reading, not the record
+  const SERVER_KEYS = new Set(["_permissions_", "field_restrictions"]);
+
+  /** The record from a GET answer ({data: record} or the record itself). */
+  const recordOf = (body) => (isObject(body?.data) ? body.data : isObject(body) ? body : null);
+
+  /** The resource's ResourceDetail record: {detail} | {problem}. */
+  async function findDetail(manager, instance, resource) {
+    const listed = await listResourceDetails(manager, instance);
+    const rows = (Array.isArray(listed) ? listed : Array.isArray(listed?.data) ? listed.data : []).filter((d) => typeof d?.resource === "string" && d.resource.toLowerCase() === resource.toLowerCase());
+    if (!rows.length) return { problem: `${resource} has no ResourceDetail record on this instance, so it has no settings to change here.` };
+    if (rows.length > 1) return { problem: `${resource} has ${rows.length} ResourceDetail records. Which one Saturn uses can't be told from here, so its settings aren't changed here. Sort the extra one out on the instance first.` };
+    if (typeof rows[0].id !== "string" || !rows[0].id) return { problem: `${resource}'s ResourceDetail record has no id to save to.` };
+    return { detail: await readDetail(manager, instance, rows[0].id) };
+  }
+
+  /** One ResourceDetail record, read now. */
+  async function readDetail(manager, instance, id) {
+    const response = await checked(() => saturnRequest(manager, instance, `${RESOURCE_DETAILS}/${encodeURIComponent(id)}`), "Read resource settings");
+    if (!response.ok) throw new Error(`Read resource settings: ${response.status} ${response.statusText}`);
+    const detail = recordOf(await response.json());
+    if (!detail) throw new Error("Read resource settings: the instance sent no record.");
+    return detail;
+  }
+
+  /** The record as the screen gets it (without the reader's permissions). */
+  const shownDetail = (detail) => Object.fromEntries(Object.entries(detail).filter(([k]) => !SERVER_KEYS.has(k)));
+
+  /** Why a settings change can't be saved, or null. Sections: [{name, description, number_of_columns,
+   *  placeInTab, properties: [keys]}] (other keys a section has are kept as sent). */
+  function settingsProblem(changes) {
+    if (!isObject(changes)) return "Nothing to save.";
+    const keys = Object.keys(changes);
+    if (!keys.length) return "Nothing to save.";
+    const other = keys.find((k) => !SETTING_KEYS.includes(k));
+    if (other) return `${other} can't be changed here.`;
+    if ("description" in changes && typeof changes.description !== "string") return "The description must be text.";
+    if ("drawer_enabled" in changes && typeof changes.drawer_enabled !== "boolean") return "Open records in a drawer must be on or off.";
+    if ("sections" in changes) {
+      if (!Array.isArray(changes.sections)) return "Sections must be a list.";
+      for (const [i, s] of changes.sections.entries()) {
+        const n = `Section ${i + 1}`;
+        if (!isObject(s)) return `${n} isn't a section.`;
+        if (typeof s.name !== "string" || !s.name.trim()) return `${n} needs a name.`;
+        if ("description" in s && typeof s.description !== "string") return `${n}: the description must be text.`;
+        if (!Number.isInteger(s.number_of_columns) || s.number_of_columns < 1) return `${n}: the columns must be a whole number, 1 or more.`;
+        if ("placeInTab" in s && typeof s.placeInTab !== "boolean") return `${n}: own tab must be on or off.`;
+        if (!Array.isArray(s.properties) || !s.properties.every((k) => typeof k === "string")) return `${n}: the properties must be a list of keys.`;
+      }
+    }
+    return null;
+  }
+
+  /** The body to PUT: only the keys asked for (render_details with its drawer_enabled updated). */
+  function settingsBody(current, changes) {
+    const body = {};
+    for (const k of SETTING_KEYS) if (k in changes) body[k] = changes[k];
+    if ("drawer_enabled" in changes) body.render_details = { ...(isObject(current.render_details) ? current.render_details : {}), drawer_enabled: changes.drawer_enabled };
+    return body;
+  }
+
+  /** Re-reads the record, backs it up, PUTs only the changed keys, reads it back and compares. */
+  async function saveSettings(manager, instance, resource, id, changes) {
+    const problem = settingsProblem(changes);
+    if (problem) return { ok: false, failed: true, message: problem };
+    const current = await readDetail(manager, instance, id);
+    if (typeof current.resource !== "string" || current.resource.toLowerCase() !== resource.toLowerCase()) return { ok: false, failed: true, message: "That settings record is for another resource. Nothing was changed." };
+    const body = settingsBody(current, changes);
+    const backupFile = await backup(instance, `${resource}-settings`, current);
+    const what = `Save ${resource}'s settings`;
+    let response;
+    try {
+      response = await saturnRequest(manager, instance, `${RESOURCE_DETAILS}/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) });
+    } catch (error) {
+      return { ok: false, failed: true, message: `${what}: ${error instanceof Error ? error.message : String(error)}. Nothing was changed.` };
+    }
+    if (!response.ok) return { ok: false, failed: true, message: `${what}: ${response.status} ${response.statusText}. Nothing was changed.` };
+    const reply = await response.json().catch(() => null);
+    if (reply?.status === "FAILURE") return { ok: false, failed: true, message: `${what}: ${typeof reply.message === "string" ? reply.message : "the instance refused"}. Nothing was changed.` };
+    const after = await readDetail(manager, instance, id);
+    // the instance may add settings of its own (to the record, or to a section), so only what was sent is checked
+    const kept = (sent, got) => (Array.isArray(sent) ? Array.isArray(got) && sent.length === got.length && sent.every((x, i) => kept(x, got[i])) : covers(sent, got));
+    const wrong = Object.keys(body).filter((k) => !kept(body[k], after[k]));
+    if (!wrong.length) return { ok: true, backup: backupFile.fsPath, detail: after };
+    const untouched = wrong.every((k) => jsonDeepEqual(current[k], after[k]));
+    return {
+      ok: false,
+      backup: backupFile.fsPath,
+      detail: after,
+      unchanged: untouched,
+      message: untouched
+        ? `The instance answered but didn't keep the change to ${wrong.join(", ")}. Nothing was changed.`
+        : `The settings came back different from what was sent, in: ${wrong.join(", ")}. The old record is backed up at ${backupFile.fsPath}.`,
+    };
+  }
+
   /** Answers one message from the screen; `post` sends the reply. Also used by the host tests. */
   async function handle(manager, instance, message, post) {
     const payload = (message && message.payload) || {};
@@ -480,6 +580,20 @@ var ResourcePropertiesHost = (() => {
         const current = await readResource(manager, instance, resource);
         const result = await writeChecked(manager, instance, resource, current, savedData);
         post(result.ok ? "restored" : "saveMismatch", { resource, ok: result.ok, backup: result.backup, unchanged: result.unchanged, message: result.message, properties: propertiesOf(result.data) });
+        break;
+      }
+      // the resource's own settings (its ResourceDetail record)
+      case "settings": {
+        const resource = String(payload.resource);
+        const found = await findDetail(manager, instance, resource);
+        post("settings", found.detail ? { resource, id: found.detail.id, detail: shownDetail(found.detail) } : { resource, problem: found.problem });
+        break;
+      }
+      case "saveSettings": {
+        const resource = String(payload.resource);
+        const result = await saveSettings(manager, instance, resource, String(payload.id), payload.changes);
+        if (result.failed) return post("saveFailed", { resource, message: result.message });
+        post(result.ok ? "settingsSaved" : "settingsMismatch", { resource, id: String(payload.id), backup: result.backup, unchanged: result.unchanged, message: result.message, detail: shownDetail(result.detail) });
         break;
       }
       case "fields": {
@@ -584,7 +698,7 @@ var ResourcePropertiesHost = (() => {
       try {
         await handle(manager, instance, message, post);
       } catch (error) {
-        post(message?.type === "save" || message?.type === "restore" ? "saveFailed" : "failed", {
+        post(message?.type === "save" || message?.type === "restore" || message?.type === "saveSettings" ? "saveFailed" : "failed", {
           resource: message?.payload?.resource,
           message: error instanceof Error ? error.message : String(error),
         });
@@ -598,5 +712,5 @@ var ResourcePropertiesHost = (() => {
     storageUri = options.globalStorageUri ?? null;
   }
 
-  return { open, attach, handle, openCode, codeFiles, propertiesOf, applyChanges, applyRequired, applyAdds, applyOrder, applyRemoves, applyRenames, newProperty, differences, entriesOf };
+  return { open, attach, handle, openCode, codeFiles, settingsProblem, settingsBody, propertiesOf, applyChanges, applyRequired, applyAdds, applyOrder, applyRemoves, applyRenames, newProperty, differences, entriesOf };
 })();

@@ -31,6 +31,19 @@
   window.__posted = [];
   window.__saveMode = "ok";
   window.__data = data;
+  // ResourceDetail records, shaped like a real one
+  window.__settingsMode = "ok";
+  window.__details = {
+    Application: {
+      id: "resourcedetail-71501093", resource: "Application", description: "Loan applications", drawer_enabled: false,
+      render_details: { drawer_enabled: false, form_component: null, section_layout: "sections" },
+      default_view: { details: {}, view: "table" }, sort: null, lifecycle: {}, workflow: { reference: "wf-1", type: "workflow" },
+      sections: [
+        { name: "Basics", description: "", number_of_columns: 2, placeInTab: false, properties: ["status", "application_number"] },
+        { name: "Money", description: "Amounts", number_of_columns: 1, placeInTab: true, properties: ["requested_loan_amount"] },
+      ],
+    },
+  };
   const reply = (type, payload) => setTimeout(() => window.dispatchEvent(new MessageEvent("message", { data: { type, payload } })), 15);
   let state;
   window.acquireVsCodeApi = () => ({
@@ -74,6 +87,16 @@
       if (m.type === "options") reply("options", { resource: p.resource, value: p.value, label: p.label, options: [["attachmentgroup-1", "Loan documents"], ["attachmentgroup-2", "ID documents"]] });
       if (m.type === "workflows") reply("workflows", { resource: p.resource, workflows: p.resource === "Application" ? [{ id: "wf-1", name: "Loan process", via: "workflow", hooks: [] }, { id: "wf-2", name: "Notify", via: "hook", hooks: ["after create"] }] : [] });
       if (m.type === "probe") reply("probe", { resource: p.resource, report: "OPTIONS /api/Resources/Application: 204 — allows GET, PATCH\nMCP (/api/mcp): 1 tools\n  • update_resource_schema — Change a resource's properties" });
+      // the resource's own settings (its ResourceDetail record); Loan has none. __settingsMode: "ok" | "mismatch"
+      if (m.type === "settings") reply("settings", window.__details[p.resource] ? { resource: p.resource, id: window.__details[p.resource].id, detail: window.__details[p.resource] } : { resource: p.resource, problem: `${p.resource} has no ResourceDetail record on this instance, so it has no settings to change here.` });
+      if (m.type === "saveSettings") {
+        const d = window.__details[p.resource];
+        const next = { ...d, ...p.changes };
+        if ("drawer_enabled" in p.changes) next.render_details = { ...d.render_details, drawer_enabled: p.changes.drawer_enabled };
+        if (window.__settingsMode === "mismatch") return reply("settingsMismatch", { resource: p.resource, id: d.id, unchanged: true, message: "The instance answered but didn't keep the change to sections. Nothing was changed.", detail: d });
+        window.__details[p.resource] = next;
+        reply("settingsSaved", { resource: p.resource, id: d.id, backup: "/backups/Application-settings-1.json", detail: next });
+      }
       if (m.type === "restore") reply("restored", { resource: p.resource, ok: true, backup: "/backups/Application-2.json", properties: view(data[p.resource]) });
     },
   });

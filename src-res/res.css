@@ -4,3 +4,13 @@ html, body { margin: 0; height: 100%; background: var(--rs-bg); color: var(--rs-
 #resources-root { height: 100%; }
 * { box-sizing: border-box; }
 button, input, select, textarea { font: inherit; color: inherit; }
+
+/* Resource settings (settings.tsx) */
+.rs-settings .rs-section-head { padding: 8px 0; }
+.rs-section-tools { display: flex; gap: 4px; }
+.rs-sec-props { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rs-sec-props li { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 5px; background: var(--rs-input); }
+.rs-sec-props li.is-unknown { outline: 1px solid var(--rs-error); }
+.rs-sec-prop { flex: 1; min-width: 0; font-size: 12px; }
+.rs-sec-prop .rs-item-key { display: inline; margin-left: 6px; }
+.rs-btn.is-on { border-color: var(--rs-accent); }

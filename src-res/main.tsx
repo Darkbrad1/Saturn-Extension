@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Cards, PropertyEditor, Switch, type Field, type Lookups } from "./editor";
 import { setAt } from "./editor";
 import { ALL, GROUPS, KEY_PATTERN, TYPES, diff, get, keyFrom, mappedOf, newProperty, type Prop } from "./spec";
+import { SettingsPage, settingsError, settingsSummary, trimDraft, type Loaded, type SettingsDraft } from "./settings";
 import css from "./res.css";
 import editorCss from "./editor.css";
 
@@ -44,6 +45,10 @@ interface Saved {
   group?: string;
   trail?: Step[];
   clipboard?: Clip | null;
+  /** the resources' own settings as changed here (only the changed keys) */
+  settingsWorks?: Record<string, SettingsDraft>;
+  /** what the right side shows: a property's settings or the resource's */
+  view?: "properties" | "settings";
   // the first versions kept one resource's changes at the top level
   drafts?: Record<string, Prop>;
   added?: Added[];
@@ -155,13 +160,17 @@ function App() {
   // what was asked for already (asked during render, so not state)
   const asked = useRef(new Set<string>());
   // the resources still to save, one at a time (each waits for the one before)
-  const queue = useRef<{ resource: string; payload: Record<string, unknown> }[]>([]);
-  const savedCount = useRef(0);
+  const queue = useRef<{ type: "save" | "saveSettings"; resource: string; payload: Record<string, unknown> }[]>([]);
+  const savedCount = useRef(new Set<string>());
+  // the resources' own settings (their ResourceDetail records), as read, and as changed here
+  const [details, setDetails] = useState<Record<string, Loaded>>({});
+  const [settingsWorks, setSettingsWorks] = useState<Record<string, SettingsDraft>>(saved.settingsWorks ?? {});
+  const [view, setView] = useState<"properties" | "settings">(saved.view ?? "properties");
 
   // (in braces: VS Code's setState returns the state, which React would take for a cleanup function)
   useEffect(() => {
-    vscode.setState({ resource, works, selected, group, trail, clipboard } satisfies Saved);
-  }, [resource, works, selected, group, trail, clipboard]);
+    vscode.setState({ resource, works, selected, group, trail, clipboard, settingsWorks, view } satisfies Saved);
+  }, [resource, works, selected, group, trail, clipboard, settingsWorks, view]);
 
   const setWork = (r: string, change: (w: Work) => Work) =>
     setWorks((before) => {
@@ -172,12 +181,21 @@ function App() {
       return out;
     });
 
-  /** Sends the next resource in the queue, or says all were saved. */
+  /** A resource's settings draft, dropped when nothing in it differs any more. */
+  const setSettingsWork = (r: string, draft: SettingsDraft) =>
+    setSettingsWorks((before) => {
+      const out = { ...before };
+      if (Object.keys(draft).length) out[r] = draft;
+      else delete out[r];
+      return out;
+    });
+
+  /** Sends the next save in the queue (a resource's properties or its settings), or says all were saved. */
   const sendNext = () => {
     const next = queue.current.shift();
-    if (next) return send("save", next.payload);
+    if (next) return send(next.type, next.payload);
     setSaving(false);
-    setNotice({ kind: "ok", text: savedCount.current > 1 ? `Saved ${savedCount.current} resources. The instance has the changes, and a backup of each old definition was kept.` : "Saved. The instance has the change, and a backup of the old definition was kept." });
+    setNotice({ kind: "ok", text: savedCount.current.size > 1 ? `Saved ${savedCount.current.size} resources. The instance has the changes, and a backup of each old version was kept.` : "Saved. The instance has the change, and a backup of the old version was kept." });
   };
 
   useEffect(() => {
@@ -228,8 +246,31 @@ function App() {
         case "saved":
           setLoaded((before) => ({ ...before, [r]: payload.properties }));
           setWork(r, () => EMPTY);
-          savedCount.current++;
+          savedCount.current.add(r);
           sendNext();
+          break;
+        case "settings":
+          setDetails((before) => ({ ...before, [r]: typeof payload.problem === "string" ? { problem: payload.problem } : { id: payload.id, detail: payload.detail } }));
+          break;
+        case "settingsSaved":
+          setDetails((before) => ({ ...before, [r]: { id: payload.id, detail: payload.detail } }));
+          setSettingsWork(r, {});
+          savedCount.current.add(r);
+          sendNext();
+          break;
+        case "settingsMismatch":
+          queue.current = [];
+          setSaving(false);
+          setDetails((before) => ({ ...before, [r]: { id: payload.id, detail: payload.detail } }));
+          // keep only the changes the instance still doesn't have
+          setSettingsWorks((before) => {
+            const out = { ...before };
+            const left = before[r] ? trimDraft(payload.detail, before[r]) : {};
+            if (Object.keys(left).length) out[r] = left;
+            else delete out[r];
+            return out;
+          });
+          setNotice({ kind: "error", resource: r, text: `${r}: ${payload.message}` });
           break;
         case "restored":
           setSaving(false);
@@ -278,6 +319,16 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // a resource's own settings, read the first time they're shown (or when changes to them were kept)
+  useEffect(() => {
+    const wanted = [...(view === "settings" && resource ? [resource] : []), ...Object.keys(settingsWorks)];
+    for (const r of wanted) {
+      if (details[r] || asked.current.has(`settings:${r}`)) continue;
+      asked.current.add(`settings:${r}`);
+      send("settings", { resource: r });
+    }
+  }, [view, resource, details, settingsWorks]);
+
   // read the chosen resource (each time it's opened: what the instance has may have changed)
   useEffect(() => {
     if (!resource) return;
@@ -296,9 +347,15 @@ function App() {
   const current = picked[picked.length - 1] ?? null;
   // dragging only on the whole list: in a filtered one "before that one" is ambiguous
   const canMove = !q && !saving;
-  const dirtyResources = Object.keys(works).filter((r) => planOf(loaded[r], works[r]).dirty);
-  const plans = dirtyResources.map((r) => ({ resource: r, plan: planOf(loaded[r], works[r]) }));
+  const dirtyResources = [...new Set([...Object.keys(works).filter((r) => planOf(loaded[r], works[r]).dirty), ...Object.keys(settingsWorks)])];
+  // each resource with changes: its properties' plan and its settings' draft
+  const plans = dirtyResources.map((r) => {
+    const plan = planOf(loaded[r], works[r] ?? EMPTY);
+    const settings = settingsWorks[r] && details[r] && "id" in details[r] ? settingsWorks[r] : undefined;
+    return { resource: r, plan, settings, summary: [...plan.summary, settingsSummary(settings)].filter(Boolean) };
+  }).filter((x) => x.summary.length);
   const badPlan = plans.find((x) => x.plan.badKey);
+  const badSettings = plans.find((x) => settingsError(x.settings));
   const dirty = plans.length > 0;
   const requiredCount = all.filter((p) => p.required && !deleted.has(p.key)).length;
 
@@ -343,6 +400,7 @@ function App() {
 
   /** Click on a property: picks it; Ctrl/Cmd adds or removes it; Shift picks the run from the last one. */
   const click = (key: string, e: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => {
+    setView("properties");
     if (e.shiftKey && anchor.current) {
       const list = shown.map((p) => p.key);
       const [a, b] = [list.indexOf(anchor.current), list.indexOf(key)].sort((x, y) => x - y);
@@ -359,6 +417,7 @@ function App() {
     const property = newProperty(adding.key, adding.label.trim(), adding.type);
     setWork(resource, (w) => ({ ...w, added: [...w.added, { id: adding.key, prop: property }], order: w.order ? [...w.order, adding.key] : null }));
     setSelected([adding.key]);
+    setView("properties");
     anchor.current = adding.key;
     setGroup("general");
     setAdding(null);
@@ -448,16 +507,19 @@ function App() {
 
   const discard = () => {
     setWorks({});
+    setSettingsWorks({});
     setConfirming(false);
   };
 
   const save = () => {
-    if (!dirty || badPlan) return;
+    if (!dirty || badPlan || badSettings) return;
     setConfirming(false);
     setSaving(true);
     setNotice(null);
-    savedCount.current = 0;
-    queue.current = plans.map(({ resource: r, plan: p }) => ({
+    savedCount.current = new Set();
+    queue.current = plans.flatMap(({ resource: r, plan: p, settings }) => [
+      ...(p.dirty ? [{
+      type: "save" as const,
       resource: r,
       payload: {
         resource: r,
@@ -467,7 +529,9 @@ function App() {
         ...(p.renames.length ? { renames: p.renames } : {}),
         ...(p.order ? { order: p.order } : {}),
       },
-    }));
+      }] : []),
+      ...(settings ? [{ type: "saveSettings" as const, resource: r, payload: { resource: r, id: (details[r] as { id: string }).id, changes: settings } }] : []),
+    ]);
     sendNext();
   };
 
@@ -504,8 +568,8 @@ function App() {
     },
   };
 
-  const option = (r: string) => <option key={r} value={r}>{r}{works[r] && !isEmpty(works[r]) ? " •" : ""}</option>;
-  const unsavedText = plans.length > 1 ? `Unsaved in ${plans.length} resources` : plans.length ? `Unsaved: ${plans[0].plan.summary.join(", ")}${plans[0].resource !== resource ? ` (${plans[0].resource})` : ""}` : "";
+  const option = (r: string) => <option key={r} value={r}>{r}{(works[r] && !isEmpty(works[r])) || settingsWorks[r] ? " •" : ""}</option>;
+  const unsavedText = plans.length > 1 ? `Unsaved in ${plans.length} resources` : plans.length ? `Unsaved: ${plans[0].summary.join(", ")}${plans[0].resource !== resource ? ` (${plans[0].resource})` : ""}` : "";
   const pickedLive = picked.filter((p) => !deleted.has(p.key));
   const pickedDeleted = picked.filter((p) => deleted.has(p.key));
   const mappedOne = picked.length === 1 ? mappedOf(draftOf(picked[0].key)) : null;
@@ -544,8 +608,13 @@ function App() {
           </select>
         </label>
         {resource && (
-          <button className="rs-btn" disabled={loading || saving || !!works[resource]} title={works[resource] ? "Save or discard this resource's changes first" : "Read the resource again"} onClick={() => { setLoading(true); setFields({}); asked.current.clear(); send("load", { resource }); }}>
+          <button className="rs-btn" disabled={loading || saving || !!works[resource] || !!settingsWorks[resource]} title={works[resource] || settingsWorks[resource] ? "Save or discard this resource's changes first" : "Read the resource again"} onClick={() => { setLoading(true); setFields({}); asked.current.clear(); setDetails((before) => { const out = { ...before }; delete out[resource]; return out; }); send("load", { resource }); }}>
             Reload
+          </button>
+        )}
+        {resource && (
+          <button className={`rs-btn${view === "settings" ? " is-on" : ""}`} aria-pressed={view === "settings"} title={view === "settings" ? "Back to the picked property's settings" : `${resource}'s own settings: description, drawer, sections`} onClick={() => setView(view === "settings" ? "properties" : "settings")}>
+            Resource settings
           </button>
         )}
         {resource && (
@@ -557,15 +626,15 @@ function App() {
         {dirty && <span className="rs-unsaved">{saving ? "Saving…" : unsavedText}</span>}
         <button className="rs-btn" onClick={() => send("openBackups")}>Backups</button>
         {dirty && <button className="rs-btn" disabled={saving} onClick={discard}>Discard</button>}
-        <button className="rs-btn is-primary" disabled={!dirty || saving || confirming || !!badPlan} title={badPlan ? `Fix the key of ${badPlan.plan.badKey!.label ?? badPlan.plan.badKey!.shownKey} (${badPlan.resource}) first` : undefined} onClick={() => setConfirming(true)}>Save</button>
+        <button className="rs-btn is-primary" disabled={!dirty || saving || confirming || !!badPlan || !!badSettings} title={badPlan ? `Fix the key of ${badPlan.plan.badKey!.label ?? badPlan.plan.badKey!.shownKey} (${badPlan.resource}) first` : badSettings ? `${badSettings.resource}: ${settingsError(badSettings.settings)}` : undefined} onClick={() => setConfirming(true)}>Save</button>
       </header>
 
       {dirty && confirming && (
         <div className="rs-confirm" role="alertdialog" aria-label="Confirm saving">
           <div className="rs-confirm-text">
-            {plans.map(({ resource: r, plan: p }) => (
+            {plans.map(({ resource: r, plan: p, summary }) => (
               <div key={r}>
-                Save {p.summary.join(", ")} to <b>{r}</b>.
+                Save {summary.join(", ")} to <b>{r}</b>.
                 {p.removedNames.length > 0 && <span className="rs-removing"> Removes {p.removedNames.join(", ")}: the values records have for {p.removedNames.length === 1 ? "it" : "them"} may be lost.</span>}
               </div>
             ))}
@@ -743,7 +812,17 @@ function App() {
           </aside>
 
           <section className="rs-detail">
-            {!picked.length ? (
+            {view === "settings" ? (
+              <SettingsPage
+                resource={resource}
+                loaded={details[resource]}
+                draft={settingsWorks[resource] ?? {}}
+                properties={(properties ?? []).filter((p) => !deleted.has(p.key)).map((p) => ({ key: p.key, label: p.label }))}
+                disabled={saving}
+                onChange={(draft) => { setNotice(null); const d = details[resource]; if (d && "id" in d) setSettingsWork(resource, trimDraft(d.detail, draft)); }}
+                onBack={() => setView("properties")}
+              />
+            ) : !picked.length ? (
               <p className="rs-empty">Pick a property on the left (Ctrl/Cmd or Shift+click to pick several), or add one with +.</p>
             ) : pickedLive.length === 0 ? (
               <div className="rs-gone">

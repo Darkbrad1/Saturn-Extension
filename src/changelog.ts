@@ -1,6 +1,16 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.46",
+    title: "Resource settings",
+    items: [
+      "The Resources screen has a Resource settings button in the top bar. It shows the resource's own settings on the right, in place of a property's: its description, Open records in a drawer, and its sections.",
+      "Sections: add, remove and reorder them; change a section's name, description, columns and whether it has its own tab; pick which properties are in it, in order. A hint lists the properties in no section.",
+      "Changes join the screen's unsaved count, Discard and Save. Saving re-reads the settings, keeps a backup, sends only what changed and checks it after. Default view, sort and layout are kept as they are.",
+      "Click a property to go back to its settings.",
+    ],
+  },
+  {
     version: "0.3.45",
     title: "Inline component code",
     items: [
