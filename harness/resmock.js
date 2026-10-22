@@ -24,6 +24,11 @@
       { ...prop("parties", "Parties", "array"), lookup_type: "map", map: { type: "model", value_field: "id", label_field: "label", reference: "ApplicationParty" }, placeInOwnTab: true, tabIcon: "male",
         rendering: { component: "inline-component", options: { code: { type: "property", value: "<template>\n  <ApplicationPartyDirectory :model-value=\"modelValue\" :record=\"record\" @refresh=\"$emit('refresh')\" />\n</template>\n<script>\nexport default { props: { modelValue: { type: [Array, Object], default: null }, record: { type: Object, default: null } }, emits: ['refresh'] }\n</script>" } } } },
       prop("amount", "Amount", "number"),
+      // a lookup with Saturn's custom dropdown option template (as a real definition has it)
+      { ...prop("request_for", "Request For", "string"), lookup_type: "function", lookup_reference: "async () => []",
+        rendering: { component: "default", _variances: { list: { component: "default" }, view: { component: "default", span: 2 }, form: { use_custom_dropdown: true, custom_dropdown_template: "<template>\n  {{ item.label || item.value || item }}\n</template>" } } } },
+      // a static map with no dropdown style yet
+      { ...prop("owner", "Owner", "string"), map: { type: "model", reference: "User", value_field: "id", label_field: "email" } },
     ],
     LoanCategory: [prop("id", "ID", "string"), prop("label", "Label", "string"), prop("code", "Code", "string")],
   };

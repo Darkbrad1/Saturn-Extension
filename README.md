@@ -7,6 +7,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
 
+## New in 0.3.48 — Custom dropdown style
+- `src-res/spec.ts` Display > Form: "Custom dropdown style" (`rendering._variances.form.use_custom_dropdown`) and "Dropdown option template" (`rendering._variances.form.custom_dropdown_template`, `code` / `html`, shown when it's on), from a real definition (Request For). Shown for a dropdown (`hasDropdown`: select input, map, lookup, dynamic source, or the setting stored). Switching it on fills in Saturn's starter template (`DROPDOWN_TEMPLATE`, via `alongside`). `harness/resmock.js` Deal gains Request For and Owner. `test35.mjs` (14).
+
 ## New in 0.3.47 — Finding and dragging a section's properties
 - `src-res/settings.tsx` `SectionProps`: the find-or-add box above a section's list (it narrows the list and offers the properties not in it; click or Enter adds, Esc clears), replacing the "Add a property…" dropdown under it. Rows drag to a new place (`draggable`, off while searching). `test34.mjs` (14); `test33.mjs` adds through the box.
 

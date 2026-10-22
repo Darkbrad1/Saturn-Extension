@@ -63,6 +63,51 @@ const inputType = (p: Prop) => String(get(p, ["input_properties", "type"]) ?? "i
 const hasMap = (p: Prop) => !!p.map && typeof p.map === "object";
 const lookupType = (p: Prop) => String(p.lookup_type ?? "");
 const isDynamic = (p: Prop) => p.source === "dynamic";
+/** Whether the form shows it as a dropdown (a select, a map, a lookup or a dynamic source), or a dropdown style is stored. */
+const hasDropdown = (p: Prop) =>
+  inputType(p) === "select" || hasMap(p) || !!lookupType(p) || isDynamic(p) || get(p, ["rendering", "_variances", "form", "use_custom_dropdown"]) !== undefined;
+
+/** The template Saturn's own app starts a custom dropdown option with (from a real definition). */
+const DROPDOWN_TEMPLATE = `<template>
+  <!-- Display details -->
+  <!-- item.label: The label for the specific option (e.g., "New York", "Active") -->
+  <!-- item.value: The actual value that gets stored (e.g., "ny", "1") -->
+  <!-- item: Can also be a simple string if options are just ["option1", "option2"] -->
+  {{ item.label || item.value || item }}
+</template>
+
+<script>
+export default {
+  props: {
+    // Configuration object for this specific form field
+    // Contains settings like validation rules, input type, custom options, etc.
+    // Example: { type: "select", required: true, input_properties: { allow_create: true } }
+    property: Object,
+
+    // The complete form/record data being edited
+    // Contains all field values for the current record
+    // Example: { name: "John", email: "john@example.com", status: "active" }
+    form: {
+      type: Object,
+      default: {}
+    },
+
+    // Individual option data for this dropdown item
+    // Can be an object: { label: "Display Text", value: "stored_value" }
+    // Or a simple string: "Simple Option"
+    // This represents ONE option in the dropdown list
+    item: {
+      type: Object,
+      description: 'Contains each option data',
+      default: {}
+    },
+  }
+}
+</script>
+
+<style>
+/* Add custom styling for this option if needed */
+</style>`;
 
 /** Input types, by the value Saturn stores. */
 export const INPUT_TYPES: [string, string][] = [
@@ -384,6 +429,21 @@ export const GROUPS: Group[] = [
         settings: [
           { path: ["form_number_of_columns", "full_width"], label: "Full width", edit: { kind: "bool" } },
           { path: ["form_number_of_columns", "default"], label: "Columns", edit: { kind: "number", min: 1, max: 12 } },
+          {
+            // as a real definition stores it: rendering._variances.form.{use_custom_dropdown, custom_dropdown_template}
+            path: ["rendering", "_variances", "form", "use_custom_dropdown"],
+            label: "Custom dropdown style",
+            when: hasDropdown,
+            alongside: [{ path: ["rendering", "_variances", "form", "custom_dropdown_template"], value: DROPDOWN_TEMPLATE }],
+            edit: { kind: "bool", hint: "Each option in the form's dropdown is drawn by your own Vue template." },
+          },
+          {
+            path: ["rendering", "_variances", "form", "custom_dropdown_template"],
+            label: "Dropdown option template",
+            hint: "A Vue component for one option. It gets item (the option: {label, value} or a string), form (the record being edited) and property.",
+            when: (p) => get(p, ["rendering", "_variances", "form", "use_custom_dropdown"]) === true,
+            edit: { kind: "code", lang: "html", empty: DROPDOWN_TEMPLATE },
+          },
         ],
       },
     ],

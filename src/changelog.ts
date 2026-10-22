@@ -1,6 +1,15 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.48",
+    title: "Custom dropdown style",
+    items: [
+      "A property the form shows as a dropdown (a select, a map, a lookup or a dynamic source) now has Custom dropdown style under Display > Form, on the Resources screen and the Form tab.",
+      "Switched on, the Dropdown option template shows: the Vue template that draws each option, highlighted, with Open in a file. A new one starts with Saturn's own starter template.",
+      "Switching it off keeps the template, as Saturn does.",
+    ],
+  },
+  {
     version: "0.3.47",
     title: "Finding and dragging a section's properties",
     items: [
