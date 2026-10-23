@@ -52,7 +52,7 @@ export interface Setting {
   toggles?: { on: unknown };
   /** values Saturn keeps next to this one, written too when this is set and they're missing (as seen in real
    *  definitions, e.g. a renderer option's `type: "property"`) */
-  alongside?: { path: Path; value: unknown }[];
+  alongside?: { path: Path; value: unknown; if?: unknown }[]; // if: only when the setting is set to that value
   edit: Kind;
 }
 
@@ -181,6 +181,13 @@ export function withShownEverywhere(p: Prop, on: boolean): Prop {
   else if (next[key] !== undefined) next[key] = false;
   return next;
 }
+
+/** A country's fields, for a Countries lookup's value and label (the ones Saturn's own editor offers; another stored
+ *  one still shows and is kept). */
+const COUNTRY_FIELDS: [string, string][] = [
+  ["country_code", "Country code (country_code)"],
+  ["country_name", "Country name (country_name)"],
+];
 
 /** Where a property's choices come from: the kinds the "Where the choices come from" cards offer. */
 export type ChoiceKind = "none" | "values" | "map" | "function" | "lookup" | "dynamic";
@@ -341,7 +348,7 @@ export const GROUPS: Group[] = [
             // not stored: it reads and sets lookup_type, map and source (choicesOf / withChoices)
             id: "choices",
             path: [],
-            sets: [["lookup_type"], ["lookup_reference"], ["map"], ["source"], ["source_type"], ["source_definition"]],
+            sets: [["lookup_type"], ["lookup_reference"], ["lookup_value"], ["lookup_label"], ["map"], ["source"], ["source_type"], ["source_definition"]],
             label: "Where the choices come from",
             hint: "Picking one switches the others off. What they held is kept, so switching back brings it back until you save.",
             edit: { kind: "choices" },
@@ -419,6 +426,11 @@ export const GROUPS: Group[] = [
             path: ["lookup_type"],
             label: "Lookup source",
             when: otherLookup,
+            // Countries: the value and label fields Saturn's own editor starts with
+            alongside: [
+              { path: ["lookup_value"], value: "country_code", if: "countries" },
+              { path: ["lookup_label"], value: "country_name", if: "countries" },
+            ],
             edit: {
               kind: "select",
               options: [
@@ -447,7 +459,11 @@ export const GROUPS: Group[] = [
             edit: { kind: "select", options: [["property", "Property"], ["function", "Function"]] },
           },
           { path: ["lookup_label_field"], label: "Label field", when: (p) => p.lookup_label_type === "property" || (p.lookup_label_type === undefined && p.lookup_label_field !== undefined), edit: { kind: "text", mono: true, placeholder: "name" } },
-          { path: ["lookup_label"], label: "Label function", when: (p) => p.lookup_label_type === "function" || typeof p.lookup_label === "string", edit: { kind: "code", lang: "javascript", empty: "(res)=>{\n  return ''\n}" } },
+          // Countries, as Saturn's own editor stores it: lookup_value and lookup_label name a country's fields
+          { id: "lookup_value.countries", path: ["lookup_value"], label: "Value field", hint: "What's stored for the picked country.", when: (p) => lookupType(p) === "countries" || p.lookup_value !== undefined, edit: { kind: "select", options: COUNTRY_FIELDS } },
+          { id: "lookup_label.countries", path: ["lookup_label"], label: "Label field", hint: "What people see in the list.", when: (p) => lookupType(p) === "countries", edit: { kind: "select", options: COUNTRY_FIELDS } },
+          // a label function; for Countries, lookup_label is a field name instead (above)
+          { path: ["lookup_label"], label: "Label function", when: (p) => lookupType(p) !== "countries" && (p.lookup_label_type === "function" || typeof p.lookup_label === "string"), edit: { kind: "code", lang: "javascript", empty: "(res)=>{\n  return ''\n}" } },
         ],
       },
       {

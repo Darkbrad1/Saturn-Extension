@@ -1,6 +1,15 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.57",
+    title: "Countries lookups",
+    items: [
+      "A property whose choices are Countries now shows them like Saturn's own editor: a Value field (what's stored, like country_code) and a Label field (what people see, like country_name).",
+      "Before, the label field was shown as a label function's code. It's now a list to pick from, and it's saved where Saturn keeps it.",
+      "Picking Countries as the lookup source starts with country_code and country_name, as Saturn does.",
+    ],
+  },
+  {
     version: "0.3.56",
     title: "Show everywhere",
     items: [

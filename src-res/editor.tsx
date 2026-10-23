@@ -119,7 +119,7 @@ export function PropertyEditor(props: {
         // "not set" again when it wasn't set before
         let next = setAt(it.draft, path, value, remove || (value === "" && get(it.original, path) === undefined));
         if (!remove && value !== undefined && get(next, path) !== undefined)
-          for (const a of along) if (get(next, a.path) === undefined) next = setAt(next, a.path, a.value);
+          for (const a of along) if (get(next, a.path) === undefined && (a.if === undefined || a.if === value)) next = setAt(next, a.path, a.value);
         return next;
       }),
     );
