@@ -10745,6 +10745,51 @@ var draftHistoryLimit = 20,
             break;
           }
         // Disables or enables one step (Saturn's "mock" flag).
+        // The workflow map (0.3.49): a stage arrow dragged to another stage. The step that moves the record
+        // (a property_updater setting <field> to a stage) gets the new stage, in its properties and in its
+        // _properties rows, as one draft edit. `from` must still be what's stored, so a stale map changes nothing.
+        case "setStageTransition":
+          {
+            let {
+              workflowId: workflowId,
+              path: stepPath,
+              field: field,
+              from: from,
+              to: to
+            } = message.payload ?? {};
+            if (!Array.isArray(stepPath) || stepPath.length === 0 || typeof field != "string" || !field || ["__proto__", "constructor", "prototype"].includes(field) || typeof to != "string" || !to) {
+              webview.postMessage({
+                type: "editFailed",
+                payload: {
+                  message: "Missing the step or the stage to move it to."
+                }
+              });
+              break;
+            }
+            await this.applyEdit(workflowId, `Changed where ${String(from)} goes: now ${to}`, draft => {
+              if (!asArray(draft?.stages).some(stage => stage?.stage === to)) throw new Error(`There's no stage ${to} in this workflow.`);
+              let step = getAt(draft, stepPath),
+                data = step?.data;
+              if (!step || typeof step != "object" || Array.isArray(step) || step.operator !== "property_updater" || !data || typeof data != "object" || !data.properties || typeof data.properties != "object" || Array.isArray(data.properties)) throw new Error("That step is no longer where it was \u2014 reopen the map and try again.");
+              if (data.properties[field] !== from) throw new Error(`That step no longer sets ${field} to ${String(from)} \u2014 reopen the map and try again.`);
+              let nextData = {
+                ...data,
+                properties: {
+                  ...data.properties,
+                  [field]: to
+                }
+              };
+              if (Array.isArray(data._properties)) nextData._properties = data._properties.map(row => row && typeof row == "object" && row.key === field ? {
+                ...row,
+                value: to
+              } : row);
+              return setAt(draft, stepPath, {
+                ...step,
+                data: nextData
+              });
+            });
+            break;
+          }
         case "setStepMock":
           {
             let {

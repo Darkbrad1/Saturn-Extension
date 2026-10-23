@@ -3521,3 +3521,83 @@ body.nv-scrubbing * {
 #sonover-node-view:has(.fg-panel.is-form) .nv-hints {
   display: none;
 }
+
+/* the breadcrumb on its own row under the top bar, like a browser's bookmarks bar */
+#sonover-node-view .nv-crumbbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  background: var(--nv-panel);
+  border-bottom: 1px solid #161616;
+  flex: none;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  color: var(--nv-muted);
+  font-size: 12px;
+}
+#sonover-node-view .nv-crumbbar .nv-crumb { display: inline-flex; align-items: center; gap: 4px; }
+#sonover-node-view .nv-crumb-btn {
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--nv-text);
+  cursor: pointer;
+  font: inherit;
+}
+#sonover-node-view .nv-crumb-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+#sonover-node-view .nv-crumbbar .nv-crumb.is-current { color: #fff; font-weight: 600; padding: 2px 4px; }
+
+/* folding the side panel away, and the strip that brings it back */
+#sonover-node-view .fg-collapse {
+  margin-left: auto;
+  height: 24px;
+  width: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--nv-muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+#sonover-node-view .fg-collapse:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+#sonover-node-view .nv-panel-open {
+  flex: none;
+  width: 18px;
+  border: 0;
+  border-left: 1px solid #161616;
+  background: var(--nv-panel);
+  color: var(--nv-muted);
+  cursor: pointer;
+  font-size: 13px;
+}
+#sonover-node-view .nv-panel-open:hover { color: #fff; background: #333; }
+
+/* the workflow map (map.tsx) */
+#sonover-node-view .mp-root { position: absolute; inset: 0; display: flex; flex-direction: column; }
+#sonover-node-view .mp-bar { display: flex; align-items: center; gap: 14px; padding: 6px 12px; font-size: 12px; color: var(--nv-muted); border-bottom: 1px solid #161616; background: var(--nv-panel); flex: none; flex-wrap: wrap; }
+#sonover-node-view .mp-title { color: #fff; font-weight: 600; }
+#sonover-node-view .mp-key::before { content: ""; display: inline-block; width: 18px; height: 0; margin-right: 6px; vertical-align: middle; border-top: 2px solid #22c55e; }
+#sonover-node-view .mp-key.is-call::before { border-top: 2px dashed #7aa2f7; }
+#sonover-node-view .mp-toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--nv-text); cursor: pointer; }
+#sonover-node-view .mp-hint { margin-left: auto; }
+#sonover-node-view .mp-root .react-flow { flex: 1; }
+#sonover-node-view .mp-box { width: 210px; background: #2b2b2b; border: 1px solid #444; border-top: 3px solid #888; border-radius: 8px; font-size: 12px; color: var(--nv-text); }
+#sonover-node-view .mp-head { display: flex; align-items: center; gap: 6px; height: 31px; padding: 0 10px; font-weight: 600; color: #fff; cursor: pointer; border-bottom: 1px solid #3a3a3a; }
+#sonover-node-view .mp-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+#sonover-node-view .mp-row { position: relative; height: 26px; line-height: 26px; padding: 0 12px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#sonover-node-view .mp-row:hover { background: rgba(255, 255, 255, 0.06); }
+#sonover-node-view .mp-none { padding: 6px 12px; color: var(--nv-muted); font-style: italic; }
+#sonover-node-view .mp-cmd { position: relative; width: 200px; padding: 8px 10px; background: #1f3329; border: 1px solid #2f5a44; border-radius: 8px; color: #e5e7eb; font-size: 12px; cursor: pointer; }
+#sonover-node-view .mp-cmd-kind { display: block; font-size: 10px; color: #86efac; text-transform: uppercase; letter-spacing: .04em; }
+#sonover-node-view .mp-row.is-lit, #sonover-node-view .mp-box.is-lit > .mp-head, #sonover-node-view .mp-cmd.is-lit { background: rgba(122, 162, 247, 0.22); outline: 1px solid #7aa2f7; }
+#sonover-node-view .mp-row.is-dim, #sonover-node-view .mp-cmd.is-dim, #sonover-node-view .mp-box.is-dim > .mp-head { opacity: 0.35; }
+#sonover-node-view .mp-out, #sonover-node-view .mp-in { width: 6px; height: 6px; min-width: 0; min-height: 0; background: #666; border: 0; }
+#sonover-node-view .mp-row .mp-out { right: -4px; }
+#sonover-node-view .react-flow__edge.mp-call path { stroke: #7aa2f7; stroke-dasharray: 5 4; }
+#sonover-node-view .react-flow__edge.mp-cc path { stroke: #a78bfa; stroke-dasharray: 2 4; }
+#sonover-node-view .react-flow__edge.mp-move path { stroke-width: 2; }
+#sonover-node-view .react-flow__edge.is-dim { opacity: 0.08; }

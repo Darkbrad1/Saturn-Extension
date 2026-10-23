@@ -571,7 +571,12 @@ export function operatorRows(f: Extract<Flow, { kind: "operator" }>, catalog: Ca
   const code = codeParams(f.operator, catalog);
   const secret = new Set((f.operator ? catalog[f.operator]?.params ?? [] : []).filter((p) => p.sensitive).map((p) => p.param));
   // key/value map parameters (the side panel's property map editor): each property its own row
-  const maps = new Set((f.operator ? catalog[f.operator]?.params ?? [] : []).filter((p) => p.type === "object" && !p.codeLanguage && !p.lookupResource && !p.mergedInto).map((p) => p.param));
+  const known = f.operator ? catalog[f.operator]?.params ?? [] : [];
+  const maps = new Set(known.filter((p) => p.type === "object" && !p.codeLanguage && !p.lookupResource && !p.mergedInto).map((p) => p.param));
+  // a value that is a map of properties (like Create's properties) is one row per property too, whatever type the
+  // catalog gives it (or when the catalog doesn't list it); code and lookups aside
+  const special = new Set(known.filter((p) => p.codeLanguage || p.lookupResource || p.mergedInto).map((p) => p.param));
+  for (const p of f.params) if (!special.has(p.key) && !maps.has(p.key) && /^\s*\{/.test(p.value) && !p.truncated) maps.add(p.key);
   const first: NvRow[] = [];
   const rest: NvRow[] = [];
   for (const p of f.params) {

@@ -664,6 +664,12 @@ var ResourcePropertiesHost = (() => {
         await vs.env.openExternal(vs.Uri.parse(`${String(instance.url).replace(/\/+$/, "")}/resources/${encodeURIComponent(resource)}`));
         break;
       }
+      // some JSON (a resource's settings record) in an untitled, read-only-ish editor tab beside the screen
+      case "viewRaw": {
+        const doc = await vs.workspace.openTextDocument({ content: String(payload.text ?? ""), language: "json" });
+        await vs.window.showTextDocument(doc, { preview: true, viewColumn: vs.ViewColumn.Beside });
+        break;
+      }
       case "openBackups": {
         if (storageUri) {
           const folder = vs.Uri.joinPath(storageUri, "resource-backups", instance.id);

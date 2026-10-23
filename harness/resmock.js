@@ -102,6 +102,7 @@
         window.__details[p.resource] = next;
         reply("settingsSaved", { resource: p.resource, id: d.id, backup: "/backups/Application-settings-1.json", detail: next });
       }
+      if (m.type === "viewRaw") (window.__opened = window.__opened || []).push({ type: m.type, ...p });
       if (m.type === "restore") reply("restored", { resource: p.resource, ok: true, backup: "/backups/Application-2.json", properties: view(data[p.resource]) });
     },
   });

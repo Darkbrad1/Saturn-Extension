@@ -34,6 +34,13 @@ export function trimDraft(detail: Detail, draft: SettingsDraft): SettingsDraft {
   return out;
 }
 
+/** The record as it would be saved: the draft's keys in it (drawer_enabled in render_details too, like the host). */
+export function withDraft(detail: Detail, draft: SettingsDraft): Detail {
+  const out: Detail = { ...detail, ...draft };
+  if ("drawer_enabled" in draft) out.render_details = { ...(detail.render_details ?? {}), drawer_enabled: draft.drawer_enabled };
+  return out;
+}
+
 const NAMES: Record<keyof SettingsDraft, string> = { sections: "sections", description: "description", drawer_enabled: "drawer" };
 /** "the settings (sections, description)" for the unsaved line and the Save confirm. */
 export const settingsSummary = (draft: SettingsDraft | undefined) => {
@@ -56,6 +63,8 @@ export function SettingsPage(props: {
   disabled?: boolean;
   onChange: (draft: SettingsDraft) => void;
   onBack: () => void;
+  /** opens the settings record as JSON in its own editor tab (with the unsaved changes in it) */
+  onRaw: (text: string) => void;
 }) {
   const { resource, loaded, draft, properties, disabled } = props;
   if (!loaded) return <p className="rs-empty">Reading {resource}'s settings…</p>;
@@ -85,6 +94,9 @@ export function SettingsPage(props: {
         </div>
         <div className="rs-detail-actions">
           {Object.keys(draft).length > 0 && <button className="rs-link" disabled={disabled} onClick={() => props.onChange({})}>Undo all changes to them</button>}
+          <button className="rs-btn" title="See the whole settings record as JSON, with your unsaved changes in it" onClick={() => props.onRaw(JSON.stringify(withDraft(loaded.detail, draft), null, 2))}>
+            Open raw JSON
+          </button>
           <button className="rs-link" onClick={props.onBack}>Back to properties</button>
         </div>
       </div>

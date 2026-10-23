@@ -1,6 +1,19 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.49",
+    title: "The workflow map",
+    items: [
+      "Open Workflow settings and the canvas shows a map of the whole workflow: each stage with its actions, the global actions, and the commands.",
+      "Arrows show where each action moves the record (its Property Updater sets status to another stage). Dashed lines show the commands an action or global action runs. A switch adds the lines for commands calling commands.",
+      "Click an action, a command or a stage to light up its lines; a double-click opens it. To change where an action moves the record, click it, then drag its arrow's end onto another stage. It goes into the workflow's unsaved changes.",
+      "The node view's top bar has a Reload button, and no longer says Node view. The breadcrumb has its own row under it, and each step in it can be clicked to go back.",
+      "The side panel has a » button to hide it; the strip at the edge brings it back.",
+      "A Create step's properties show one per row on its card, like the Property Updater's.",
+      "Resources screen: the breadcrumb has its own row (with the property you were on; click to go back), Resource settings has Open raw JSON, the properties list can be folded away with «, and when the settings area is narrow only the settings search shows.",
+    ],
+  },
+  {
     version: "0.3.48",
     title: "Custom dropdown style",
     items: [

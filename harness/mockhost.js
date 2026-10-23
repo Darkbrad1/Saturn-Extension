@@ -237,7 +237,7 @@
   // each workflow as saved on the instance (what the Form tab's "was …" compares with)
   const savedDefs = {};
   const savedOf = (id) => (savedDefs[id] ||= JSON.stringify(defs[id]));
-  let cur = "wf_orders";
+  let cur = window.__appFlow && new URLSearchParams(location.search).has("app") ? window.__appFlow.id : "wf_orders";
   const post = (type, payload) => setTimeout(() => window.dispatchEvent(new MessageEvent("message", { data: { type, payload } })), 15);
   function reply(id = cur) { post("workflow", view(defs[id])); post("draftState", { workflowId: id, pending: (summaries[id] || []).length, summaries: (summaries[id] || []).slice(0, 12) }); }
   function apply(id, text, fn) {
@@ -278,6 +278,8 @@
   // the host trims each record for the webview: the workflow copy down to its id and name, no permission lists
   const trimLog = (r) => { const { _permissions_, field_restrictions, ...rest } = r; if (rest.workflow && typeof rest.workflow === "object") rest.workflow = { id: rest.workflow.id, name: rest.workflow.name, "\u2026": "the full workflow definition is left out here" }; return rest; };
 
+  // ?app: the real Application workflow (harness/appflow.js) too, opened first
+  if (window.__appFlow && new URLSearchParams(location.search).has("app")) defs[window.__appFlow.id] = window.__appFlow;
   window.__mockLog = [];
   window.__getDef = (id) => defs[id ?? cur];
   window.__defs = defs;
@@ -381,6 +383,16 @@
       }
       case "deleteOperator": apply(id, "Deleted step", (d) => { const parent = get(d, p.path.slice(0, -1)); parent.splice(p.path[p.path.length - 1], 1); }); break;
       case "duplicateNode": apply(id, "Duplicated step", (d) => { const parent = get(d, p.path.slice(0, -1)); const i = p.path[p.path.length - 1]; parent.splice(i + 1, 0, structuredClone(parent[i])); }); break;
+      // the workflow map: a stage arrow dragged to another stage (like the host: properties and _properties, `from` checked)
+      case "setStageTransition":
+        apply(id, `Changed where ${p.from} goes: now ${p.to}`, (d) => {
+          if (!d.stages.some((s) => s.stage === p.to)) throw new Error(`There's no stage ${p.to} in this workflow.`);
+          const st = get(d, p.path);
+          if (!st || st.operator !== "property_updater" || st.data?.properties?.[p.field] !== p.from) throw new Error("That step is no longer where it was \u2014 reopen the map and try again.");
+          st.data.properties[p.field] = p.to;
+          if (Array.isArray(st.data._properties)) for (const r of st.data._properties) if (r.key === p.field) r.value = p.to;
+        });
+        break;
       case "setStepMock": apply(id, `${p.mock ? "Disabled" : "Enabled"} step`, (d) => { get(d, p.path).mock = !!p.mock; }); break;
       case "moveOperator":
         apply(id, "Moved step", (d) => {

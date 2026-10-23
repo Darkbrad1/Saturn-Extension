@@ -85,10 +85,10 @@ await p.locator(".react-flow__node", { hasText: "Notify customer" }).first().cli
 await p.keyboard.press("Tab");
 await p.waitForTimeout(700);
 await p.screenshot({ path: out + "/11-command.png" });
-console.log("crumbs:", await p.locator(".nv-crumbs").innerText());
+console.log("crumbs:", await p.locator(".nv-crumbbar").innerText());
 await p.keyboard.press("Tab");
 await p.waitForTimeout(400);
-console.log("crumbs back:", await p.locator(".nv-crumbs").innerText());
+console.log("crumbs back:", await p.locator(".nv-crumbbar").innerText());
 
 // other trees
 await p.getByRole("button", { name: /Mark delivered/ }).click();

@@ -98,7 +98,7 @@ ok((await def()).commands[0].parameters.fields.some((x) => x.key === "channel"),
 ok((await section("Used in").innerText()).includes("Approve order"), "usages listed");
 await section("Used in").locator(".fg-link-row").first().click();
 await p.waitForTimeout(800);
-ok((await p.locator(".nv-crumbs").innerText()).includes("Approve order"), "usage jumps to the action");
+ok((await p.locator(".nv-crumbbar").innerText()).includes("Approve order"), "usage jumps to the action");
 ok(await p.locator(".react-flow__node.selected", { hasText: "Notify customer" }).count() === 1, "and selects the reference");
 await p.screenshot({ path: out + "/62-usage.png" });
 

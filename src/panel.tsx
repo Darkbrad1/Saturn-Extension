@@ -87,6 +87,8 @@ export function SidePanel(props: {
   onUndo: () => void;
   onSave: () => void;
   onDiscard: () => void;
+  /** folds the panel away (the strip at the window's edge brings it back) */
+  onCollapse: () => void;
 }) {
   const [tab, setTab] = useState<"design" | "inspect" | "form" | "logs" | "changes">("design");
   const f = props.node?.data.flow;
@@ -114,6 +116,9 @@ export function SidePanel(props: {
             {t === "changes" && pending > 0 && <span className="fg-tab-badge">{pending}</span>}
           </button>
         ))}
+        <button className="fg-collapse" onClick={props.onCollapse} title="Hide the panel (N)" aria-label="Hide the panel">
+          »
+        </button>
       </div>
       <div className="fg-scroll">
         {shown === "form" && owner ? (

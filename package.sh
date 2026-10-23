@@ -41,7 +41,7 @@ echo "==> host tests"
 ext="out/vsix/extension/dist/extension.js"
 node --check "$ext"
 failed=0
-for t in hosttest.cjs hosttest-move.cjs hosttest-reorder.cjs hosttest-command.cjs hosttest-field.cjs hosttest-bulk.cjs hosttest-logs.cjs hosttest-wflogs.cjs hosttest-wflogs-real.cjs hosttest-activate.cjs hosttest-resources.cjs hosttest-formtab.cjs hosttest-items.cjs hosttest-undo.cjs hosttest-menus.cjs hosttest-whatsnew.cjs hosttest-rescode.cjs hosttest-resettings.cjs; do
+for t in hosttest.cjs hosttest-move.cjs hosttest-reorder.cjs hosttest-command.cjs hosttest-field.cjs hosttest-bulk.cjs hosttest-logs.cjs hosttest-wflogs.cjs hosttest-wflogs-real.cjs hosttest-activate.cjs hosttest-resources.cjs hosttest-formtab.cjs hosttest-items.cjs hosttest-undo.cjs hosttest-menus.cjs hosttest-whatsnew.cjs hosttest-rescode.cjs hosttest-resettings.cjs hosttest-map.cjs; do
   if [ "$t" = hosttest-wflogs.cjs ]; then arg=host/syslogs.js; else arg="$ext"; fi
   if ! log="$(node "$t" "$arg" 2>&1)" || grep -q '^FAIL' <<<"$log"; then
     echo "   $t: FAILED"

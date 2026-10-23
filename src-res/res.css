@@ -27,3 +27,28 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .rs-sec-props li.is-drop-after { box-shadow: 0 2px 0 var(--rs-accent); }
 .rs-sec-props li.rs-sec-none { background: none; }
 .rs-sec-grip { color: var(--rs-muted); font-size: 10px; letter-spacing: -2px; }
+
+/* where you are: its own row under the top bar, like a browser's bookmarks bar */
+.rs-crumbbar { display: flex; align-items: center; gap: 4px; height: 28px; padding: 0 12px; background: var(--rs-panel); border-bottom: 1px solid var(--rs-edge); flex: none; overflow-x: auto; white-space: nowrap; font-size: 12px; color: var(--rs-muted); }
+.rs-crumbbar .rs-crumb { display: inline-flex; align-items: center; gap: 4px; }
+.rs-crumb-btn { background: none; border: 0; border-radius: 4px; padding: 2px 6px; color: var(--rs-fg); cursor: pointer; font: inherit; }
+.rs-crumb-btn:hover { background: var(--rs-hover); }
+.rs-crumb-prop { color: var(--rs-muted); margin-left: 4px; }
+.rs-crumbbar .rs-crumb-here { color: var(--rs-fg); padding: 2px 2px 2px 6px; }
+.rs-crumbbar .rs-btn { margin-left: 8px; }
+.rs-btn.is-small { height: 20px; padding: 0 8px; font-size: 11px; }
+
+/* folding the properties list away */
+.rs-side[hidden] { display: none; }
+.rs-fold { padding: 0 8px; }
+.rs-side-open { flex: none; width: 20px; border: 1px solid var(--rs-edge); border-radius: 8px; background: var(--rs-panel); color: var(--rs-muted); cursor: pointer; }
+.rs-side-open:hover { color: var(--rs-fg); background: var(--rs-hover); }
+
+/* a narrow settings area: the settings menu folds down to its search box, above the page */
+.rs-detail { container-type: inline-size; }
+@container (max-width: 720px) {
+  .pe { flex-direction: column; }
+  .pe-menu { width: auto; flex: none; border-right: 0; border-bottom: 1px solid var(--rs-line); padding: 8px; }
+  .pe-menu > :not(.pe-find) { display: none; }
+  .pe-menu .pe-find { margin: 0; }
+}

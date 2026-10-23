@@ -9,7 +9,7 @@ p.on("console", (m) => /Content Security|Refused/.test(m.text()) && errs.push("C
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 const def = (id) => p.evaluate((id) => window.__getDef(id), id);
 const olItem = (t) => p.locator(".nv-ol-item", { hasText: t });
-const crumbs = () => p.locator(".nv-crumbs").innerText();
+const crumbs = () => p.locator(".nv-crumbbar").innerText();
 
 await p.goto("http://localhost:8765/csp.html");
 await p.waitForTimeout(900);

@@ -49,6 +49,7 @@ interface Saved {
   settingsWorks?: Record<string, SettingsDraft>;
   /** what the right side shows: a property's settings or the resource's */
   view?: "properties" | "settings";
+  listHidden?: boolean;
   // the first versions kept one resource's changes at the top level
   drafts?: Record<string, Prop>;
   added?: Added[];
@@ -166,11 +167,13 @@ function App() {
   const [details, setDetails] = useState<Record<string, Loaded>>({});
   const [settingsWorks, setSettingsWorks] = useState<Record<string, SettingsDraft>>(saved.settingsWorks ?? {});
   const [view, setView] = useState<"properties" | "settings">(saved.view ?? "properties");
+  // the properties list folded away (the strip at the left brings it back)
+  const [listHidden, setListHidden] = useState(saved.listHidden ?? false);
 
   // (in braces: VS Code's setState returns the state, which React would take for a cleanup function)
   useEffect(() => {
-    vscode.setState({ resource, works, selected, group, trail, clipboard, settingsWorks, view } satisfies Saved);
-  }, [resource, works, selected, group, trail, clipboard, settingsWorks, view]);
+    vscode.setState({ resource, works, selected, group, trail, clipboard, settingsWorks, view, listHidden } satisfies Saved);
+  }, [resource, works, selected, group, trail, clipboard, settingsWorks, view, listHidden]);
 
   const setWork = (r: string, change: (w: Work) => Work) =>
     setWorks((before) => {
@@ -581,18 +584,6 @@ function App() {
           <span className="rs-title-main">Resources</span>
           <span className="rs-title-sub">{instanceName}</span>
         </div>
-        {trail.length > 0 && (
-          <nav className="rs-trail" aria-label="Where you came from">
-            <button className="rs-btn" title="Back (Alt+←)" onClick={() => back()}>‹ Back</button>
-            {trail.map((step, i) => (
-              <span key={i} className="rs-crumb">
-                <button className="rs-link" onClick={() => back(i)}>{step.resource}</button>
-                <span aria-hidden="true">›</span>
-              </span>
-            ))}
-            <b className="rs-crumb-here">{resource}</b>
-          </nav>
-        )}
         <label className="rs-select">
           Resource
           <select value={resource ?? ""} disabled={!resources || saving} onChange={(e) => { setResource(e.target.value || null); setSelected([]); setTrail([]); setNotice(null); }}>
@@ -628,6 +619,29 @@ function App() {
         {dirty && <button className="rs-btn" disabled={saving} onClick={discard}>Discard</button>}
         <button className="rs-btn is-primary" disabled={!dirty || saving || confirming || !!badPlan || !!badSettings} title={badPlan ? `Fix the key of ${badPlan.plan.badKey!.label ?? badPlan.plan.badKey!.shownKey} (${badPlan.resource}) first` : badSettings ? `${badSettings.resource}: ${settingsError(badSettings.settings)}` : undefined} onClick={() => setConfirming(true)}>Save</button>
       </header>
+
+      {/* where you are, like a browser's bookmarks bar: the resources jumped through (each with the property you were on),
+          then this one and the property picked; a click goes back */}
+      {resource && (
+        <nav className="rs-crumbbar" aria-label="Where you are">
+          {trail.map((step, i) => (
+            <span key={i} className="rs-crumb">
+              <button className="rs-crumb-btn" title={`Back to ${step.resource}${step.selected.length ? ` (${step.selected.join(", ")})` : ""}`} onClick={() => back(i)}>
+                {step.resource}
+                {step.selected.length === 1 && <span className="rs-crumb-prop"> › {step.selected[0]}</span>}
+              </button>
+              <span aria-hidden="true">›</span>
+            </span>
+          ))}
+          <b className="rs-crumb-here">{resource}</b>
+          {view === "settings" ? (
+            <span className="rs-crumb-prop">› Resource settings</span>
+          ) : (
+            pickedLive.length > 0 && <span className="rs-crumb-prop">› {pickedLive.length === 1 ? pickedLive[0].label ?? pickedLive[0].shownKey : `${pickedLive.length} properties`}</span>
+          )}
+          {trail.length > 0 && <button className="rs-btn is-small" title="Back (Alt+←)" onClick={() => back()}>‹ Back</button>}
+        </nav>
+      )}
 
       {dirty && confirming && (
         <div className="rs-confirm" role="alertdialog" aria-label="Confirm saving">
@@ -679,8 +693,14 @@ function App() {
         <p className="rs-empty">Loading {resource}…</p>
       ) : (
         <div className="rs-main">
-          <aside className="rs-side">
+          {listHidden && (
+            <button className="rs-side-open" title="Show the properties" aria-label="Show the properties" onClick={() => setListHidden(false)}>
+              »
+            </button>
+          )}
+          <aside className="rs-side" hidden={listHidden}>
             <div className="rs-side-top">
+              <button className="rs-btn rs-fold" title="Hide the properties" aria-label="Hide the properties" onClick={() => setListHidden(true)}>«</button>
               <input className="rs-search" placeholder="Search properties" aria-label="Search properties" value={query} onChange={(e) => setQuery(e.target.value)} />
               <button className="rs-btn rs-add" title="Add a property" aria-label="Add a property" disabled={saving} onClick={() => setAdding(adding ? null : { label: "", key: "", keyTouched: false, type: "string" })}>+</button>
             </div>
@@ -821,6 +841,7 @@ function App() {
                 disabled={saving}
                 onChange={(draft) => { setNotice(null); const d = details[resource]; if (d && "id" in d) setSettingsWork(resource, trimDraft(d.detail, draft)); }}
                 onBack={() => setView("properties")}
+                onRaw={(text) => send("viewRaw", { title: `${resource} settings`, text })}
               />
             ) : !picked.length ? (
               <p className="rs-empty">Pick a property on the left (Ctrl/Cmd or Shift+click to pick several), or add one with +.</p>

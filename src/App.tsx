@@ -17,6 +17,7 @@ import {
   saveNodeViewState,
   send,
 } from "./bridge";
+import { STAGE_FIELD, WorkflowMap } from "./map";
 import { StepForm, defaultsFor, needsForm, type FormEnv, type FormError, type LoadedParams } from "./forms";
 import type { AccessSubjects, Binding, SettingsOps, TriggersState } from "./settings";
 import {
@@ -892,6 +893,27 @@ export function App() {
     return true;
   }, [wf, history]);
 
+  /** A breadcrumb clicked: back to the tree at that place in the history (what came after it is dropped). */
+  const goTo = useCallback(
+    (index: number) => {
+      if (!wf || !history[index]) return;
+      const key = history[index];
+      setHistory((h) => h.slice(0, index));
+      setTreeByWf((m) => ({ ...m, [wf.id]: key }));
+      setSelected(null);
+      setSelectedEdge(null);
+    },
+    [wf, history],
+  );
+
+  /** Reads the workflow (and the list) again from the instance. */
+  const reload = useCallback(() => {
+    if (!wf) return;
+    send("fetchWorkflows", {});
+    send("fetchWorkflow", { workflowId: wf.id });
+    toast("Reading the workflow again…");
+  }, [wf, toast]);
+
   // ---- keyboard (Blender bindings) -------------------------------------
   const mouse = useRef({ x: 200, y: 200 });
   const fitRef = useRef<() => void>(() => {});
@@ -985,9 +1007,6 @@ export function App() {
     return (
       <div className="nv-root">
         <div className="nv-topbar">
-          <span className="nv-brand">
-            <NodeGlyph /> Node view
-          </span>
           <span className="nv-spacer" />
           <button className="nv-btn" onClick={() => setOpen(false)}>
             Back to list view
@@ -1017,25 +1036,9 @@ export function App() {
   return (
     <div className="nv-root">
       <div className="nv-topbar">
-        <span className="nv-brand">
-          <NodeGlyph /> Node view
-        </span>
-        <span className="nv-crumbs">
-          <button className="nv-wf-switch" onClick={() => setWfMenu((v) => !v)} title="Switch workflow">
-            {wf.name} <span className="nv-caret">▾</span>
-          </button>
-          {history.map((k) => (
-            <span key={k} className="nv-crumb">
-              › {trees.find((t) => t.key === k)?.label}
-            </span>
-          ))}
-          {tree && <span className="nv-crumb is-current">› {tree.label}</span>}
-          {history.length > 0 && (
-            <button className="nv-btn is-small" onClick={goBack} title="Back to the parent tree (Tab)">
-              ⮌ Back
-            </button>
-          )}
-        </span>
+        <button className="nv-wf-switch" onClick={() => setWfMenu((v) => !v)} title="Switch workflow">
+          {wf.name} <span className="nv-caret">▾</span>
+        </button>
         <span className="nv-spacer" />
         {connection?.offline && (
           <button className="nv-offline" onClick={() => setScope({ kind: "workflow" })} title="The instance is unreachable — edits are kept offline">
@@ -1068,6 +1071,14 @@ export function App() {
         >
           {dir === "v" ? "↕ Vertical" : "↔ Horizontal"}
         </button>
+        <button
+          className="nv-btn"
+          disabled={!!draft?.pending}
+          onClick={reload}
+          title={draft?.pending ? "Save or discard the unsaved changes first" : "Read the workflow again from the instance"}
+        >
+          Reload
+        </button>
         <button className="nv-btn" disabled={!wf} onClick={() => wf && send("openWorkflow", { workflowId: wf.id })} title="Open this workflow in Saturn, in your browser">
           Open in Saturn ↗
         </button>
@@ -1078,6 +1089,37 @@ export function App() {
           List view
         </button>
       </div>
+
+      {/* where you are, like a browser's bookmarks bar: the workflow, then each tree opened on the way (Tab), each one clickable */}
+      <nav className="nv-crumbbar" aria-label="Where you are">
+        <button className="nv-crumb-btn" onClick={() => setScope({ kind: "workflow" })} title="Workflow settings">
+          {wf.name}
+        </button>
+        {history.map((k, i) => (
+          <span key={`${k}-${i}`} className="nv-crumb">
+            <span aria-hidden="true">›</span>
+            <button className="nv-crumb-btn" onClick={() => goTo(i)} title="Go back to this one">
+              {trees.find((t) => t.key === k)?.label ?? k}
+            </button>
+          </span>
+        ))}
+        {scope.kind === "workflow" ? (
+          <span className="nv-crumb is-current">
+            <span aria-hidden="true">›</span> Workflow settings
+          </span>
+        ) : (
+          tree && (
+            <span className="nv-crumb is-current">
+              <span aria-hidden="true">›</span> {tree.label}
+            </span>
+          )
+        )}
+        {history.length > 0 && (
+          <button className="nv-btn is-small" onClick={goBack} title="Back to the one before (Tab)">
+            ⮌ Back
+          </button>
+        )}
+      </nav>
 
       {remote && remote.workflowId === wf.id && (
         <div className="nv-remote">
@@ -1190,7 +1232,16 @@ export function App() {
           className="nv-canvas"
           onMouseMove={(e) => (mouse.current = { x: e.clientX, y: e.clientY })}
         >
-          {tree ? (
+          {scope.kind === "workflow" ? (
+            <WorkflowMap
+              wf={wf}
+              onOpen={openTree}
+              onMove={(t, to) => {
+                edit("setStageTransition", { path: t.path, field: STAGE_FIELD, from: t.to, to });
+                sourceRef.current = "other";
+              }}
+            />
+          ) : tree ? (
             <ReactFlowProvider>
               <Canvas
                 key={wf.id + "|" + tree.key + "|" + dir}
@@ -1252,14 +1303,20 @@ export function App() {
           ) : (
             <div className="nv-empty-state">Nothing to show.</div>
           )}
-          <div className="nv-hints">
+          <div className="nv-hints" hidden={scope.kind === "workflow"}>
             Shift+A add · X delete · Shift+D duplicate · drag onto a wire to move · Enter edit · Tab open command ·
             Ctrl+Z undo · N panel · Home fit
           </div>
         </div>
 
+        {!panel && (
+          <button className="nv-panel-open" onClick={() => setPanel(true)} title="Show the panel (N)" aria-label="Show the panel">
+            «
+          </button>
+        )}
         {panel && (
           <SidePanel
+            onCollapse={() => setPanel(false)}
             scope={scope}
             ops={ops}
             formEnv={formEnv}
