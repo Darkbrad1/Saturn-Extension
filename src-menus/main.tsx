@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { Switch } from "../src-res/editor";
 import editorCss from "../src-res/editor.css";
 import css from "./menus.css";
+import { hint, listenForShortcuts, pressed, type Bindings } from "../src/keys";
 import { FaIcon, IconField, isIcon } from "../src-res/icons";
 import { AccessBox } from "./access";
 import { Mark, Row, TabSettings, type Host } from "./tabsettings";
@@ -25,7 +26,7 @@ const post = (m: Record<string, unknown>) => vscode.postMessage(m);
 /** A menu's unsaved changes: its label, icon, rules and tabs as edited. */
 interface Work { label: string; icon: string; access_control: Rule[]; nodes: Node[]; isNew?: boolean }
 /** What's kept while the screen is hidden or reloaded. */
-interface Saved { works?: Record<string, Work>; order?: string[] | null; current?: string | null; picked?: string[]; folded?: string[] }
+interface Saved { works?: Record<string, Work>; order?: string[] | null; current?: string | null; picked?: string[]; folded?: string[]; listHidden?: boolean }
 type Drop = { parent: string | null; before: string | null } | { into: string };
 
 /** Settings copied from a tab, by group (the caption is never copied). */
@@ -71,7 +72,25 @@ function App() {
   const requests = useRef(new Map<string, (v: never) => void>());
   const counter = useRef(0);
 
-  useEffect(() => { vscode.setState({ works, order, current, picked, folded } satisfies Saved); }, [works, order, current, picked, folded]);
+  // the menus list folded away (the strip at the left brings it back; T by default)
+  const [listHidden, setListHidden] = useState(saved.listHidden ?? false);
+  // the keys the shortcuts use (the Keyboard shortcuts page's, else the defaults)
+  const [shortcuts, setShortcuts] = useState<Bindings>({});
+  useEffect(() => listenForShortcuts((type, payload) => post({ type, ...payload }), setShortcuts), []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+      if (!typing && pressed(e, "menus.list", shortcuts)) {
+        e.preventDefault();
+        setListHidden((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shortcuts]);
+
+  useEffect(() => { vscode.setState({ works, order, current, picked, folded, listHidden } satisfies Saved); }, [works, order, current, picked, folded, listHidden]);
 
   // ---- host messages ----------------------------------------------------------------------------
   useEffect(() => {
@@ -525,8 +544,12 @@ function App() {
 
       <main className="rs-main">
         {/* column 1: the menus */}
-        <aside className="rs-side mn-menus">
+        {listHidden && (
+          <button className="mn-side-open" title={`Show the menus${hint("menus.list", shortcuts)}`} aria-label="Show the menus" onClick={() => setListHidden(false)}>»</button>
+        )}
+        <aside className="rs-side mn-menus" hidden={listHidden}>
           <div className="rs-side-top">
+            <button className="rs-btn mn-list-fold" title={`Hide the menus${hint("menus.list", shortcuts)}`} aria-label="Hide the menus" onClick={() => setListHidden(true)}>«</button>
             <input className="rs-search" placeholder="Search menus" aria-label="Search menus" value={query} onChange={(e) => setQuery(e.target.value)} />
             <button className="rs-btn rs-add" title="Add a menu" aria-label="Add a menu" onClick={addMenu}>+</button>
           </div>

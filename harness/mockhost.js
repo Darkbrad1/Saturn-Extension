@@ -390,6 +390,8 @@
       case "deleteOperator": apply(id, "Deleted step", (d) => { const parent = get(d, p.path.slice(0, -1)); parent.splice(p.path[p.path.length - 1], 1); }); break;
       case "duplicateNode": apply(id, "Duplicated step", (d) => { const parent = get(d, p.path.slice(0, -1)); const i = p.path[p.path.length - 1]; parent.splice(i + 1, 0, structuredClone(parent[i])); }); break;
       // the workflow map's box positions, kept in localStorage (like the host's map-layouts.json, they outlive the page)
+      // the keyboard shortcuts, from localStorage like the other harness pages (keys.html writes them)
+      case "fetchShortcuts": post("shortcuts", { bindings: JSON.parse(localStorage.getItem("__shortcuts") || "{}") }); break;
       case "fetchMapLayout": { const all = JSON.parse(localStorage.getItem("__mapLayouts") || "{}"); post("mapLayout", { workflowId: p.workflowId, positions: all[p.workflowId] ?? null }); break; }
       case "saveMapLayout": { const all = JSON.parse(localStorage.getItem("__mapLayouts") || "{}"); if (p.positions) all[p.workflowId] = p.positions; else delete all[p.workflowId]; localStorage.setItem("__mapLayouts", JSON.stringify(all)); break; }
       // the workflow map: a stage arrow dragged to another stage (like the host: properties and _properties, `from` checked)

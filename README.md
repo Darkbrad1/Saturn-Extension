@@ -7,6 +7,11 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
 
+## New in 0.3.53 — Keyboard shortcuts page
+- `src/keys.ts`: every changeable shortcut (`SHORTCUTS`: node view, Resources, Menus) with its default keys; `comboOf` (a key press → "Mod+Shift+S"), `pressed`, `shown`, `hint`, `clashOf`, `listenForShortcuts` (asks with `fetchShortcuts`, listens for `shortcuts {bindings}`). The node view, Resources and Menus screens use it instead of fixed keys (Escape, arrows in lists and Alt+↑/↓ stay fixed).
+- New page `src-keys/` (`main.tsx`, `keys.css`; built to `dist/webview/keys/index.js`): the shortcuts by screen, + records a key (Esc cancels), × takes one off, Reset / Reset all, a clash on the same screen refused with its name, search. Host `host/shortcuts.js` (`ShortcutsHost`, appended after `whatsnew.js`): `globalState["saturn.shortcuts"]`, `clean`, `send` / `set` (a change goes to every screen that asked), `open`; command `saturn.openShortcuts`, the sidebar's Keyboard shortcuts button (`KeyboardIcon`, `saturn:openShortcuts`); `fetchShortcuts` answered by the Workflows, Resources and Menus panels.
+- Menus screen: the menus list folds away (« / », T by default, `listHidden` in its state). `hosttest-shortcuts.cjs` (10), `test41.mjs` (24), `harness/keys.html`.
+
 ## New in 0.3.52 — T hides the left panel
 - `src/App.tsx`: T toggles `layers` (beside N for the side panel; the canvas hints say so). `src-res/main.tsx`: T toggles `listHidden`, skipped while typing in an input, textarea, select or editable element. `test40.mjs` (7).
 

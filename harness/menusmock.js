@@ -37,6 +37,8 @@
       window.__posted.push(JSON.parse(JSON.stringify(m)));
       switch (m.type) {
         case "ready": case "refresh": send({ type: "loading", busy: true }); state(); send({ type: "loading", busy: false }); break;
+        // the keyboard shortcuts, from localStorage like the other harness pages (keys.html writes them)
+        case "fetchShortcuts": send({ type: "shortcuts", payload: { bindings: JSON.parse(localStorage.getItem("__shortcuts") || "{}") } }); break;
         case "loadFields": send({ type: "fields", resource: m.resource, fields: fields[m.resource] ?? [] }); break;
         case "count": send({ type: "count", requestId: m.requestId, count: /nothing/.test(m.filter) ? 0 : 12 }); break;
         case "listAccessSubjects": send({ type: "accessSubjects", subjects: { groups: [{ id: "g-staff", name: "Staff" }, { id: "g-admin", name: "Admins" }], users: [{ id: "u1", name: "Ann", detail: "ann@x" }], permissions: [] } }); break;

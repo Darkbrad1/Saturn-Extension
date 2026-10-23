@@ -1,6 +1,16 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.53",
+    title: "Keyboard shortcuts page",
+    items: [
+      "A new Keyboard shortcuts page (the sidebar's Keyboard shortcuts button, under What's new, or the \"Saturn: Keyboard shortcuts\" command) lists every shortcut of the node view, the Resources screen and the Menus screen.",
+      "Click + and press a key to add it, × to take one off, Reset to put a shortcut back, or Reset all. A key another shortcut on the same screen already uses is refused, saying which one has it.",
+      "Open screens pick up a change straight away, and the tooltips and the node view's hint line show your keys.",
+      "The Menus screen's menus list can be hidden: « on it, T, and the strip at the left brings it back.",
+    ],
+  },
+  {
     version: "0.3.52",
     title: "T hides the left panel",
     items: [

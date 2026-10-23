@@ -97,3 +97,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* the access box */
 .mn-access { width: min(620px, 94vw); }
+
+/* folding the menus list away (T by default), and the strip that brings it back */
+.mn-menus[hidden] { display: none; }
+.mn-list-fold { padding: 0 8px; }
+.mn-side-open { flex: none; width: 20px; border: 1px solid var(--rs-edge); border-radius: 8px; background: var(--rs-panel); color: var(--rs-muted); cursor: pointer; }
+.mn-side-open:hover { color: var(--rs-fg); background: var(--rs-hover); }

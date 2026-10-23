@@ -22,7 +22,8 @@
 		"onCommand:saturn.disconnect",
 		"onCommand:saturn.flushQueue",
 		"onCommand:saturn.openWorkflows",
-		"onCommand:saturn.openWhatsNew"
+		"onCommand:saturn.openWhatsNew",
+		"onCommand:saturn.openShortcuts"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
@@ -195,6 +196,11 @@
 				"command": "saturn.openWhatsNew",
 				"title": "Saturn: What's new",
 				"icon": "$(megaphone)"
+			},
+			{
+				"command": "saturn.openShortcuts",
+				"title": "Saturn: Keyboard shortcuts",
+				"icon": "$(keyboard)"
 			},
 			{
 				"command": "saturn.openResources",

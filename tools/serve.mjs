@@ -13,6 +13,7 @@ const MAP = {
   "/resources.js": "dist/resources.js",
   "/menus.js": "dist/menus.js",
   "/news.js": "dist/news.js",
+  "/keys.js": "dist/keys.js",
   "/wf.js": "vsix/extension/dist/webview/workflows/index.js",
   "/wf.css": "vsix/extension/dist/webview/workflows/index.css",
   "/sidebar.js": "vsix/extension/dist/webview/sidebar/index.js",

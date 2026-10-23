@@ -24,6 +24,7 @@ await build({ ...common, entryPoints: ["src-logs/main.tsx"], outfile: "dist/logs
 await build({ ...common, entryPoints: ["src-res/main.tsx"], outfile: "dist/resources.js" });
 await build({ ...common, entryPoints: ["src-menus/main.tsx"], outfile: "dist/menus.js" });
 await build({ ...common, entryPoints: ["src-news/main.tsx"], outfile: "dist/news.js" });
+await build({ ...common, entryPoints: ["src-keys/main.tsx"], outfile: "dist/keys.js" });
 
 const version = /version:\s*"(\d+\.\d+\.\d+)"/.exec(readFileSync("src/changelog.ts", "utf8"))?.[1];
 if (!version) throw new Error("no version in src/changelog.ts");
@@ -39,7 +40,7 @@ const out = "out/vsix";
 rmSync(out, { recursive: true, force: true });
 cpSync("vsix", out, { recursive: true });
 const ext = `${out}/extension`;
-for (const [name, file] of [["nodeview", "dist/nodeview.js"], ["logs", "dist/logs.js"], ["resources", "dist/resources.js"], ["menus", "dist/menus.js"], ["news", "dist/news.js"]]) {
+for (const [name, file] of [["nodeview", "dist/nodeview.js"], ["logs", "dist/logs.js"], ["resources", "dist/resources.js"], ["menus", "dist/menus.js"], ["news", "dist/news.js"], ["keys", "dist/keys.js"]]) {
   mkdirSync(`${ext}/dist/webview/${name}`, { recursive: true });
   cpSync(file, `${ext}/dist/webview/${name}/index.js`);
 }
@@ -57,7 +58,7 @@ for (const f of shipped) {
   writeFileSync(file, code);
 }
 // one scope: syslogs.js, resources.js and whatsnew.js use extension.js's helpers (listRecords, saturnRequest, …)
-writeFileSync(`${ext}/dist/extension.js`, ["host/extension.js", "host/syslogs.js", "host/resources.js", "host/whatsnew.js"].map((f) => readFileSync(f, "utf8")).join("\n"));
+writeFileSync(`${ext}/dist/extension.js`, ["host/extension.js", "host/syslogs.js", "host/resources.js", "host/whatsnew.js", "host/shortcuts.js"].map((f) => readFileSync(f, "utf8")).join("\n"));
 
 const pj = JSON.parse(readFileSync(`${ext}/package.json`, "utf8"));
 pj.version = version;

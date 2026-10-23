@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-abc123'; style-src 'self' 'unsafe-inline';">
+    <script nonce="abc123">
+      // a stand-in for the extension: keeps the keys in localStorage (shared with the other harness pages), logs what's sent
+      window.__posted = [];
+      const get = () => JSON.parse(localStorage.getItem("__shortcuts") || "{}");
+      window.acquireVsCodeApi = () => ({
+        getState: () => undefined, setState: () => {},
+        postMessage: (m) => {
+          window.__posted.push(m);
+          if (m.type === "setShortcuts") localStorage.setItem("__shortcuts", JSON.stringify(m.payload.bindings));
+          if (m.type === "fetchShortcuts" || m.type === "setShortcuts") setTimeout(() => window.dispatchEvent(new MessageEvent("message", { data: { type: "shortcuts", payload: { bindings: get() } } })), 10);
+        },
+      });
+    </script>
+</head>
+<body>
+    <div id="keys-root"></div>
+    <script type="module" nonce="abc123" src="keys.js"></script>
+</body>
+</html>

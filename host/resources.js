@@ -665,6 +665,12 @@ var ResourcePropertiesHost = (() => {
         break;
       }
       // some JSON (a resource's settings record) in an untitled, read-only-ish editor tab beside the screen
+      // the keyboard shortcuts you picked (host/shortcuts.js, 0.3.53); `post`'s webview is the screen's
+      case "fetchShortcuts": {
+        if (message.webview) ShortcutsHost.send(message.webview);
+        else post("shortcuts", { bindings: ShortcutsHost.get() });
+        break;
+      }
       case "viewRaw": {
         const doc = await vs.workspace.openTextDocument({ content: String(payload.text ?? ""), language: "json" });
         await vs.window.showTextDocument(doc, { preview: true, viewColumn: vs.ViewColumn.Beside });
@@ -702,7 +708,7 @@ var ResourcePropertiesHost = (() => {
     const post = (type, payload) => panel.webview.postMessage({ type, payload });
     panel.webview.onDidReceiveMessage(async (message) => {
       try {
-        await handle(manager, instance, message, post);
+        await handle(manager, instance, message?.type === "fetchShortcuts" ? { ...message, webview: panel.webview } : message, post);
       } catch (error) {
         post(message?.type === "save" || message?.type === "restore" || message?.type === "saveSettings" ? "saveFailed" : "failed", {
           resource: message?.payload?.resource,

@@ -11778,6 +11778,30 @@ function SystemLogsIcon({
     })]
   });
 }
+// KeyboardIcon — Icon for the Keyboard shortcuts entry (a keyboard), drawn like a lucide icon. Added by this project.
+function KeyboardIcon({
+  className: className
+}) {
+  return (0, jsxForInstances.jsxs)("svg", {
+    className: className,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true",
+    children: [(0, jsxForInstances.jsx)("rect", {
+      x: "2",
+      y: "5",
+      width: "20",
+      height: "14",
+      rx: "2"
+    }), (0, jsxForInstances.jsx)("path", {
+      d: "M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M8 16h8"
+    })]
+  });
+}
 // WhatsNewIcon — Icon for the What's new entry (a megaphone), drawn like a lucide icon. Added by this project.
 function WhatsNewIcon({
   className: className
@@ -11924,6 +11948,17 @@ function AccountView({
       children: [(0, jsxForAccount.jsx)(WhatsNewIcon, {
         className: "h-4 w-4"
       }), "What's new"]
+    }), (0, jsxForAccount.jsxs)(Button, {
+      // this project: change the keys the screens use, on their own page
+      variant: "secondary",
+      className: "w-full justify-start gap-2",
+      title: "Change the keyboard shortcuts of the node view, Resources and Menus screens",
+      onClick: () => vscodeApi.postMessage({
+        type: "saturn:openShortcuts"
+      }),
+      children: [(0, jsxForAccount.jsx)(KeyboardIcon, {
+        className: "h-4 w-4"
+      }), "Keyboard shortcuts"]
     }), (0, jsxForAccount.jsxs)("div", {
       className: "flex items-center justify-between mt-4 mb-1",
       children: [(0, jsxForAccount.jsx)(SectionHeading, {

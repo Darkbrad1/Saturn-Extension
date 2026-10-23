@@ -18,6 +18,7 @@ import {
   send,
 } from "./bridge";
 import { STAGE_FIELD, WorkflowMap } from "./map";
+import { hint, keysOf, listenForShortcuts, pressed, shown as shownKey, type Bindings } from "./keys";
 import { StepForm, defaultsFor, needsForm, type FormEnv, type FormError, type LoadedParams } from "./forms";
 import type { AccessSubjects, Binding, SettingsOps, TriggersState } from "./settings";
 import {
@@ -151,6 +152,9 @@ export function App() {
   const [panel, setPanel] = useState(saved.panel);
   // the layers panel (stages, actions, commands) on the left: shown unless folded away
   const [layers, setLayers] = useState(saved.layers ?? true);
+  // the keys the shortcuts use (the Keyboard shortcuts page's, else the defaults)
+  const [shortcuts, setShortcuts] = useState<Bindings>({});
+  useEffect(() => listenForShortcuts(send, setShortcuts), []);
   const [panelWidth, setPanelWidth] = useState(saved.panelWidth ?? PANEL_DEFAULT);
   /** Settings of the selected step, read from the host (readNode) for the panel editor. */
   const [loaded, setLoaded] = useState<{ key: string; params: LoadedParams } | null>(null);
@@ -929,34 +933,35 @@ export function App() {
       if (formRef.current) return;
       // a picker pop-over (date, colour) is open: it handles its own keys
       if (document.querySelector("#sonover-node-view .nv-pop")) return;
-      const mod = e.ctrlKey || e.metaKey;
       const f = selected?.data.flow;
       const key = e.key.toLowerCase();
       const many = selection.length > 1;
+      // the keys come from the Keyboard shortcuts page (src/keys.ts); Escape stays fixed
+      const hit = (id: string) => pressed(e, id, shortcuts);
       let handled = true;
-      if (many && e.shiftKey && key === "d" && !mod) bulk.duplicate(selection);
-      else if (many && key === "m" && !mod && !e.shiftKey) bulk.mock(selection);
-      else if (many && (key === "x" || key === "delete" || key === "backspace") && !mod) bulk.remove(selection);
-      else if (many && mod && key === "c") bulk.copy(selection);
-      else if (e.shiftKey && key === "a" && !mod) setAddMenu({ ...mouse.current });
-      else if (e.shiftKey && key === "d" && !mod && f) doDuplicate(f);
-      else if (key === "m" && !mod && !e.shiftKey && f) doToggleMock(f);
-      else if ((key === "x" || key === "delete" || key === "backspace") && !mod && f) doDelete(f);
-      else if (mod && key === "z" && !e.shiftKey) edit("undoLastEdit", {});
-      else if ((mod && key === "f") || (key === "/" && !mod)) {
+      if (many && hit("node.duplicate")) bulk.duplicate(selection);
+      else if (many && hit("node.disable")) bulk.mock(selection);
+      else if (many && hit("node.delete")) bulk.remove(selection);
+      else if (many && hit("node.copy")) bulk.copy(selection);
+      else if (hit("node.add")) setAddMenu({ ...mouse.current });
+      else if (hit("node.duplicate") && f) doDuplicate(f);
+      else if (hit("node.disable") && f) doToggleMock(f);
+      else if (hit("node.delete") && f) doDelete(f);
+      else if (hit("node.undo")) edit("undoLastEdit", {});
+      else if (hit("node.search")) {
         const el = document.getElementById("nv-search") as HTMLInputElement | null;
         el?.focus();
         el?.select();
-      } else if (mod && key === "c" && f) copyStep(f);
-      else if (mod && key === "v") pasteAt(insertPoint());
-      else if (mod && key === "s") send("saveChanges", { workflowId: wf.id });
-      else if (key === "n" && !mod && !e.shiftKey) setPanel((p) => !p);
-      // T: the layers panel on the left (like Blender's T for its left toolbar)
-      else if (key === "t" && !mod && !e.shiftKey) setLayers((v) => !v);
-      else if (key === "tab") {
+      } else if (hit("node.copy") && f) copyStep(f);
+      else if (hit("node.paste")) pasteAt(insertPoint());
+      else if (hit("node.save")) send("saveChanges", { workflowId: wf.id });
+      else if (hit("node.panel")) setPanel((p) => !p);
+      // the layers panel on the left (T by default, like Blender's T for its left toolbar)
+      else if (hit("node.layers")) setLayers((v) => !v);
+      else if (hit("node.open")) {
         if (!enterGroup(f)) goBack();
-      } else if (key === "home") fitRef.current();
-      else if ((key === "enter" || key === "f2") && f) openEdit(f);
+      } else if (hit("node.fit")) fitRef.current();
+      else if (hit("node.edit") && f) openEdit(f);
       else if (key === "escape") {
         if (ctxMenu) setCtxMenu(null);
         else if (wfMenu) setWfMenu(false);
@@ -976,7 +981,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [open, wf, selected, addMenu, ctxMenu, wfMenu, doDelete, doDuplicate, doToggleMock, edit, enterGroup, goBack, openEdit, copyStep, pasteAt, insertPoint, selection, bulk]);
+  }, [open, wf, selected, addMenu, ctxMenu, wfMenu, doDelete, doDuplicate, doToggleMock, edit, enterGroup, goBack, openEdit, copyStep, pasteAt, insertPoint, selection, bulk, shortcuts]);
 
   // ---- render ------------------------------------------------------------
   if (!open) {
@@ -1088,10 +1093,10 @@ export function App() {
         <button className="nv-btn" disabled={!wf} onClick={() => wf && send("openWorkflow", { workflowId: wf.id })} title="Open this workflow in Saturn, in your browser">
           Open in Saturn ↗
         </button>
-        <button className={`nv-btn ${layers ? "is-on" : ""}`} onClick={() => setLayers((v) => !v)} title="The layers panel on the left: stages, actions and commands (T)">
+        <button className={`nv-btn ${layers ? "is-on" : ""}`} onClick={() => setLayers((v) => !v)} title={`The layers panel on the left: stages, actions and commands${hint("node.layers", shortcuts)}`}>
           Layers
         </button>
-        <button className={`nv-btn ${panel ? "is-on" : ""}`} onClick={() => setPanel((p) => !p)} title="Side panel (N)">
+        <button className={`nv-btn ${panel ? "is-on" : ""}`} onClick={() => setPanel((p) => !p)} title={`Side panel${hint("node.panel", shortcuts)}`}>
           Panel
         </button>
         <button className="nv-btn" onClick={() => setOpen(false)} title="Back to the list editor">
@@ -1159,7 +1164,7 @@ export function App() {
 
       <div className="nv-main">
         {!layers && (
-          <button className="nv-layers-open" onClick={() => setLayers(true)} title="Show the layers panel (T)" aria-label="Show the layers panel">
+          <button className="nv-layers-open" onClick={() => setLayers(true)} title={`Show the layers panel${hint("node.layers", shortcuts)}`} aria-label="Show the layers panel">
             »
           </button>
         )}
@@ -1319,13 +1324,26 @@ export function App() {
             <div className="nv-empty-state">Nothing to show.</div>
           )}
           <div className="nv-hints" hidden={scope.kind === "workflow"}>
-            Shift+A add · X delete · Shift+D duplicate · drag onto a wire to move · Enter edit · Tab open command ·
-            Ctrl+Z undo · N panel · T layers · Home fit
+            {[
+              ["node.add", "add"],
+              ["node.delete", "delete"],
+              ["node.duplicate", "duplicate"],
+              ["", "drag onto a wire to move"],
+              ["node.edit", "edit"],
+              ["node.open", "open command"],
+              ["node.undo", "undo"],
+              ["node.panel", "panel"],
+              ["node.layers", "layers"],
+              ["node.fit", "fit"],
+            ]
+              .map(([id, what]) => (id ? (keysOf(id, shortcuts)[0] ? `${shownKey(keysOf(id, shortcuts)[0])} ${what}` : "") : what))
+              .filter(Boolean)
+              .join(" · ")}
           </div>
         </div>
 
         {!panel && (
-          <button className="nv-panel-open" onClick={() => setPanel(true)} title="Show the panel (N)" aria-label="Show the panel">
+          <button className="nv-panel-open" onClick={() => setPanel(true)} title={`Show the panel${hint("node.panel", shortcuts)}`} aria-label="Show the panel">
             «
           </button>
         )}

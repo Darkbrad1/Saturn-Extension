@@ -10801,6 +10801,10 @@ var draftHistoryLimit = 20,
           }
         // Disables or enables one step (Saturn's "mock" flag).
         // The workflow map's box positions (0.3.50): read when the map opens, written after a box is dragged.
+        // The keyboard shortcuts you picked (host/shortcuts.js, 0.3.53).
+        case "fetchShortcuts":
+          ShortcutsHost.send(webview);
+          break;
         case "fetchMapLayout":
           {
             let workflowId = String(message.payload?.workflowId ?? "");
@@ -13159,6 +13163,10 @@ var SidebarProvider = class SelfSidebarProvider {
             });
             break;
           }
+        // Opens the Keyboard shortcuts page (added by this project, 0.3.53).
+        case "saturn:openShortcuts":
+          await vscode4.commands.executeCommand("saturn.openShortcuts");
+          break;
         // Opens the What's new page (added by this project).
         case "saturn:openWhatsNew":
           await vscode4.commands.executeCommand("saturn.openWhatsNew");
@@ -13702,6 +13710,10 @@ var MenusPanel = class SelfMenusPanel {
       case "ready":
       case "refresh":
         await this.loadAll();
+        return;
+      // The keyboard shortcuts you picked (host/shortcuts.js, 0.3.53).
+      case "fetchShortcuts":
+        ShortcutsHost.send(this.panel.webview);
         return;
       // Sends a resource's fields (for the tab and view editors).
       case "loadFields":
@@ -18121,7 +18133,12 @@ async function startExtension(context) {
   }), vscode.commands.registerCommand("saturn.openWhatsNew", () => {
     // What's new: the release notes on their own page (host/whatsnew.js)
     WhatsNewHost.open(context.extensionUri);
-  }), (ResourcePropertiesHost.attach({
+  }), (ShortcutsHost.attach({
+    globalState: context.globalState
+  }), vscode.commands.registerCommand("saturn.openShortcuts", () => {
+    // Keyboard shortcuts: change the keys the screens use (host/shortcuts.js)
+    ShortcutsHost.open(context.extensionUri);
+  })), (ResourcePropertiesHost.attach({
     globalStorageUri: context.globalStorageUri,
     globalState: context.globalState
   }), vscode.commands.registerCommand("saturn.openResources", async item => {

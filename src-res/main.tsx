@@ -14,6 +14,7 @@ import { Cards, PropertyEditor, Switch, type Field, type Lookups } from "./edito
 import { setAt } from "./editor";
 import { ALL, GROUPS, KEY_PATTERN, TYPES, diff, get, keyFrom, mappedOf, newProperty, type Prop } from "./spec";
 import { SettingsPage, settingsError, settingsSummary, trimDraft, type Loaded, type SettingsDraft } from "./settings";
+import { hint, listenForShortcuts, pressed, type Bindings } from "../src/keys";
 import css from "./res.css";
 import editorCss from "./editor.css";
 
@@ -169,6 +170,9 @@ function App() {
   const [view, setView] = useState<"properties" | "settings">(saved.view ?? "properties");
   // the properties list folded away (the strip at the left brings it back)
   const [listHidden, setListHidden] = useState(saved.listHidden ?? false);
+  // the keys the shortcuts use (the Keyboard shortcuts page's, else the defaults)
+  const [shortcuts, setShortcuts] = useState<Bindings>({});
+  useEffect(() => listenForShortcuts(send, setShortcuts), []);
 
   // (in braces: VS Code's setState returns the state, which React would take for a cleanup function)
   useEffect(() => {
@@ -498,15 +502,16 @@ function App() {
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.altKey && e.key === "ArrowLeft" && trail.length) {
+      // the keys come from the Keyboard shortcuts page (src/keys.ts)
+      if (pressed(e, "resources.back", shortcuts) && trail.length) {
         e.preventDefault();
         back();
       }
       if (e.key === "Escape") setMenu(null);
-      // T (not while typing): fold the properties list away, or bring it back
+      // T by default (not while typing): fold the properties list away, or bring it back
       const el = e.target as HTMLElement | null;
       const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
-      if (e.key.toLowerCase() === "t" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      if (!typing && pressed(e, "resources.list", shortcuts)) {
         e.preventDefault();
         setListHidden((v) => !v);
       }
@@ -655,7 +660,7 @@ function App() {
           ) : (
             pickedLive.length > 0 && <span className="rs-crumb-prop">› {pickedLive.length === 1 ? pickedLive[0].label ?? pickedLive[0].shownKey : `${pickedLive.length} properties`}</span>
           )}
-          {trail.length > 0 && <button className="rs-btn is-small" title="Back (Alt+←)" onClick={() => back()}>‹ Back</button>}
+          {trail.length > 0 && <button className="rs-btn is-small" title={`Back${hint("resources.back", shortcuts)}`} onClick={() => back()}>‹ Back</button>}
         </nav>
       )}
 
@@ -710,13 +715,13 @@ function App() {
       ) : (
         <div className="rs-main">
           {listHidden && (
-            <button className="rs-side-open" title="Show the properties (T)" aria-label="Show the properties" onClick={() => setListHidden(false)}>
+            <button className="rs-side-open" title={`Show the properties${hint("resources.list", shortcuts)}`} aria-label="Show the properties" onClick={() => setListHidden(false)}>
               »
             </button>
           )}
           <aside className="rs-side" hidden={listHidden}>
             <div className="rs-side-top">
-              <button className="rs-btn rs-fold" title="Hide the properties (T)" aria-label="Hide the properties" onClick={() => setListHidden(true)}>«</button>
+              <button className="rs-btn rs-fold" title={`Hide the properties${hint("resources.list", shortcuts)}`} aria-label="Hide the properties" onClick={() => setListHidden(true)}>«</button>
               <input className="rs-search" placeholder="Search properties" aria-label="Search properties" value={query} onChange={(e) => setQuery(e.target.value)} />
               <button className="rs-btn rs-add" title="Add a property" aria-label="Add a property" disabled={saving} onClick={() => setAdding(adding ? null : { label: "", key: "", keyTouched: false, type: "string" })}>+</button>
             </div>
