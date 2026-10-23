@@ -1495,12 +1495,32 @@ function paramsToData(entry, values, stored) {
     key: key,
     value: value
   })));
-  // Values for keys that aren't parameters of the operator are reported.
-  for (let key of Object.keys(values)) !paramDefs.some(def => def.param === key) && (values[key] ?? "").trim() !== "" && errors.push({
-    param: key,
-    label: key,
-    message: "is not a parameter of this operator"
-  });
+  // Settings the step has that the operator's catalog doesn't list (a Create step's properties, 0.3.50): kept as
+  // stored, or, when the panel sent a value, written from it (JSON for an object or a list, else text). Saving a
+  // step used to drop them.
+  let isParam = key => paramDefs.some(def => def.param === key);
+  for (let [key, raw] of Object.entries(values)) {
+    if (isParam(key) || RESERVED_PATH_KEYS.has(key) || key === "_properties" || Object.prototype.hasOwnProperty.call(data, key)) continue;
+    let text = String(raw ?? "");
+    if (text.trim() === "") continue;
+    if (isObjectLike(stored?.[key]) || /^\s*[\[{]/.test(text)) {
+      try {
+        data[key] = JSON.parse(text);
+      } catch (error) {
+        errors.push({
+          param: key,
+          label: key,
+          message: `is not valid JSON \u2014 ${error instanceof Error ? error.message : String(error)}`
+        });
+      }
+    } else data[key] = text;
+  }
+  if (stored && typeof stored == "object" && !Array.isArray(stored)) for (let [key, value] of Object.entries(stored)) {
+    if (isParam(key) || RESERVED_PATH_KEYS.has(key) || Object.prototype.hasOwnProperty.call(data, key)) continue;
+    // property_updater's _properties is written above from its properties
+    if (key === "_properties" && merge) continue;
+    data[key] = value;
+  }
   return {
     data: data,
     errors: errors
@@ -8992,6 +9012,41 @@ var draftHistoryLimit = 20,
         console.warn("[Saturn] could not persist pending workflow edits", error);
       }
     }
+    // Where the workflow map's box positions are kept for this instance (0.3.50): map-layouts.json beside
+    // drafts.json, {workflowId: {nodeId: {x, y}}}. Only on this computer; Saturn never sees it.
+    mapLayoutFile() {
+      return vscode12.Uri.joinPath(vscode12.Uri.file(workflowsDataDir(this.instance)), "map-layouts.json");
+    }
+    // Every workflow's map layout, or {} when there's none yet (or the file can't be read).
+    async readMapLayouts() {
+      try {
+        let stored = JSON.parse(new TextDecoder().decode(await vscode12.workspace.fs.readFile(this.mapLayoutFile())));
+        return stored && typeof stored == "object" && !Array.isArray(stored) ? stored : {};
+      } catch {
+        return {};
+      }
+    }
+    // Box positions as sent by the map, kept only when they're {id: {x, y}} with finite numbers (at most 1000).
+    static cleanMapLayout(positions) {
+      if (!positions || typeof positions != "object" || Array.isArray(positions)) return null;
+      let clean = {};
+      for (let [id, at] of Object.entries(positions).slice(0, 1e3)) {
+        if (["__proto__", "constructor", "prototype"].includes(id)) continue;
+        if (at && typeof at == "object" && Number.isFinite(at.x) && Number.isFinite(at.y)) clean[id] = {
+          x: Math.round(at.x),
+          y: Math.round(at.y)
+        };
+      }
+      return Object.keys(clean).length ? clean : null;
+    }
+    // Saves (or, with null, forgets) one workflow's map layout.
+    async writeMapLayout(workflowId, positions) {
+      let all = await this.readMapLayouts(),
+        clean = SelfWorkflowsPanel.cleanMapLayout(positions);
+      clean ? all[workflowId] = clean : delete all[workflowId];
+      let file = this.mapLayoutFile();
+      await vscode12.workspace.fs.createDirectory(vscode12.Uri.joinPath(file, "..")), await vscode12.workspace.fs.writeFile(file, new TextEncoder().encode(JSON.stringify(all)));
+    }
     // Reads drafts.json once (undo history is not kept across sessions).
     async loadDrafts() {
       if (!this.draftsLoaded) {
@@ -10745,6 +10800,30 @@ var draftHistoryLimit = 20,
             break;
           }
         // Disables or enables one step (Saturn's "mock" flag).
+        // The workflow map's box positions (0.3.50): read when the map opens, written after a box is dragged.
+        case "fetchMapLayout":
+          {
+            let workflowId = String(message.payload?.workflowId ?? "");
+            webview.postMessage({
+              type: "mapLayout",
+              payload: {
+                workflowId: workflowId,
+                positions: (await this.readMapLayouts())[workflowId] ?? null
+              }
+            });
+            break;
+          }
+        case "saveMapLayout":
+          {
+            let workflowId = String(message.payload?.workflowId ?? "");
+            if (!workflowId || ["__proto__", "constructor", "prototype"].includes(workflowId)) break;
+            try {
+              await this.writeMapLayout(workflowId, message.payload?.positions ?? null);
+            } catch (error) {
+              console.warn("[Saturn] could not save the map layout", error);
+            }
+            break;
+          }
         // The workflow map (0.3.49): a stage arrow dragged to another stage. The step that moves the record
         // (a property_updater setting <field> to a stage) gets the new stage, in its properties and in its
         // _properties rows, as one draft edit. `from` must still be what's stored, so a stale map changes nothing.

@@ -3601,3 +3601,31 @@ body.nv-scrubbing * {
 #sonover-node-view .react-flow__edge.mp-cc path { stroke: #a78bfa; stroke-dasharray: 2 4; }
 #sonover-node-view .react-flow__edge.mp-move path { stroke-width: 2; }
 #sonover-node-view .react-flow__edge.is-dim { opacity: 0.08; }
+
+/* folding the layers panel away, and the strip that brings it back */
+#sonover-node-view .nv-outliner { position: relative; }
+#sonover-node-view .nv-ol-collapse {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--nv-muted);
+  cursor: pointer;
+}
+#sonover-node-view .nv-ol-collapse:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+#sonover-node-view .nv-layers-open {
+  flex: none;
+  width: 18px;
+  border: 0;
+  border-right: 1px solid #161616;
+  background: var(--nv-panel);
+  color: var(--nv-muted);
+  cursor: pointer;
+  font-size: 13px;
+}
+#sonover-node-view .nv-layers-open:hover { color: #fff; background: #333; }

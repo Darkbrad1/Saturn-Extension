@@ -1,6 +1,16 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.50",
+    title: "A map you can arrange",
+    items: [
+      "The workflow map reads left to right: Global actions first, then the stages, with the commands underneath.",
+      "Drag any box on the map (a stage, Global actions, a command) to arrange it your way. Where you put it is kept for that workflow on this computer; Reset layout puts everything back. Saturn doesn't change.",
+      "The layers panel on the left can be hidden: « on the panel, or Layers in the top bar; the strip at the left edge brings it back.",
+      "Fixed: a Create step's Properties now show in the side panel and can be edited there. Saving a Create step from the panel used to drop its properties; settings a step has that Saturn's list of settings doesn't name are now kept.",
+    ],
+  },
+  {
     version: "0.3.49",
     title: "The workflow map",
     items: [

@@ -133,6 +133,8 @@ interface Saved {
   collapsed?: Record<string, string[]>;
   /** which way flows run: top → bottom (default) or left → right */
   dir?: LayoutDir;
+  /** the layers panel shown (default) or folded away */
+  layers?: boolean;
 }
 const PANEL_DEFAULT = 320;
 
@@ -147,6 +149,8 @@ export function App() {
   const [open, setOpen] = useState(true);
   const [dir, setDir] = useState<LayoutDir>(saved.dir ?? "v");
   const [panel, setPanel] = useState(saved.panel);
+  // the layers panel (stages, actions, commands) on the left: shown unless folded away
+  const [layers, setLayers] = useState(saved.layers ?? true);
   const [panelWidth, setPanelWidth] = useState(saved.panelWidth ?? PANEL_DEFAULT);
   /** Settings of the selected step, read from the host (readNode) for the panel editor. */
   const [loaded, setLoaded] = useState<{ key: string; params: LoadedParams } | null>(null);
@@ -210,8 +214,8 @@ export function App() {
   formRef.current = form;
 
   useEffect(
-    () => saveNodeViewState({ open, panel, panelWidth, trees: treeByWf, collapsed: collapsedByWf, dir }),
-    [open, panel, panelWidth, treeByWf, collapsedByWf, dir],
+    () => saveNodeViewState({ open, panel, panelWidth, trees: treeByWf, collapsed: collapsedByWf, dir, layers }),
+    [open, panel, panelWidth, treeByWf, collapsedByWf, dir, layers],
   );
   useEffect(() => {
     const off = onSelectionChange(setCurrentId);
@@ -1082,6 +1086,9 @@ export function App() {
         <button className="nv-btn" disabled={!wf} onClick={() => wf && send("openWorkflow", { workflowId: wf.id })} title="Open this workflow in Saturn, in your browser">
           Open in Saturn ↗
         </button>
+        <button className={`nv-btn ${layers ? "is-on" : ""}`} onClick={() => setLayers((v) => !v)} title="The layers panel on the left: stages, actions and commands">
+          Layers
+        </button>
         <button className={`nv-btn ${panel ? "is-on" : ""}`} onClick={() => setPanel((p) => !p)} title="Side panel (N)">
           Panel
         </button>
@@ -1149,7 +1156,13 @@ export function App() {
       )}
 
       <div className="nv-main">
-        <Outliner
+        {!layers && (
+          <button className="nv-layers-open" onClick={() => setLayers(true)} title="Show the layers panel" aria-label="Show the layers panel">
+            »
+          </button>
+        )}
+        {layers && <Outliner
+          onCollapse={() => setLayers(false)}
           wf={wf}
           activeKey={scope.kind === "tree" ? tree?.key : undefined}
           scope={scope}
@@ -1226,7 +1239,7 @@ export function App() {
             sourceRef.current = "outliner";
           }}
           onClearError={() => setOutlinerError(null)}
-        />
+        />}
 
         <div
           className="nv-canvas"

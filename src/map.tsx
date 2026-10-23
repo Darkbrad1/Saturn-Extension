@@ -4,8 +4,10 @@
 // for how a record moves: an action whose Property Updater sets the stage field (`status`) to another stage.
 // A click highlights something's lines; a double click opens it. Dragging an arrow's end onto another stage
 // changes the stage that action moves the record to (setStageTransition, one draft edit).
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { send } from "./bridge";
 import {
+  applyNodeChanges,
   Background,
   BackgroundVariant,
   Controls,
@@ -182,6 +184,8 @@ export function WorkflowMap(props: {
 function MapCanvas({ wf, onOpen, onMove }: { wf: WorkflowView; onOpen: (key: string) => void; onMove: (t: Transition, to: string) => void }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [commandLines, setCommandLines] = useState(false);
+  // bumped after a drag, so the Reset layout button notices (the moves themselves are in a ref)
+  const [, setLayoutChanged] = useState(0);
   const map = useMemo(() => mapOf(wf), [wf]);
 
   // what the picked thing is linked to (itself included)
@@ -204,7 +208,9 @@ function MapCanvas({ wf, onOpen, onMove }: { wf: WorkflowView; onOpen: (key: str
   }, [picked, map, commandLines]);
   const lit: Lit = (key) => (!near ? null : near.has(key) ? "on" : "off");
 
-  const nodes = useMemo(() => {
+  // where the boxes go by themselves: Global actions on the left, the stages to its right in rows of
+  // STAGES_PER_ROW, the commands under the stages
+  const auto = useMemo(() => {
     const nodes: Node[] = [];
     const rowsOf = (stage: string | null) => map.actions.filter((a) => a.stage === stage).map((a) => ({ key: a.key, label: a.label }));
     // the stages in rows of STAGES_PER_ROW, in their order, each row as tall as its tallest stage
@@ -214,19 +220,44 @@ function MapCanvas({ wf, onOpen, onMove }: { wf: WorkflowView; onOpen: (key: str
       wf.stages.slice(start, start + STAGES_PER_ROW).forEach((s, i) => {
         const rows = rowsOf(s.stage);
         tallest = Math.max(tallest, HEAD + Math.max(1, rows.length) * ROW);
-        nodes.push({ id: `stage:${s.stage}`, type: "rows", position: { x: i * COL, y }, data: { title: s.label, color: s.color, stage: s.stage, rows } satisfies RowsData, draggable: false });
+        nodes.push({ id: `stage:${s.stage}`, type: "rows", position: { x: COL + i * COL, y }, data: { title: s.label, color: s.color, stage: s.stage, rows } satisfies RowsData });
       });
       y += tallest + 90;
     }
     const below = y + 60;
-    const globals = rowsOf(null);
-    nodes.push({ id: "global", type: "rows", position: { x: 0, y: below }, data: { title: "Global actions", color: "#9ca3af", stage: null, rows: globals } satisfies RowsData, draggable: false });
-    const per = STAGES_PER_ROW - 1;
+    nodes.push({ id: "global", type: "rows", position: { x: 0, y: 0 }, data: { title: "Global actions", color: "#9ca3af", stage: null, rows: rowsOf(null) } satisfies RowsData });
     map.commands.forEach((c, i) => {
-      nodes.push({ id: c.key, type: "command", position: { x: COL + (i % per) * COL, y: below + Math.floor(i / per) * 90 }, data: { key: c.key, label: c.label } satisfies CommandData, draggable: false });
+      nodes.push({ id: c.key, type: "command", position: { x: COL + (i % STAGES_PER_ROW) * COL, y: below + Math.floor(i / STAGES_PER_ROW) * 90 }, data: { key: c.key, label: c.label } satisfies CommandData });
     });
     return nodes;
   }, [wf, map]);
+
+  // boxes moved by hand: kept by the extension per workflow (map-layouts.json, on this computer only), read when
+  // the map opens; `saved` is what was read (or reset), `moved` holds every move since without rebuilding the nodes
+  const [saved, setSaved] = useState<Record<string, { x: number; y: number }> | null>(null);
+  const moved = useRef<Record<string, { x: number; y: number }>>({});
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const { type, payload } = e.data ?? {};
+      if (type === "mapLayout" && payload?.workflowId === wf.id) {
+        moved.current = { ...(payload.positions ?? {}) };
+        setSaved(payload.positions ?? {});
+      }
+    };
+    window.addEventListener("message", onMessage);
+    send("fetchMapLayout", { workflowId: wf.id });
+    return () => window.removeEventListener("message", onMessage);
+  }, [wf.id]);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  useEffect(() => {
+    if (!saved) return;
+    setNodes(auto.map((n) => (moved.current[n.id] ? { ...n, position: moved.current[n.id] } : n)));
+  }, [auto, saved]);
+  const resetLayout = () => {
+    moved.current = {};
+    setSaved({});
+    send("saveMapLayout", { workflowId: wf.id, positions: null });
+  };
 
   const edges = useMemo(() => {
     const edges: Edge[] = [];
@@ -291,7 +322,10 @@ function MapCanvas({ wf, onOpen, onMove }: { wf: WorkflowView; onOpen: (key: str
           <input type="checkbox" role="switch" checked={commandLines} onChange={(e) => setCommandLines(e.target.checked)} />
           Commands calling commands
         </label>
-        <span className="mp-hint">Click to show its lines · double-click to open · to move an arrow, click its action, then drag the arrow's end to another stage</span>
+        <button className="nv-btn is-small" disabled={!Object.keys(moved.current).length && !(saved && Object.keys(saved).length)} onClick={resetLayout} title="Put every box back where the map places it">
+          Reset layout
+        </button>
+        <span className="mp-hint">Drag a box to move it · click to show its lines · double-click to open · to move an arrow, click its action, then drag the arrow's end to another stage</span>
       </div>
       <ReactFlow
         nodes={nodes}
@@ -300,7 +334,13 @@ function MapCanvas({ wf, onOpen, onMove }: { wf: WorkflowView; onOpen: (key: str
         fitView
         minZoom={0.1}
         zoomOnDoubleClick={false}
-        nodesDraggable={false}
+        // the boxes can be moved; where they're put is kept (actions stay in their stage: they're rows of it)
+        onNodesChange={(changes) => setNodes((ns) => applyNodeChanges(changes, ns))}
+        onNodeDragStop={(_, __, dragged) => {
+          for (const n of dragged) moved.current[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
+          send("saveMapLayout", { workflowId: wf.id, positions: moved.current });
+          setLayoutChanged((v) => v + 1);
+        }}
         // connectable, so an arrow's end can be dropped on a stage; no handle starts a new line (isConnectableStart)
         nodesConnectable
         edgesReconnectable

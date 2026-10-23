@@ -70,6 +70,8 @@ export function Outliner(props: {
   /** copies of actions in a stage (null: Global actions), before `index` there (null: the end) */
   onCopyActions: (paths: Path[], stageIndex: number | null, index: number | null) => void;
   onClearError: () => void;
+  /** folds the layers panel away (the strip at the window's edge brings it back) */
+  onCollapse: () => void;
 }) {
   const { wf } = props;
   const [editing, setEditing] = useState<Editing>(null);
@@ -372,6 +374,9 @@ export function Outliner(props: {
 
   return (
     <aside className="nv-outliner">
+      <button className="nv-ol-collapse" onClick={props.onCollapse} title="Hide the layers panel" aria-label="Hide the layers panel">
+        «
+      </button>
       <button
         className={`nv-ol-workflow ${props.scope.kind === "workflow" ? "is-active" : ""}`}
         onClick={props.onSelectWorkflow}

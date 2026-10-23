@@ -26,6 +26,9 @@
       params: [P("user", "User", { required: true, lookupKind: "function", lookupResource: { resource: "users", valueField: "id", labelField: "name" } })] },
     notify_groups: { name: "Notify Groups", category: "Communication", description: "Notify everyone in some groups.", icon: null,
       params: [P("groups", "Groups", { type: "array", lookupKind: "function", lookupResource: { resource: "user_groups", valueField: "id", labelField: "name" } }), P("message", "Message")] },
+    // a Create step: the catalog lists only its resource, but real steps also store properties (a map)
+    create: { name: "Create", category: "Records", description: "Create a record.", icon: null,
+      params: [P("resource", "Resource", { required: true, lookupKind: "resources" })] },
     debug: { name: "Debug", category: "Developer", description: "Log the current context.", icon: null,
       params: [P("label", "Label"), P("level", "Level", { lookupValues: ["info", "warn", "error"] })] },
     schedule_followup: { name: "Schedule Follow-up", category: "Records", description: "Schedule a follow-up on the record.", icon: null,
@@ -345,8 +348,11 @@
             for (const [k, v] of Object.entries(p.values)) { const prm = c?.params.find((x) => x.param === k);
               // like the real host: an empty object param keeps the stored map (so the editor must send "{}" to clear it)
               if (v === "") { if (prm?.type === "object" && n.data && k in n.data) data[k] = n.data[k]; continue; }
-              if (prm && (prm.type === "object" || prm.type === "array")) { try { data[k] = JSON.parse(v); } catch { data[k] = v; } }
+              // like the host (0.3.50): a setting the catalog doesn't list is JSON when it's an object or a list
+              if ((prm && (prm.type === "object" || prm.type === "array")) || (!prm && ((n.data?.[k] && typeof n.data[k] === "object") || /^\s*[[{]/.test(v)))) { try { data[k] = JSON.parse(v); } catch { data[k] = v; } }
               else if (prm?.type === "boolean") data[k] = v === "true"; else data[k] = v; }
+            // and settings the catalog doesn't list that weren't sent are kept as stored
+            for (const [k, v] of Object.entries(n.data || {})) if (!(k in data) && !c?.params.some((x) => x.param === k) && !(k === "_properties" && p.operator === "property_updater")) data[k] = v;
             if (p.operator === "property_updater" && data.properties) data._properties = Object.entries(data.properties).map(([key, value]) => ({ editing: false, key, value }));
             n.data = data; if (p.delay) n.delay = p.delay; else delete n.delay; } });
         break;
@@ -383,6 +389,9 @@
       }
       case "deleteOperator": apply(id, "Deleted step", (d) => { const parent = get(d, p.path.slice(0, -1)); parent.splice(p.path[p.path.length - 1], 1); }); break;
       case "duplicateNode": apply(id, "Duplicated step", (d) => { const parent = get(d, p.path.slice(0, -1)); const i = p.path[p.path.length - 1]; parent.splice(i + 1, 0, structuredClone(parent[i])); }); break;
+      // the workflow map's box positions, kept in localStorage (like the host's map-layouts.json, they outlive the page)
+      case "fetchMapLayout": { const all = JSON.parse(localStorage.getItem("__mapLayouts") || "{}"); post("mapLayout", { workflowId: p.workflowId, positions: all[p.workflowId] ?? null }); break; }
+      case "saveMapLayout": { const all = JSON.parse(localStorage.getItem("__mapLayouts") || "{}"); if (p.positions) all[p.workflowId] = p.positions; else delete all[p.workflowId]; localStorage.setItem("__mapLayouts", JSON.stringify(all)); break; }
       // the workflow map: a stage arrow dragged to another stage (like the host: properties and _properties, `from` checked)
       case "setStageTransition":
         apply(id, `Changed where ${p.from} goes: now ${p.to}`, (d) => {

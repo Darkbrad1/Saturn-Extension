@@ -180,10 +180,29 @@ export function fieldsFor(
     }
     default: {
       const entry = catalog[operator];
-      if (!entry) return Object.keys(values).map((k) => ({ key: k, label: k, kind: "textarea" as const }));
-      return entry.params.filter((p) => !p.mergedInto).map((p) => enrich(paramField(p), p.type, p.inputType));
+      if (!entry) return Object.keys(values).map((k) => extraField(k, values[k]));
+      // and the settings the step has that the catalog doesn't list (like a Create step's properties)
+      const listed = new Set(entry.params.map((p) => p.param));
+      return [
+        ...entry.params.filter((p) => !p.mergedInto).map((p) => enrich(paramField(p), p.type, p.inputType)),
+        ...Object.keys(values).filter((k) => !listed.has(k)).map((k) => extraField(k, values[k])),
+      ];
     }
   }
+}
+
+/** A setting the step has but the operator's catalog doesn't list: a map of properties gets the key / value
+ *  editor, anything else a text box. */
+function extraField(key: string, value: string | undefined): FieldSpec {
+  const label = key.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+  let map = false;
+  try {
+    const v = JSON.parse(value ?? "");
+    map = !!v && typeof v === "object" && !Array.isArray(v);
+  } catch {
+    /* text */
+  }
+  return { key, label, kind: map ? "object" : "textarea", caption: map ? `${key} · object` : key };
 }
 
 function paramField(p: CatalogParam): FieldSpec {
