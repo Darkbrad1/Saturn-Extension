@@ -951,6 +951,8 @@ export function App() {
       else if (mod && key === "v") pasteAt(insertPoint());
       else if (mod && key === "s") send("saveChanges", { workflowId: wf.id });
       else if (key === "n" && !mod && !e.shiftKey) setPanel((p) => !p);
+      // T: the layers panel on the left (like Blender's T for its left toolbar)
+      else if (key === "t" && !mod && !e.shiftKey) setLayers((v) => !v);
       else if (key === "tab") {
         if (!enterGroup(f)) goBack();
       } else if (key === "home") fitRef.current();
@@ -1086,7 +1088,7 @@ export function App() {
         <button className="nv-btn" disabled={!wf} onClick={() => wf && send("openWorkflow", { workflowId: wf.id })} title="Open this workflow in Saturn, in your browser">
           Open in Saturn ↗
         </button>
-        <button className={`nv-btn ${layers ? "is-on" : ""}`} onClick={() => setLayers((v) => !v)} title="The layers panel on the left: stages, actions and commands">
+        <button className={`nv-btn ${layers ? "is-on" : ""}`} onClick={() => setLayers((v) => !v)} title="The layers panel on the left: stages, actions and commands (T)">
           Layers
         </button>
         <button className={`nv-btn ${panel ? "is-on" : ""}`} onClick={() => setPanel((p) => !p)} title="Side panel (N)">
@@ -1157,7 +1159,7 @@ export function App() {
 
       <div className="nv-main">
         {!layers && (
-          <button className="nv-layers-open" onClick={() => setLayers(true)} title="Show the layers panel" aria-label="Show the layers panel">
+          <button className="nv-layers-open" onClick={() => setLayers(true)} title="Show the layers panel (T)" aria-label="Show the layers panel">
             »
           </button>
         )}
@@ -1318,7 +1320,7 @@ export function App() {
           )}
           <div className="nv-hints" hidden={scope.kind === "workflow"}>
             Shift+A add · X delete · Shift+D duplicate · drag onto a wire to move · Enter edit · Tab open command ·
-            Ctrl+Z undo · N panel · Home fit
+            Ctrl+Z undo · N panel · T layers · Home fit
           </div>
         </div>
 

@@ -1,6 +1,13 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.52",
+    title: "T hides the left panel",
+    items: [
+      "Press T to hide or show the layers panel in the node view (like N for the side panel), and the properties list on the Resources screen. It does nothing while you're typing in a box.",
+    ],
+  },
+  {
     version: "0.3.51",
     title: "A resource's whole schema as JSON",
     items: [

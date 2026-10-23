@@ -503,6 +503,13 @@ function App() {
         back();
       }
       if (e.key === "Escape") setMenu(null);
+      // T (not while typing): fold the properties list away, or bring it back
+      const el = e.target as HTMLElement | null;
+      const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+      if (e.key.toLowerCase() === "t" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        setListHidden((v) => !v);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -703,13 +710,13 @@ function App() {
       ) : (
         <div className="rs-main">
           {listHidden && (
-            <button className="rs-side-open" title="Show the properties" aria-label="Show the properties" onClick={() => setListHidden(false)}>
+            <button className="rs-side-open" title="Show the properties (T)" aria-label="Show the properties" onClick={() => setListHidden(false)}>
               »
             </button>
           )}
           <aside className="rs-side" hidden={listHidden}>
             <div className="rs-side-top">
-              <button className="rs-btn rs-fold" title="Hide the properties" aria-label="Hide the properties" onClick={() => setListHidden(true)}>«</button>
+              <button className="rs-btn rs-fold" title="Hide the properties (T)" aria-label="Hide the properties" onClick={() => setListHidden(true)}>«</button>
               <input className="rs-search" placeholder="Search properties" aria-label="Search properties" value={query} onChange={(e) => setQuery(e.target.value)} />
               <button className="rs-btn rs-add" title="Add a property" aria-label="Add a property" disabled={saving} onClick={() => setAdding(adding ? null : { label: "", key: "", keyTouched: false, type: "string" })}>+</button>
             </div>

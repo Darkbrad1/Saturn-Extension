@@ -7,6 +7,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
 
+## New in 0.3.52 — T hides the left panel
+- `src/App.tsx`: T toggles `layers` (beside N for the side panel; the canvas hints say so). `src-res/main.tsx`: T toggles `listHidden`, skipped while typing in an input, textarea, select or editable element. `test40.mjs` (7).
+
 ## New in 0.3.51 — A resource's whole schema as JSON
 - `src-res/main.tsx`: a "Schema JSON" button in the top bar (after Resource settings) → `viewRaw {title, text}` with `schemaJson(plan)`: the properties as the instance lists them, in the new order, deleted ones left out, new ones in, each as edited (`key` as typed). `test39.mjs` (4).
 

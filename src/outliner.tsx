@@ -374,7 +374,7 @@ export function Outliner(props: {
 
   return (
     <aside className="nv-outliner">
-      <button className="nv-ol-collapse" onClick={props.onCollapse} title="Hide the layers panel" aria-label="Hide the layers panel">
+      <button className="nv-ol-collapse" onClick={props.onCollapse} title="Hide the layers panel (T)" aria-label="Hide the layers panel">
         «
       </button>
       <button
