@@ -30,6 +30,8 @@
       // a static map with no dropdown style yet
       { ...prop("owner", "Owner", "string"), map: { type: "model", reference: "User", value_field: "id", label_field: "email" } },
     ],
+    // a real Application schema's properties, one of each kind (harness/appschema.js)
+    ...(window.__appSchema ? { LoanApplication: JSON.parse(JSON.stringify(window.__appSchema)) } : {}),
     LoanCategory: [prop("id", "ID", "string"), prop("label", "Label", "string"), prop("code", "Code", "string")],
   };
   const view = (list) => list.map((p) => ({ key: p.key, label: p.label, type: p.type, required: p.required === true, editable: true, definition: p }));

@@ -1,6 +1,17 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.54",
+    title: "Every setting of a real Application schema",
+    items: [
+      "Checked against a real Application schema, these now show and can be changed on the Resources screen and the Form tab:",
+      "Table and Record view each have their own Currency, and their own Component code for the Inline component renderer (the record view's inline component, like Ratios). Component code also shows when it's stored under the Default renderer.",
+      "The File manager renderer's title, helper text, the resource and property the files belong to, and how many files; File access (acl) on file uploads.",
+      "A source definition kept on a static map, a map's lookup reference, and columns for medium and large screens when they're set.",
+      "A property whose label is only a space shows its key in the list.",
+    ],
+  },
+  {
     version: "0.3.53",
     title: "Keyboard shortcuts page",
     items: [

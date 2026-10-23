@@ -63,6 +63,10 @@ const inputType = (p: Prop) => String(get(p, ["input_properties", "type"]) ?? "i
 const hasMap = (p: Prop) => !!p.map && typeof p.map === "object";
 const lookupType = (p: Prop) => String(p.lookup_type ?? "");
 const isDynamic = (p: Prop) => p.source === "dynamic";
+/** A dynamic source, or a source definition stored anyway (a static map can carry one, as real definitions do). */
+const hasSource = (p: Prop) => isDynamic(p) || (!!p.source_definition && typeof p.source_definition === "object");
+const variance = (p: Prop, v: "list" | "view") => get(p, ["rendering", "_variances", v, "component"]);
+const INLINE_START = "<template>\n  <div>{{ value }}</div>\n</template>\n";
 /** Whether the form shows it as a dropdown (a select, a map, a lookup or a dynamic source), or a dropdown style is stored. */
 const hasDropdown = (p: Prop) =>
   inputType(p) === "select" || hasMap(p) || !!lookupType(p) || isDynamic(p) || get(p, ["rendering", "_variances", "form", "use_custom_dropdown"]) !== undefined;
@@ -227,6 +231,13 @@ export const GROUPS: Group[] = [
             edit: { kind: "record", resource: "AttachmentGroup", value: "id", label: "name" },
           },
           {
+            path: ["acl"],
+            label: "File access",
+            hint: "Who can open the uploaded files, as Saturn stores it (for example public).",
+            when: (p) => inputType(p) === "typed_file_upload" || p.acl !== undefined,
+            edit: { kind: "text", mono: true },
+          },
+          {
             path: ["input_properties", "attachments_sort"],
             label: "Sort",
             when: (p) => inputType(p) === "typed_file_upload",
@@ -255,17 +266,17 @@ export const GROUPS: Group[] = [
             label: "Value source",
             edit: { kind: "choice", options: [["static", "Static", "A value people enter."], ["dynamic", "Dynamic", "Filled in from other records."]] },
           },
-          { path: ["source_type"], label: "Source type", when: isDynamic, edit: { kind: "select", options: [["resource_lookup", "Resource lookup"]] } },
-          { path: ["source_definition", "reference"], label: "Reference", hint: "The resource the records come from.", when: isDynamic, edit: { kind: "resource" } },
+          { path: ["source_type"], label: "Source type", when: hasSource, edit: { kind: "select", options: [["resource_lookup", "Resource lookup"]] } },
+          { path: ["source_definition", "reference"], label: "Reference", hint: "The resource the records come from.", when: hasSource, edit: { kind: "resource" } },
           {
             path: ["source_definition", "bounded_property"],
             label: "Linked by",
             hint: "The property of those records that points back to this one.",
-            when: isDynamic,
+            when: hasSource,
             edit: { kind: "field", of: (p) => (get(p, ["source_definition", "reference"]) as string) || null },
           },
-          { path: ["source_definition", "value_field"], label: "Value field", when: isDynamic, edit: { kind: "field", of: (p) => (get(p, ["source_definition", "reference"]) as string) || null } },
-          { path: ["source_definition", "default_limit"], label: "Default limit", when: isDynamic, edit: { kind: "number", min: 0 } },
+          { path: ["source_definition", "value_field"], label: "Value field", when: hasSource, edit: { kind: "field", of: (p) => (get(p, ["source_definition", "reference"]) as string) || null } },
+          { path: ["source_definition", "default_limit"], label: "Default limit", when: hasSource, edit: { kind: "number", min: 0 } },
         ],
       },
       {
@@ -330,7 +341,13 @@ export const GROUPS: Group[] = [
             when: (p) => lookupType(p) === "values",
             edit: { kind: "select", options: [["", "As listed"], ["asc", "A to Z"], ["desc", "Z to A"]] },
           },
-          { path: ["lookup_reference"], label: "Reference", when: (p) => lookupType(p) === "lookup", edit: { kind: "text", mono: true } },
+          {
+            path: ["lookup_reference"],
+            label: "Reference",
+            // a lookup's reference; other lookup types (a map) can store one too, shown so it can be seen and changed
+            when: (p) => lookupType(p) === "lookup" || (typeof p.lookup_reference === "string" && !["values", "function"].includes(lookupType(p))),
+            edit: { kind: "text", mono: true },
+          },
           // a function lookup: Saturn keeps the function in lookup_reference, and the type of each item it returns beside it
           {
             path: ["lookup_reference"],
@@ -389,10 +406,24 @@ export const GROUPS: Group[] = [
             path: ["rendering", "options", "code", "value"],
             label: "Component code",
             hint: "The Vue component that shows the value: its <template>, and its <script> if it has one.",
-            when: (p) => get(p, ["rendering", "component"]) === "inline-component",
+            // shown for the Inline component renderer, and whenever code is stored (real definitions keep it under
+            // the Default renderer too)
+            when: (p) => get(p, ["rendering", "component"]) === "inline-component" || get(p, ["rendering", "options", "code", "value"]) !== undefined,
             alongside: [{ path: ["rendering", "options", "code", "type"], value: "property" }],
-            edit: { kind: "code", lang: "html", empty: "<template>\n  <div>{{ value }}</div>\n</template>\n" },
+            edit: { kind: "code", lang: "html", empty: INLINE_START },
           },
+          // the File manager renderer's options, as a real definition stores them: {<option>: {value}}
+          { path: ["rendering", "options", "title", "value"], label: "File manager title", when: (p) => get(p, ["rendering", "component"]) === "FileManagerUploader", edit: { kind: "text", placeholder: "Application documents" } },
+          { path: ["rendering", "options", "helperText", "value"], label: "Helper text", hint: "Shown under the title.", when: (p) => get(p, ["rendering", "component"]) === "FileManagerUploader", edit: { kind: "text" } },
+          { path: ["rendering", "options", "resourceName", "value"], label: "Files belong to", hint: "The resource the uploaded files are kept against.", when: (p) => get(p, ["rendering", "component"]) === "FileManagerUploader", edit: { kind: "resource" } },
+          {
+            path: ["rendering", "options", "property", "value"],
+            label: "Property",
+            hint: "The property of that resource the files are kept in.",
+            when: (p) => get(p, ["rendering", "component"]) === "FileManagerUploader",
+            edit: { kind: "field", of: (p) => (get(p, ["rendering", "options", "resourceName", "value"]) as string) || null },
+          },
+          { path: ["rendering", "options", "maxFiles", "value"], label: "Most files", hint: "How many files can be uploaded.", when: (p) => get(p, ["rendering", "component"]) === "FileManagerUploader", edit: { kind: "number", min: 1 } },
           { path: ["format"], label: "Date format", when: (p) => p.type === "date" || p.format !== undefined, edit: { kind: "text", mono: true, placeholder: "DD/MM/YYYY" } },
         ],
       },
@@ -400,6 +431,21 @@ export const GROUPS: Group[] = [
         title: "Table",
         settings: [
           { path: ["rendering", "_variances", "list", "component"], label: "Renderer", edit: { kind: "select", options: RENDERERS } },
+          {
+            path: ["rendering", "_variances", "list", "options", "currency", "value"],
+            label: "Currency",
+            when: (p) => variance(p, "list") === "currency",
+            alongside: [{ path: ["rendering", "_variances", "list", "options", "currency", "type"], value: "property" }],
+            edit: { kind: "text", mono: true, placeholder: "USD" },
+          },
+          {
+            path: ["rendering", "_variances", "list", "options", "code", "value"],
+            label: "Component code",
+            hint: "The Vue component that shows the value in tables.",
+            when: (p) => variance(p, "list") === "inline-component" || get(p, ["rendering", "_variances", "list", "options", "code", "value"]) !== undefined,
+            alongside: [{ path: ["rendering", "_variances", "list", "options", "code", "type"], value: "property" }],
+            edit: { kind: "code", lang: "html", empty: INLINE_START },
+          },
           { path: ["searchable"], label: "Searchable", edit: { kind: "bool", hint: "Included when people search the table." } },
           { path: ["search_field_type"], label: "Search input type", when: (p) => p.searchable === true, edit: { kind: "select", options: [["", "Not set"], ["input", "Input"]] } },
           { path: ["required_columns"], label: "Required dependent columns", hint: "Other properties the table loads with this one.", edit: { kind: "ownFields" } },
@@ -410,6 +456,21 @@ export const GROUPS: Group[] = [
         title: "Record view",
         settings: [
           { path: ["rendering", "_variances", "view", "component"], label: "Renderer", edit: { kind: "select", options: RENDERERS } },
+          {
+            path: ["rendering", "_variances", "view", "options", "currency", "value"],
+            label: "Currency",
+            when: (p) => variance(p, "view") === "currency",
+            alongside: [{ path: ["rendering", "_variances", "view", "options", "currency", "type"], value: "property" }],
+            edit: { kind: "text", mono: true, placeholder: "USD" },
+          },
+          {
+            path: ["rendering", "_variances", "view", "options", "code", "value"],
+            label: "Component code",
+            hint: "The Vue component that shows the value in the record view: its <template>, and its <script> if it has one.",
+            when: (p) => variance(p, "view") === "inline-component" || get(p, ["rendering", "_variances", "view", "options", "code", "value"]) !== undefined,
+            alongside: [{ path: ["rendering", "_variances", "view", "options", "code", "type"], value: "property" }],
+            edit: { kind: "code", lang: "html", empty: INLINE_START },
+          },
           { path: ["rendering", "_variances", "view", "span"], label: "Span", edit: { kind: "number", min: 1, max: 12 } },
           { path: ["placeInOwnTab"], label: "Add to separate tab", edit: { kind: "bool" } },
           { path: ["tabIcon"], label: "Tab icon", when: (p) => p.placeInOwnTab === true, edit: { kind: "icon" } },
@@ -421,6 +482,9 @@ export const GROUPS: Group[] = [
           },
           { path: ["number_of_columns", "full_width"], label: "Full width", edit: { kind: "bool" } },
           { path: ["number_of_columns", "default"], label: "Columns", edit: { kind: "number", min: 1, max: 12 } },
+          // per screen size, as some real definitions store them (shown when set)
+          { path: ["number_of_columns", "md"], label: "Columns on medium screens", when: (p) => get(p, ["number_of_columns", "md"]) !== undefined, edit: { kind: "number", min: 1, max: 12 } },
+          { path: ["number_of_columns", "lg"], label: "Columns on large screens", when: (p) => get(p, ["number_of_columns", "lg"]) !== undefined, edit: { kind: "number", min: 1, max: 12 } },
           { path: ["default_view"], label: "Default view", edit: { kind: "view" } },
         ],
       },

@@ -246,12 +246,12 @@ function App() {
         }
         case "properties":
           setLoading(false);
-          setLoaded((before) => ({ ...before, [r]: payload.properties }));
+          setLoaded((before) => ({ ...before, [r]: tidy(payload.properties) }));
           // drafts of properties that are gone are dropped
           setWork(r, (w) => ({ ...w, drafts: keepDifferent(w.drafts, payload.properties), deleted: w.deleted.filter((k) => payload.properties.some((p: Property) => p.key === k)) }));
           break;
         case "saved":
-          setLoaded((before) => ({ ...before, [r]: payload.properties }));
+          setLoaded((before) => ({ ...before, [r]: tidy(payload.properties) }));
           setWork(r, () => EMPTY);
           savedCount.current.add(r);
           sendNext();
@@ -281,14 +281,14 @@ function App() {
           break;
         case "restored":
           setSaving(false);
-          setLoaded((before) => ({ ...before, [r]: payload.properties }));
+          setLoaded((before) => ({ ...before, [r]: tidy(payload.properties) }));
           setWork(r, () => EMPTY);
           setNotice({ kind: "ok", text: "The backup was put back." });
           break;
         case "saveMismatch":
           queue.current = [];
           setSaving(false);
-          setLoaded((before) => ({ ...before, [r]: payload.properties }));
+          setLoaded((before) => ({ ...before, [r]: tidy(payload.properties) }));
           // what's on the instance now is what the screen shows; keep only the changes still to make
           setWork(r, (w) => ({ drafts: keepDifferent(w.drafts, payload.properties), added: w.added.filter((a) => !payload.properties.some((q: Property) => q.key === a.prop.key)), order: null, deleted: w.deleted.filter((k) => payload.properties.some((p: Property) => p.key === k)) }));
           setNotice({ kind: "error", resource: r, text: `${r}: ${payload.message}`, backup: payload.unchanged ? undefined : payload.backup });
@@ -964,12 +964,15 @@ function schemaJson(plan: ReturnType<typeof planOf>) {
   return plan.ordered.filter((p) => !plan.deleted.has(p.key)).map((p) => ({ ...(p.definition as Prop), key: p.shownKey }));
 }
 
+/** The properties as the host sent them, a label that's only spaces (like " ") read as none, so the key shows. */
+const tidy = (list: Property[]) => list.map((p) => (typeof p.label === "string" && !p.label.trim() ? { ...p, label: null } : p));
+
 /** What the list shows of a property as edited. */
 function viewOf(id: string, p: Prop, editable: boolean): Property {
   return {
     key: id,
     shownKey: typeof p.key === "string" ? p.key : id,
-    label: typeof p.label === "string" && p.label ? p.label : null,
+    label: typeof p.label === "string" && p.label.trim() ? p.label : null,
     type: typeof p.type === "string" ? p.type : null,
     required: p.required === true,
     editable,
