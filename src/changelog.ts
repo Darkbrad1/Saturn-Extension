@@ -1,6 +1,13 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.51",
+    title: "A resource's whole schema as JSON",
+    items: [
+      "The Resources screen's top bar has a Schema JSON button: it opens the resource's whole schema (every property, in order) as JSON in a new tab, with your unsaved changes in it.",
+    ],
+  },
+  {
     version: "0.3.50",
     title: "A map you can arrange",
     items: [

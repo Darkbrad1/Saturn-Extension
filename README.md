@@ -7,6 +7,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
 
+## New in 0.3.51 — A resource's whole schema as JSON
+- `src-res/main.tsx`: a "Schema JSON" button in the top bar (after Resource settings) → `viewRaw {title, text}` with `schemaJson(plan)`: the properties as the instance lists them, in the new order, deleted ones left out, new ones in, each as edited (`key` as typed). `test39.mjs` (4).
+
 ## New in 0.3.50 — A map you can arrange
 - `src/map.tsx`: left to right (Global actions at the left, the stages from there in rows of `STAGES_PER_ROW`, the commands under them). Boxes are draggable (`onNodesChange` / `onNodeDragStop`); their positions are kept per workflow by the host (`fetchMapLayout {workflowId}` → `mapLayout {workflowId, positions}`, `saveMapLayout {workflowId, positions | null}`, in `map-layouts.json` beside `drafts.json`; `cleanMapLayout` keeps only `{id: {x, y}}` with finite numbers). Reset layout forgets them.
 - Node view: the layers panel can be hidden (« on it, Layers in the top bar, the » strip brings it back; kept in state as `layers`).

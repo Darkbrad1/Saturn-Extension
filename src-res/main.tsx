@@ -608,6 +608,15 @@ function App() {
             Resource settings
           </button>
         )}
+        {resource && properties && (
+          <button
+            className="rs-btn"
+            title={`See ${resource}'s whole schema as JSON (every property, in order, with your unsaved changes in it)`}
+            onClick={() => send("viewRaw", { title: `${resource} schema`, text: JSON.stringify(schemaJson(plan), null, 2) })}
+          >
+            Schema JSON
+          </button>
+        )}
         {resource && (
           <button className="rs-btn" title={`Open ${resource} in Saturn, in your browser`} onClick={() => send("openInSaturn", { resource })}>
             Open in Saturn ↗
@@ -935,6 +944,12 @@ function App() {
       )}
     </div>
   );
+}
+
+/** The whole schema as the instance gives it (a list of properties, each with its key), with the unsaved changes
+ *  in it: in the new order, removed ones left out, new ones in, each property as edited (its key as typed). */
+function schemaJson(plan: ReturnType<typeof planOf>) {
+  return plan.ordered.filter((p) => !plan.deleted.has(p.key)).map((p) => ({ ...(p.definition as Prop), key: p.shownKey }));
 }
 
 /** What the list shows of a property as edited. */
