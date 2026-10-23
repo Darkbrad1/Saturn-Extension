@@ -296,3 +296,26 @@ textarea.pe-input { height: auto; padding: 6px 8px; resize: vertical; }
 .mn-warn-text { color: var(--rs-changed); font-size: 11px; }
 .pe-access { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .pe-access .pe-card { border: 1px solid var(--rs-line); }
+
+/* places hidden, Advanced folded, Favourites (0.3.55) */
+.pe-hidden-tag { margin-left: 8px; font-size: 10px; font-weight: 500; color: var(--rs-muted); border: 1px solid var(--rs-line); border-radius: 8px; padding: 0 6px; vertical-align: 2px; }
+.pe-menu-item .pe-hidden-tag { margin-left: 0; vertical-align: 0; }
+.pe-fold { display: inline-block; margin: 4px 0 0; font-size: 11px; }
+.pe-menu-item.is-fav span:first-child { color: #ffc700; }
+.pe-group-title .pe-fav-edit { margin-left: 10px; font-size: 11px; vertical-align: 2px; }
+.pe-fav-empty { margin: 0; padding: 10px 12px; border: 1px dashed var(--rs-line); border-radius: 8px; color: var(--rs-muted); font-size: 11px; }
+.pe-fav-row { position: relative; display: flex; align-items: stretch; }
+.pe-fav-row > .pe-row { flex: 1; min-width: 0; }
+.pe-fav-row.is-dragging { opacity: .4; }
+.pe-fav-row.is-over { box-shadow: inset 0 2px 0 var(--rs-accent); }
+.pe-fav-grip { flex: none; display: flex; align-items: center; padding: 0 2px 0 6px; color: var(--rs-muted); cursor: grab; user-select: none; }
+.pe-fav-grip:hover { color: var(--rs-fg); }
+.pe-fav-editor { display: flex; flex-direction: column; gap: 8px; }
+.pe-fav-order { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.pe-fav-order li { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 5px; background: var(--rs-panel-2); }
+.pe-fav-order .pe-fav-name { font-weight: 500; }
+.pe-fav-order .pe-hint { flex: 1; min-width: 0; }
+.pe-fav-order .rs-btn { width: 24px; height: 22px; padding: 0; }
+.pe-fav-all { max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.pe-fav-group { margin: 0; padding: 0; border: 0; }
+.pe-fav-group legend { font-size: 11px; font-weight: 600; color: var(--rs-fg-2); margin-bottom: 2px; }

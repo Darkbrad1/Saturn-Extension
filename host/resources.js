@@ -671,6 +671,15 @@ var ResourcePropertiesHost = (() => {
         else post("shortcuts", { bindings: ShortcutsHost.get() });
         break;
       }
+      // the favourite settings (host/favourites.js, 0.3.55): one list for every screen
+      case "fetchFavourites": {
+        if (message.webview) FavouritesHost.send(message.webview);
+        else post("favourites", { ids: FavouritesHost.get() });
+        break;
+      }
+      case "setFavourites":
+        await FavouritesHost.set(payload.ids);
+        break;
       case "viewRaw": {
         const doc = await vs.workspace.openTextDocument({ content: String(payload.text ?? ""), language: "json" });
         await vs.window.showTextDocument(doc, { preview: true, viewColumn: vs.ViewColumn.Beside });
@@ -708,7 +717,7 @@ var ResourcePropertiesHost = (() => {
     const post = (type, payload) => panel.webview.postMessage({ type, payload });
     panel.webview.onDidReceiveMessage(async (message) => {
       try {
-        await handle(manager, instance, message?.type === "fetchShortcuts" ? { ...message, webview: panel.webview } : message, post);
+        await handle(manager, instance, message?.type === "fetchShortcuts" || message?.type === "fetchFavourites" ? { ...message, webview: panel.webview } : message, post);
       } catch (error) {
         post(message?.type === "save" || message?.type === "restore" || message?.type === "saveSettings" ? "saveFailed" : "failed", {
           resource: message?.payload?.resource,

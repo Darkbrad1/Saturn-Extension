@@ -12,7 +12,9 @@ const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 const sec = (title) => p.locator(".pe-page .pe-block", { has: p.locator(".pe-part-title, .pe-group-title", { hasText: new RegExp(`^${title}$`) }) });
 const rowIn = (scope, label) => scope.locator(".pe-row", { has: p.locator(".pe-label", { hasText: new RegExp(`^${label}$`) }) });
 const row = (label) => p.locator(".pe-page .pe-row", { has: p.locator(".pe-label", { hasText: new RegExp(`^${label}$`) }) });
-const pick = async (key) => { await p.locator(".rs-item", { has: p.locator(".rs-item-key", { hasText: new RegExp(`^${key}$`) }) }).click(); await p.waitForTimeout(250); };
+// (0.3.55: a place it's hidden in, and Advanced, start folded: opened here so every setting can be read)
+const unfold = async () => { while (await p.locator(".pe-fold[aria-expanded=false]").count()) { await p.locator(".pe-fold[aria-expanded=false]").first().click(); await p.waitForTimeout(50); } };
+const pick = async (key) => { await p.locator(".rs-item", { has: p.locator(".rs-item-key", { hasText: new RegExp(`^${key}$`) }) }).click(); await p.waitForTimeout(250); await unfold(); };
 const stored = (key) => p.evaluate((k) => JSON.parse(JSON.stringify(window.__data.LoanApplication.find((x) => x.key === k))), key);
 const save = async () => {
   await p.locator(".rs-top").getByRole("button", { name: "Save", exact: true }).click();
@@ -71,11 +73,11 @@ ok((await row("Linked by").count()) === 1 && (await row("Source type").count()) 
 
 // a map's lookup reference
 await pick("loan_type_id");
-ok((await rowIn(sec("Lookup"), "Reference").locator("input").inputValue()) === "name", "a map's lookup reference shows");
+ok((await rowIn(sec("Other lookup"), "Reference").locator("input").inputValue()) === "name", "a map's lookup reference shows");
 
 // columns per screen size
 await pick("stage_due_at");
-ok((await row("Columns on medium screens").locator("input").inputValue()) === "6" && (await row("Columns on large screens").locator("input").inputValue()) === "6", "columns for medium and large screens show");
+ok((await row("Record view columns on medium screens").locator("input").inputValue()) === "6" && (await row("Record view columns on large screens").locator("input").inputValue()) === "6", "columns for medium and large screens show");
 
 // nothing lost on a save that didn't touch them
 s = await stored("ratios");

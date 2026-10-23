@@ -10805,6 +10805,13 @@ var draftHistoryLimit = 20,
         case "fetchShortcuts":
           ShortcutsHost.send(webview);
           break;
+        // The Form tab's favourite settings (host/favourites.js, 0.3.55).
+        case "fetchFavourites":
+          FavouritesHost.send(webview);
+          break;
+        case "setFavourites":
+          await FavouritesHost.set(message.payload?.ids);
+          break;
         case "fetchMapLayout":
           {
             let workflowId = String(message.payload?.workflowId ?? "");
@@ -18134,6 +18141,8 @@ async function startExtension(context) {
     // What's new: the release notes on their own page (host/whatsnew.js)
     WhatsNewHost.open(context.extensionUri);
   }), (ShortcutsHost.attach({
+    globalState: context.globalState
+  }), FavouritesHost.attach({
     globalState: context.globalState
   }), vscode.commands.registerCommand("saturn.openShortcuts", () => {
     // Keyboard shortcuts: change the keys the screens use (host/shortcuts.js)

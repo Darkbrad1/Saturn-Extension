@@ -1,6 +1,17 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.55",
+    title: "Property settings by place, and Favourites",
+    items: [
+      "A property's settings (the Resources screen and the Form tab) are now grouped by where they apply: Basics, Rules, Choices, In forms, In tables, In record views, Access and Advanced. Nothing is stored differently.",
+      "Choices has one picker, \"Where the choices come from\": None, A fixed list, Another resource, A function, Other lookup or Linked records. Only the chosen one's settings show; switching back brings back what you'd typed, until you save.",
+      "Each place starts with its own Show in switch. When the property is hidden there, the group says Hidden and folds its other settings (kept as they are; a link opens them).",
+      "Advanced (Hide from the API, IP address, Value source, columns per screen size) starts folded. Find a setting still finds what's inside.",
+      "Favourites at the top: press Edit to tick the settings you use most, reorder them with ↑ / ↓ or by dragging. They edit the same values as the groups below, and it's one list for every resource and form on this computer.",
+    ],
+  },
+  {
     version: "0.3.54",
     title: "Every setting of a real Application schema",
     items: [

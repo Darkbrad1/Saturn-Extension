@@ -58,7 +58,7 @@ for (const f of shipped) {
   writeFileSync(file, code);
 }
 // one scope: syslogs.js, resources.js and whatsnew.js use extension.js's helpers (listRecords, saturnRequest, …)
-writeFileSync(`${ext}/dist/extension.js`, ["host/extension.js", "host/syslogs.js", "host/resources.js", "host/whatsnew.js", "host/shortcuts.js"].map((f) => readFileSync(f, "utf8")).join("\n"));
+writeFileSync(`${ext}/dist/extension.js`, ["host/extension.js", "host/syslogs.js", "host/resources.js", "host/whatsnew.js", "host/shortcuts.js", "host/favourites.js"].map((f) => readFileSync(f, "utf8")).join("\n"));
 
 const pj = JSON.parse(readFileSync(`${ext}/package.json`, "utf8"));
 pj.version = version;

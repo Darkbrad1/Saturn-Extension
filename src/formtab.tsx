@@ -9,9 +9,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { send } from "./bridge";
 import type { FormEnv } from "./forms";
 import type { FormFieldView } from "./types";
-import { Cards, PropertyEditor, Switch, type Field, type Lookups } from "../src-res/editor";
+import { Cards, PropertyEditor, Switch, useFavourites, type Field, type Lookups } from "../src-res/editor";
 import { setAt } from "../src-res/editor";
-import { GROUPS, KEY_PATTERN, TYPES, get, keyFrom, mappedOf, newProperty, type Prop } from "../src-res/spec";
+import { GROUPS, KEY_PATTERN, pastePaths, TYPES, get, keyFrom, mappedOf, newProperty, type Prop } from "../src-res/spec";
 import editorCss from "../src-res/editor.css";
 
 // the editor's look, once (its rules are all under its own classes)
@@ -64,7 +64,9 @@ export function FormTab(props: { wfId: string; owner: FormOwner; env: FormEnv; w
   const [selected, setSelected] = useState<string[]>([]);
   const anchor = useRef<string | null>(null);
   const [query, setQuery] = useState("");
-  const [group, setGroup] = useState("general");
+  const [group, setGroup] = useState("basics");
+  // the favourite settings, one list for every resource and form (host/favourites.js)
+  const [favourites, setFavourites] = useFavourites(send);
   const [dragIds, setDragIds] = useState<string[] | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -195,7 +197,7 @@ export function FormTab(props: { wfId: string; owner: FormOwner; env: FormEnv; w
   /** Pastes the copied settings of the groups switched on into every picked field (never the key). */
   const paste = (groups: Record<string, boolean>) => {
     if (!clipboard) return;
-    const paths = GROUPS.filter((g) => groups[g.id]).flatMap((g) => g.parts.flatMap((part) => part.settings.map((s) => s.path))).filter((p) => p[0] !== "key");
+    const paths = pastePaths(groups);
     change(
       rows.map((r) => {
         if (!selected.includes(r.id)) return r;
@@ -391,6 +393,8 @@ export function FormTab(props: { wfId: string; owner: FormOwner; env: FormEnv; w
               disabled={false}
               group={group}
               onGroup={setGroup}
+              favourites={favourites}
+              onFavourites={setFavourites}
               hints={{ key: `The name the ${owner.kind === "command" ? "command" : "form"} stores the value under. Steps read it as _params.<key>; steps that use the old key aren't changed with it.` }}
             />
           </>
@@ -401,7 +405,7 @@ export function FormTab(props: { wfId: string; owner: FormOwner; env: FormEnv; w
         <div className="rs-menu" role="menu" style={{ left: Math.min(menu.x, window.innerWidth - 230), top: Math.min(menu.y, window.innerHeight - 220) }} onClick={(e) => e.stopPropagation()}>
           <button role="menuitem" onClick={() => { duplicate(); setMenu(null); }}>Duplicate{picked.length > 1 ? ` ${picked.length}` : ""}</button>
           {picked.length === 1 && <button role="menuitem" onClick={() => { setClipboard({ from: label(picked[0].f), prop: clone(picked[0].f) }); setMenu(null); }}>Copy settings</button>}
-          <button role="menuitem" disabled={!clipboard} onClick={() => { setPasting(Object.fromEntries(GROUPS.map((g) => [g.id, g.id !== "general"]))); setMenu(null); }}>
+          <button role="menuitem" disabled={!clipboard} onClick={() => { setPasting(Object.fromEntries(GROUPS.map((g) => [g.id, g.id !== "basics"]))); setMenu(null); }}>
             Paste settings{clipboard ? ` from ${clipboard.from}` : ""}
           </button>
           <button role="menuitem" onClick={() => { void navigator.clipboard?.writeText(picked.map((r) => r.f.key).join("\n")); setMenu(null); }}>Copy {picked.length === 1 ? "key" : "keys"}</button>
@@ -420,7 +424,7 @@ export function FormTab(props: { wfId: string; owner: FormOwner; env: FormEnv; w
                 <div key={g.id} className="pe-row">
                   <div className="pe-text">
                     <label className="pe-label" htmlFor={`ft-paste-${g.id}`}>{g.title}</label>
-                    <span className="pe-hint">{g.id === "general" ? "Label, description, type, tags and rules." : g.blurb}</span>
+                    <span className="pe-hint">{g.id === "basics" ? "Label, description, type, tags, icon and how it shows everywhere." : g.blurb}</span>
                   </div>
                   <div className="pe-control">
                     <Switch id={`ft-paste-${g.id}`} on={!!pasting[g.id]} label={g.title} onSet={(on) => setPasting({ ...pasting, [g.id]: on })} />

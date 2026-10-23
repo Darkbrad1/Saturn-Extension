@@ -105,6 +105,9 @@
         reply("settingsSaved", { resource: p.resource, id: d.id, backup: "/backups/Application-settings-1.json", detail: next });
       }
       if (m.type === "fetchShortcuts") reply("shortcuts", { bindings: JSON.parse(localStorage.getItem("__shortcuts") || "{}") });
+      // the favourite settings, kept like the host does (one list, in localStorage here)
+      if (m.type === "fetchFavourites") reply("favourites", { ids: JSON.parse(localStorage.getItem("__favourites") || "[]") });
+      if (m.type === "setFavourites") { localStorage.setItem("__favourites", JSON.stringify(p.ids)); reply("favourites", { ids: p.ids }); }
       if (m.type === "viewRaw") (window.__opened = window.__opened || []).push({ type: m.type, ...p });
       if (m.type === "restore") reply("restored", { resource: p.resource, ok: true, backup: "/backups/Application-2.json", properties: view(data[p.resource]) });
     },

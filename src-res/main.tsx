@@ -10,9 +10,9 @@
 import type { Subjects } from "../src-menus/model";
 import { createRoot } from "react-dom/client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Cards, PropertyEditor, Switch, type Field, type Lookups } from "./editor";
+import { Cards, PropertyEditor, Switch, useFavourites, type Field, type Lookups } from "./editor";
 import { setAt } from "./editor";
-import { ALL, GROUPS, KEY_PATTERN, TYPES, diff, get, keyFrom, mappedOf, newProperty, type Prop } from "./spec";
+import { ALL, GROUPS, KEY_PATTERN, pastePaths, TYPES, diff, get, keyFrom, mappedOf, newProperty, type Prop } from "./spec";
 import { SettingsPage, settingsError, settingsSummary, trimDraft, type Loaded, type SettingsDraft } from "./settings";
 import { hint, listenForShortcuts, pressed, type Bindings } from "../src/keys";
 import css from "./res.css";
@@ -139,7 +139,7 @@ function App() {
   const [selected, setSelected] = useState<string[]>(saved.selected ?? []);
   // where Shift+click selects from
   const anchor = useRef<string | null>((saved.selected ? saved.selected[saved.selected.length - 1] : null) ?? null);
-  const [group, setGroup] = useState(saved.group ?? "general");
+  const [group, setGroup] = useState(saved.group ?? "basics");
   const [trail, setTrail] = useState<Step[]>(saved.trail ?? []);
   const [clipboard, setClipboard] = useState<Clip | null>(saved.clipboard ?? null);
   // drag and drop: the properties being dragged, and where they would land (an index in the list)
@@ -173,6 +173,8 @@ function App() {
   // the keys the shortcuts use (the Keyboard shortcuts page's, else the defaults)
   const [shortcuts, setShortcuts] = useState<Bindings>({});
   useEffect(() => listenForShortcuts(send, setShortcuts), []);
+  // the favourite settings, one list for every resource and form (host/favourites.js)
+  const [favourites, setFavourites] = useFavourites(send);
 
   // (in braces: VS Code's setState returns the state, which React would take for a cleanup function)
   useEffect(() => {
@@ -426,7 +428,7 @@ function App() {
     setSelected([adding.key]);
     setView("properties");
     anchor.current = adding.key;
-    setGroup("general");
+    setGroup("basics");
     setAdding(null);
     setNotice(null);
   };
@@ -468,7 +470,7 @@ function App() {
   /** Pastes the copied settings of the groups switched on into every picked property. */
   const paste = (groups: Record<string, boolean>) => {
     if (!clipboard) return;
-    const paths = GROUPS.filter((g) => groups[g.id]).flatMap((g) => g.parts.flatMap((part) => part.settings.map((s) => s.path))).filter((p) => p[0] !== "key");
+    const paths = pastePaths(groups);
     const next: Record<string, Prop> = {};
     for (const p of picked.filter((p) => !deleted.has(p.key))) {
       let draft = draftOf(p.key);
@@ -901,6 +903,8 @@ function App() {
                   disabled={saving}
                   group={group}
                   onGroup={setGroup}
+                  favourites={favourites}
+                  onFavourites={setFavourites}
                 />
               </>
             )}
@@ -916,7 +920,7 @@ function App() {
               {pickedLive.length === 1 && (
                 <button role="menuitem" onClick={() => { setClipboard({ from: pickedLive[0].label ?? pickedLive[0].shownKey, resource: resource!, prop: clone(draftOf(pickedLive[0].key)) }); setMenu(null); }}>Copy settings</button>
               )}
-              <button role="menuitem" disabled={!clipboard} onClick={() => { setPasting(Object.fromEntries(GROUPS.map((g) => [g.id, g.id !== "general"]))); setMenu(null); }}>
+              <button role="menuitem" disabled={!clipboard} onClick={() => { setPasting(Object.fromEntries(GROUPS.map((g) => [g.id, g.id !== "basics"]))); setMenu(null); }}>
                 Paste settings{clipboard ? ` from ${clipboard.from}` : ""}
               </button>
             </>
@@ -939,7 +943,7 @@ function App() {
                 <div key={g.id} className="pe-row">
                   <div className="pe-text">
                     <label className="pe-label" htmlFor={`paste-${g.id}`}>{g.title}</label>
-                    <span className="pe-hint">{g.id === "general" ? "Label, description, type, tags and rules." : g.blurb}</span>
+                    <span className="pe-hint">{g.id === "basics" ? "Label, description, type, tags, icon and how it shows everywhere." : g.blurb}</span>
                   </div>
                   <div className="pe-control">
                     <Switch id={`paste-${g.id}`} on={!!pasting[g.id]} label={g.title} onSet={(on) => setPasting({ ...pasting, [g.id]: on })} />
