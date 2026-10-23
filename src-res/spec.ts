@@ -32,11 +32,15 @@ export type Kind =
   | { kind: "icon" } // a Font Awesome icon, from the icon picker (./icons.tsx)
   | { kind: "access" } // access rules: {list: [...]} (./access.tsx)
   | { kind: "choices" } // where the choices come from: not stored itself, it sets lookup_type, map and source
+  | { kind: "showAll" } // Show everywhere: not stored itself, it sets every hideIn… setting (SHOW_PATHS)
   | { kind: "json" };
 
 export interface Setting {
   /** its id for Favourites when the path isn't enough (several settings at one path) */
   id?: string;
+  /** a setting that isn't stored itself (its path is empty): the paths it sets, compared for "was …" and put back
+   *  by Put back */
+  sets?: Path[];
   path: Path;
   label: string;
   hint?: string;
@@ -160,6 +164,24 @@ const NEW_FUNCTION = "(res,{user,setting})=>{\n  return true\n}";
 const LOOKUP_FUNCTION = "async (form, { Resource, ctx, _, data, logged_in_user, axios, moment, parent, setting }) => {\n  return [];\n}";
 const NEW_MAP = { type: "model", value_field: "id", label_field: "", reference: "" };
 
+/** Saturn's hide… settings, which Show everywhere switches together (the Show in switches show them the other way round). */
+export const SHOW_PATHS: Path[] = [["hideInForm"], ["hideInForm_add"], ["hideInForm_edit"], ["hideInTable"], ["hideInDrawer"], ["hideInView"]];
+
+/** Show everywhere: on when none of them hides it, off when all of them do, else null (some). */
+export function shownEverywhere(p: Prop): boolean | null {
+  const hidden = SHOW_PATHS.map((path) => get(p, path) === true);
+  return hidden.every((h) => !h) ? true : hidden.every(Boolean) ? false : null;
+}
+
+/** A property shown everywhere (each hide… that's set becomes false; one not set stays not set) or hidden
+ *  everywhere (each one true). */
+export function withShownEverywhere(p: Prop, on: boolean): Prop {
+  const next: Prop = { ...p };
+  for (const [key] of SHOW_PATHS) if (!on) next[key] = true;
+  else if (next[key] !== undefined) next[key] = false;
+  return next;
+}
+
 /** Where a property's choices come from: the kinds the "Where the choices come from" cards offer. */
 export type ChoiceKind = "none" | "values" | "map" | "function" | "lookup" | "dynamic";
 export const CHOICE_KINDS: [ChoiceKind, string, string][] = [
@@ -230,6 +252,15 @@ export const GROUPS: Group[] = [
             label: "Type",
             hint: "What kind of value it holds.",
             edit: { kind: "cards", options: TYPES },
+          },
+          {
+            // not stored: it sets the six Show in switches of In forms, In tables and In record views
+            id: "showEverywhere",
+            path: [],
+            sets: SHOW_PATHS,
+            label: "Show everywhere",
+            hint: "Shows or hides it in forms (add and edit too), tables, drawers and record views at once. Half on: shown in some.",
+            edit: { kind: "showAll" },
           },
           { path: ["description"], label: "Description", single: true, edit: { kind: "textarea" } },
           { path: ["meta_tags"], label: "Meta tags", edit: { kind: "tags", placeholder: "Type a tag, press Enter" } },
@@ -310,6 +341,7 @@ export const GROUPS: Group[] = [
             // not stored: it reads and sets lookup_type, map and source (choicesOf / withChoices)
             id: "choices",
             path: [],
+            sets: [["lookup_type"], ["lookup_reference"], ["map"], ["source"], ["source_type"], ["source_definition"]],
             label: "Where the choices come from",
             hint: "Picking one switches the others off. What they held is kept, so switching back brings it back until you save.",
             edit: { kind: "choices" },

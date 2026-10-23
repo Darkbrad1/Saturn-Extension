@@ -1,6 +1,14 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.56",
+    title: "Show everywhere",
+    items: [
+      "A property's Basics has a Show everywhere switch, right under Type. It shows or hides the property in forms (add and edit forms too), tables, drawers and record views at once.",
+      "When it's shown in some places but not others, the switch is half on; a click shows it everywhere. The six Show in switches are still there in their own groups, and it's stored exactly as before.",
+    ],
+  },
+  {
     version: "0.3.55",
     title: "Property settings by place, and Favourites",
     items: [

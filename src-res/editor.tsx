@@ -12,7 +12,7 @@ import { HighlightInput } from "../src/controls";
 import { IconField } from "./icons";
 import { PropertyAccess, accessSummary } from "./access";
 import type { Subjects } from "../src-menus/model";
-import { ALL, CHOICE_KINDS, GROUPS, KEY_PATTERN, choicesOf, get, settingId, withChoices, type ChoiceKind, type Group, type Path, type Prop, type Setting } from "./spec";
+import { ALL, CHOICE_KINDS, GROUPS, KEY_PATTERN, choicesOf, get, settingId, shownEverywhere, withChoices, withShownEverywhere, type ChoiceKind, type Group, type Path, type Prop, type Setting } from "./spec";
 
 export interface Field { key: string; label: string | null; type: string | null }
 export interface Lookups {
@@ -57,9 +57,9 @@ const short = (s: string) => (s.length > 60 ? `${s.slice(0, 60)}…` : s);
 export interface Item { original: Prop; draft: Prop }
 
 // where the choices come from isn't stored itself: it differs when the kinds do
-const differs = (s: Setting, it: Item) => (s.edit.kind === "choices" ? !same(choicesOf(it.original), choicesOf(it.draft)) : !same(get(it.original, s.path), get(it.draft, s.path)));
-/** What the Choices cards set, put back together. */
-const CHOICE_PATHS: Path[] = [["lookup_type"], ["lookup_reference"], ["map"], ["source"], ["source_type"], ["source_definition"]];
+// (and Show everywhere when what it shows does)
+const differs = (s: Setting, it: Item) =>
+  s.edit.kind === "choices" ? !same(choicesOf(it.original), choicesOf(it.draft)) : s.edit.kind === "showAll" ? shownEverywhere(it.original) !== shownEverywhere(it.draft) : !same(get(it.original, s.path), get(it.draft, s.path));
 const kindNames = (p: Prop) => choicesOf(p).map((k) => CHOICE_KINDS.find(([v]) => v === k)![1]).join(" and ");
 
 /** Where each setting is: its group and part, by its id (for Favourites). */
@@ -124,9 +124,10 @@ export function PropertyEditor(props: {
       }),
     );
   };
-  const revert = (path: Path) =>
+  // a setting that isn't stored itself puts back every path it sets
+  const revert = (setting: Setting) =>
     props.onChange(
-      items.map((it) => (path.length ? [path] : CHOICE_PATHS).reduce((d, at) => setAt(d, at, get(it.original, at), get(it.original, at) === undefined), it.draft)),
+      items.map((it) => (setting.sets ?? [setting.path]).reduce((d, at) => setAt(d, at, get(it.original, at), get(it.original, at) === undefined), it.draft)),
     );
 
   const q = find.trim().toLowerCase();
@@ -337,7 +338,7 @@ function SettingRow(props: {
   items: Item[];
   set: (path: Path, value: unknown, remove?: boolean) => void;
   retarget: (fn: (draft: Prop) => Prop) => void;
-  revert: (path: Path) => void;
+  revert: (setting: Setting) => void;
   lookups: Lookups;
   disabled: boolean;
 }) {
@@ -365,8 +366,8 @@ function SettingRow(props: {
         {shown && (
           <span className="pe-was">
             <span className="rs-dot is-inline" />
-            {items.length > 1 ? `changed on ${changedOn} of ${items.length}` : `was ${edit.kind === "choices" ? kindNames(items[0].original) : edit.kind === "access" ? accessSummary(before) : short(show(setting.toggles ? before !== undefined : edit.kind === "bool" && edit.invert ? before !== true : before))}`}
-            <button className="rs-link" disabled={props.disabled} onClick={() => props.revert(setting.path)}>Put back</button>
+            {items.length > 1 ? `changed on ${changedOn} of ${items.length}` : `was ${edit.kind === "choices" ? kindNames(items[0].original) : edit.kind === "showAll" ? { true: "on", false: "off", null: "shown in some" }[String(shownEverywhere(items[0].original))] : edit.kind === "access" ? accessSummary(before) : short(show(setting.toggles ? before !== undefined : edit.kind === "bool" && edit.invert ? before !== true : before))}`}
+            <button className="rs-link" disabled={props.disabled} onClick={() => props.revert(setting)}>Put back</button>
           </span>
         )}
       </div>
@@ -515,6 +516,13 @@ function Control(props: { setting: Setting; id: string; value: unknown; mixed: b
     }
     case "access":
       return <PropertyAccess id={id} value={value} mixed={mixed} subjects={props.lookups.subjects?.() ?? null} disabled={disabled} noun={(props.lookups.noun ?? NOUN).many} onSet={(v) => set(path, v)} />;
+    case "showAll": {
+      const states = props.drafts.map(shownEverywhere);
+      const on = states.every((v) => v === true);
+      // half on (shown in some places, or the properties differ); a click shows it everywhere
+      const some = !on && !states.every((v) => v === false);
+      return <Switch id={id} on={on} mixed={some} label={setting.label} disabled={disabled} onSet={(v) => props.retarget((d) => withShownEverywhere(d, v))} />;
+    }
     case "choices": {
       // what each property has; one card is outlined when they all have the same single kind
       const kinds = props.drafts.map(choicesOf);
