@@ -1,6 +1,17 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.60",
+    title: "Picking several in the layers panel",
+    items: [
+      "Right-click one of several picked actions or commands: Duplicate and Delete act on all of them, as one change (one Ctrl+Z undoes it). Rename stays for one at a time.",
+      "Press Delete (or Backspace) with several picked: a box names them and asks first.",
+      "Stages can be picked too (Ctrl/Cmd or Shift+click on a stage's name; a plain click still opens and closes it). Drag one of them and they all move there together, in order; right-click deletes them all.",
+      "With several actions picked, the side panel shows who can perform them. Rules they don't share say Mixed; saving gives all of them the same rules, as one change.",
+      "One kind is picked at a time: picking a stage after actions starts again with the stage.",
+    ],
+  },
+  {
     version: "0.3.59",
     title: "Picking several steps on the canvas",
     items: [

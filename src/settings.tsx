@@ -105,6 +105,8 @@ export interface SettingsOps {
   subjects: AccessSubjects | null;
   loadSubjects: () => void;
   setAccess: (path: Path, rules: { method: string; data: string[] }[]) => void;
+  /** the same rules on several actions, as one change (0.3.60) */
+  setAccessMany: (paths: Path[], rules: { method: string; data: string[] }[]) => void;
   openAccessFunction: (path: Path, contextName: string) => void;
   openUsage: (u: CommandUsage) => void;
   // workflow
@@ -453,6 +455,53 @@ const FUNCTION_TEMPLATE = `(res) => {
   return true
 }`;
 
+/** Several actions picked in the layers panel (0.3.60): their names, and the access rules they share. Rules that
+ *  differ show as Mixed; saving sets the same rules on all of them, as one change. */
+export function MultiActionPanel(props: { actions: { action: ActionView; path: Path; where: string }[]; ops: SettingsOps }) {
+  const { actions, ops } = props;
+  const [editing, setEditing] = useState(false);
+  const prevBusy = useRef(ops.busy);
+  useEffect(() => {
+    if (prevBusy.current && !ops.busy && !ops.error) setEditing(false);
+    prevBusy.current = ops.busy;
+  }, [ops.busy, ops.error]);
+  const ruleSets = actions.map((a) => JSON.stringify((a.action.access ?? []).map((r) => [r.method, [...r.data].sort()])));
+  const same = ruleSets.every((r) => r === ruleSets[0]);
+  const rules = same ? actions[0].action.access ?? [] : [];
+  return (
+    <>
+      <PanelHead color="#4a4a4a" title={`${actions.length} actions picked`} sub="Ctrl or Shift+click in the layers panel to add or remove · Esc to clear" />
+      <Section title="Access they share" id="multi-access" actions={!editing && <button className="fg-plus" title="Set who may perform all of them" onClick={() => { ops.clearError(); ops.loadSubjects(); setEditing(true); }}>✎</button>}>
+        {!editing ? (
+          !same ? (
+            <p className="fg-hint">Mixed: they have different rules. Setting rules here gives all of them the same ones.</p>
+          ) : rules.length === 0 ? (
+            <p className="fg-hint">Everyone can perform them.</p>
+          ) : (
+            rules.map((r, i) => (
+              <Row key={i} label={r.label ?? r.method}>
+                {r.method === "function" ? "custom function" : r.data.length ? `${r.data.length} selected` : "none"}
+              </Row>
+            ))
+          )
+        ) : (
+          <>
+            {!same && <p className="fg-hint">Mixed: it starts empty. What you save replaces each one's rules.</p>}
+            <AccessEditor rules={rules} ops={ops} onCancel={() => setEditing(false)} onSave={(next) => ops.setAccessMany(actions.map((a) => a.path), next)} />
+          </>
+        )}
+      </Section>
+      <Section title="Picked" id="multi-actions-list">
+        {actions.map((a) => (
+          <Row key={a.path.join(".")} label={a.action.label}>
+            {a.where}
+          </Row>
+        ))}
+      </Section>
+    </>
+  );
+}
+
 function AccessSection(props: { action: ActionView; path: Path; contextName: string; ops: SettingsOps }) {
   const rules = props.action.access ?? [];
   const [editing, setEditing] = useState(false);
@@ -500,7 +549,8 @@ function AccessEditor(props: {
   ops: SettingsOps;
   onSave: (rules: { method: string; data: string[] }[]) => void;
   onCancel: () => void;
-  onOpenFunction: () => void;
+  /** opens the Custom Function as a file (one action only) */
+  onOpenFunction?: () => void;
 }) {
   const [draft, setDraft] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(props.rules.map((r) => [r.method, [...r.data]])),
@@ -589,9 +639,11 @@ function AccessEditor(props: {
                       value={picked[0] ?? ""}
                       onChange={(v) => setDraft({ ...draft, function: [v] })}
                     />
-                    <button className="fg-link" onClick={props.onOpenFunction} title="Open as a real .js file — saving it writes back to the instance">
-                      Open in editor ↗
-                    </button>
+                    {props.onOpenFunction && (
+                      <button className="fg-link" onClick={props.onOpenFunction} title="Open as a real .js file — saving it writes back to the instance">
+                        Open in editor ↗
+                      </button>
+                    )}
                   </>
                 )}
               </div>

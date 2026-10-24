@@ -69,13 +69,23 @@ export function Outliner(props: {
   onMoveActions: (paths: Path[], stageIndex: number | null, index: number | null) => void;
   /** copies of actions in a stage (null: Global actions), before `index` there (null: the end) */
   onCopyActions: (paths: Path[], stageIndex: number | null, index: number | null) => void;
+  /** several picked (0.3.60), each as one change: deleted, duplicated (actions, commands), stages moved before the
+   *  stage now at `toIndex` */
+  onDeleteItems: (kind: NodeKind, paths: Path[]) => void;
+  onDuplicateItems: (kind: "action" | "command", paths: Path[]) => void;
+  onMoveStages: (indexes: number[], toIndex: number) => void;
+  /** what's picked (Ctrl/Cmd or Shift+click), so the side panel can edit several actions */
+  onPick: (picked: { kind: NodeKind; path: Path }[]) => void;
   onClearError: () => void;
   /** folds the layers panel away (the strip at the window's edge brings it back) */
   onCollapse: () => void;
 }) {
   const { wf } = props;
   const [editing, setEditing] = useState<Editing>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number; kind: NodeKind; path: Path; label: string } | null>(null);
+  // many: the right-clicked row is one of several picked, and the menu acts on all of them
+  const [menu, setMenu] = useState<{ x: number; y: number; kind: NodeKind; path: Path; label: string; many?: { kind: NodeKind; path: Path; label: string }[] } | null>(null);
+  // the Delete key's confirm, naming what goes
+  const [confirmDelete, setConfirmDelete] = useState<{ kind: NodeKind; items: { path: Path; label: string }[] } | null>(null);
   const lastCreate = useRef<CreateRequest | null>(null);
   const stageCount = useRef(wf.stages.length);
 
@@ -103,20 +113,29 @@ export function Outliner(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.addRequest?.n]);
 
-  // ---- picking several actions / commands (Ctrl/Cmd+click toggles, Shift+click a run of one kind) ----
+  // ---- picking several stages, actions or commands (Ctrl/Cmd+click toggles, Shift+click a run of one kind) ----
   const [picked, setPicked] = useState<string[]>([]);
   const lastPick = useRef<string | null>(null);
   useEffect(() => setPicked([]), [wf.id]);
   // every action and command in the panel's order, with its path
-  const items: { tkey: string; kind: "action" | "command"; path: Path }[] = [
-    ...wf.stages.flatMap((st, si) => st.actions.map((a, ai) => ({ tkey: `s:${st.stage}:${a.id}`, kind: "action" as const, path: ["stages", si, "actions", ai] as Path }))),
-    ...wf.actions.map((a, ai) => ({ tkey: `g:${a.id}`, kind: "action" as const, path: ["actions", ai] as Path })),
-    ...wf.commands.map((c, ci) => ({ tkey: `c:${c.id}`, kind: "command" as const, path: ["commands", ci] as Path })),
+  const items: { tkey: string; kind: "stage" | "action" | "command"; path: Path; label: string }[] = [
+    ...wf.stages.map((st, si) => ({ tkey: `st:${st.stage}`, kind: "stage" as const, path: ["stages", si] as Path, label: st.label })),
+    ...wf.stages.flatMap((st, si) => st.actions.map((a, ai) => ({ tkey: `s:${st.stage}:${a.id}`, kind: "action" as const, path: ["stages", si, "actions", ai] as Path, label: a.label }))),
+    ...wf.actions.map((a, ai) => ({ tkey: `g:${a.id}`, kind: "action" as const, path: ["actions", ai] as Path, label: a.label })),
+    ...wf.commands.map((c, ci) => ({ tkey: `c:${c.id}`, kind: "command" as const, path: ["commands", ci] as Path, label: c.label })),
   ];
   const kindOf = (tkey: string) => items.find((it) => it.tkey === tkey)?.kind;
+  const pickedItems = items.filter((it) => picked.includes(it.tkey));
+  // the side panel follows what's picked (several actions: their shared settings)
+  const pickKey = picked.join("|");
+  useEffect(() => {
+    props.onPick(pickedItems.map((it) => ({ kind: it.kind, path: it.path })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickKey, wf]);
   // the row clicked: with Ctrl/Cmd or Shift it's picked (not opened)
   const clickRow = (e: React.MouseEvent | React.KeyboardEvent, tkey: string) => {
-    const from = picked.length ? picked : props.activeKey && kindOf(props.activeKey) ? [props.activeKey] : [];
+    // one kind at a time: picking another kind starts again with it
+    const from = (picked.length ? picked : props.activeKey && kindOf(props.activeKey) ? [props.activeKey] : []).filter((k) => kindOf(k) === kindOf(tkey));
     if (e.ctrlKey || e.metaKey) {
       setPicked(from.includes(tkey) ? from.filter((k) => k !== tkey) : [...from, tkey]);
       lastPick.current = tkey;
@@ -171,6 +190,12 @@ export function Outliner(props: {
         e.dataTransfer.dropEffect = "move";
         return setDropAt(`into:${stageIndex}:${index}`);
       }
+      // several stages: they go in before this one
+      if (kind === "stage" && d.kind === "stage" && d.paths.length > 1) {
+        e.preventDefault();
+        e.stopPropagation();
+        return setDropAt(`${kind}:${stageIndex}:${index}`);
+      }
       if (d.kind !== kind || d.paths.length > 1 || kind === "command" || (kind === "action" && d.stageIndex !== stageIndex)) return;
       e.preventDefault();
       setDropAt(`${kind}:${stageIndex}:${index}`);
@@ -184,6 +209,15 @@ export function Outliner(props: {
         e.preventDefault();
         e.stopPropagation();
         return land(d, { to: "actions", stageIndex, index }, e);
+      }
+      if (kind === "stage" && d.kind === "stage" && d.paths.length > 1) {
+        drag.current = null;
+        setDropAt(null);
+        e.preventDefault();
+        e.stopPropagation();
+        props.onMoveStages(d.paths.map((x) => Number(x[1])), index);
+        setPicked([]);
+        return;
       }
       if (d.kind !== kind || d.index === index || d.paths.length > 1 || kind === "command") return;
       if (kind === "action" && d.stageIndex !== stageIndex) return;
@@ -309,7 +343,27 @@ export function Outliner(props: {
   const openMenu = (e: React.MouseEvent, kind: NodeKind, path: Path, label: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setMenu({ x: e.clientX, y: e.clientY, kind, path, label });
+    // a row that's one of several picked: the menu acts on all of them
+    const here = pickedItems.find((it) => it.path.join(".") === path.join("."));
+    const many = here && pickedItems.length > 1 ? pickedItems.map((it) => ({ kind: it.kind, path: it.path, label: it.label })) : undefined;
+    setMenu({ x: e.clientX, y: e.clientY, kind, path, label, many });
+  };
+  /** The Delete key with several picked: a confirm naming them first. */
+  const onPanelKey = (e: React.KeyboardEvent) => {
+    const t = e.target as HTMLElement;
+    if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
+    if ((e.key === "Delete" || e.key === "Backspace") && pickedItems.length > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      setConfirmDelete({ kind: pickedItems[0].kind, items: pickedItems.map((it) => ({ path: it.path, label: it.label })) });
+    }
+    if (e.key === "Escape" && picked.length) setPicked([]);
+  };
+  const deleteNow = (kind: NodeKind, list: { path: Path; label: string }[]) => {
+    props.onClearError();
+    if (list.length === 1) props.onDelete(kind, list[0].path, list[0].label);
+    else props.onDeleteItems(kind, list.map((x) => x.path));
+    setPicked([]);
   };
 
   const inline = (key: string, placeholder: string, initial = "") => (
@@ -373,7 +427,8 @@ export function Outliner(props: {
     );
 
   return (
-    <aside className="nv-outliner">
+    // focusable, so a click in it takes the keys (Delete with several picked) from the canvas
+    <aside className="nv-outliner" tabIndex={-1} onKeyDown={onPanelKey}>
       <button className="nv-ol-collapse" onClick={props.onCollapse} title="Hide the layers panel" aria-label="Hide the layers panel">
         «
       </button>
@@ -451,9 +506,15 @@ export function Outliner(props: {
                 <div className="nv-ol-edit">{inline("rs" + si, "Stage name", st.label)}</div>
               ) : (
                 <div
-                  {...dragProps("stage", null, si)}
-                  className={`nv-ol-stagehead ${props.scope.kind === "stage" && props.scope.index === si ? "is-active" : ""} ${isDrop("stage", null, si) ? "is-drop" : ""}`}
-                  onClick={() => props.onToggleCollapse(`stage:${st.stage}`)}
+                  {...dragProps("stage", null, si, `st:${st.stage}`)}
+                  className={`nv-ol-stagehead ${props.scope.kind === "stage" && props.scope.index === si ? "is-active" : ""} ${picked.includes(`st:${st.stage}`) ? "is-picked" : ""} ${isDrop("stage", null, si) ? "is-drop" : ""}`}
+                  aria-selected={picked.includes(`st:${st.stage}`)}
+                  onClick={(e) => {
+                    // Ctrl/Cmd or Shift+click picks the stage; a plain click opens or closes it
+                    if (e.ctrlKey || e.metaKey || e.shiftKey) return clickRow(e, `st:${st.stage}`);
+                    setPicked([]);
+                    props.onToggleCollapse(`stage:${st.stage}`);
+                  }}
                   title="Click to open or close · ⚙ for stage settings · double-click to rename · drag to reorder"
                   onDoubleClick={() => setEditing({ mode: "rename", kind: "stage", path: spath, label: st.label })}
                   onContextMenu={(e) => openMenu(e, "stage", spath, st.label)}
@@ -599,6 +660,36 @@ export function Outliner(props: {
             style={{ left: Math.min(menu.x, window.innerWidth - 180), top: Math.min(menu.y, window.innerHeight - 120) }}
             onMouseDown={(e) => e.stopPropagation()}
           >
+            {menu.many ? (
+              <>
+                <div className="nv-ctx-title">{menu.many.length} {menu.kind}s picked</div>
+                {menu.kind !== "stage" && (
+                  <button
+                    className="nv-ctx-item"
+                    onClick={() => {
+                      const m = menu.many!;
+                      setMenu(null);
+                      props.onClearError();
+                      props.onDuplicateItems(menu.kind as "action" | "command", m.map((x) => x.path));
+                      setPicked([]);
+                    }}
+                  >
+                    Duplicate {menu.many.length} {menu.kind}s
+                  </button>
+                )}
+                <button
+                  className="nv-ctx-item is-danger"
+                  onClick={() => {
+                    const m = menu.many!;
+                    setMenu(null);
+                    setConfirmDelete({ kind: menu.kind, items: m.map((x) => ({ path: x.path, label: x.label })) });
+                  }}
+                >
+                  Delete {menu.many.length} {menu.kind}s
+                </button>
+                <button className="nv-ctx-item" onClick={() => { setMenu(null); setPicked([]); }}>Clear the picks</button>
+              </>
+            ) : (<>
             {menu.kind === "stage" && (
               <button
                 className="nv-ctx-item"
@@ -642,6 +733,24 @@ export function Outliner(props: {
             >
               Delete {menu.kind}
             </button>
+            </>)}
+          </div>
+        </div>
+      )}
+      {confirmDelete && (
+        <div className="nv-menu-back" onMouseDown={() => setConfirmDelete(null)}>
+          <div className="nv-ctx nv-ask nv-confirm" role="dialog" aria-label="Delete" style={{ left: 24, top: 120 }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Escape") setConfirmDelete(null); e.stopPropagation(); }}>
+            <div className="nv-ask-title">
+              Delete {confirmDelete.items.length === 1 ? `the ${confirmDelete.kind}` : `${confirmDelete.items.length} ${confirmDelete.kind}s`}?
+            </div>
+            <div className="nv-ask-warn">
+              {confirmDelete.items.map((x) => x.label).join(", ")}
+              {confirmDelete.kind === "stage" ? ". Their actions and steps go too." : confirmDelete.kind === "action" ? ". Their steps go too." : ". Their steps go too; reference steps that call them stop working."} It's an unsaved change; Ctrl+Z undoes it.
+            </div>
+            <button className="nv-ctx-item is-danger" autoFocus onClick={() => { deleteNow(confirmDelete.kind, confirmDelete.items); setConfirmDelete(null); }}>
+              Delete
+            </button>
+            <button className="nv-ctx-item" onClick={() => setConfirmDelete(null)}>Cancel</button>
           </div>
         </div>
       )}

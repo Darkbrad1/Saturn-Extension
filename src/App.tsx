@@ -178,6 +178,8 @@ export function App() {
   const [selected, setSelected] = useState<NvNode | null>(null);
   /** More steps picked with Shift+click, besides `selected` (the last one picked). */
   const [extra, setExtra] = useState<NvNode[]>([]);
+  // what's picked in the layers panel (several actions: the side panel edits what they share)
+  const [outlinerPicks, setOutlinerPicks] = useState<{ kind: string; path: Path }[]>([]);
   const [selectedEdge, setSelectedEdge] = useState<NvEdge | null>(null);
   /** What the side panel shows when no node is selected. */
   const [scope, setScope] = useState<PanelScope>({ kind: "tree" });
@@ -736,6 +738,7 @@ export function App() {
       subjects,
       loadSubjects: () => send("listAccessSubjects"),
       setAccess: (path, rules) => settingsEdit("setAccess", { path, rules }),
+      setAccessMany: (paths, rules) => settingsEdit("setAccessMany", { paths, rules }),
       openAccessFunction: (path, contextName) =>
         wf && send("openAccessFunction", { workflowId: wf.id, path, workflowName: wf.name, contextName }),
       openUsage,
@@ -1306,6 +1309,22 @@ export function App() {
             edit("commandToAction", { paths, stageIndex, index, move });
             sourceRef.current = "outliner";
           }}
+          onDeleteItems={(kind, paths) => {
+            setOutlinerError(null);
+            edit("deleteItems", { kind, paths });
+            sourceRef.current = "outliner";
+          }}
+          onDuplicateItems={(kind, paths) => {
+            setOutlinerError(null);
+            edit("duplicateItems", { kind, paths });
+            sourceRef.current = "outliner";
+          }}
+          onMoveStages={(indexes, toIndex) => {
+            setOutlinerError(null);
+            edit("moveStages", { indexes, toIndex });
+            sourceRef.current = "outliner";
+          }}
+          onPick={setOutlinerPicks}
           onClearError={() => setOutlinerError(null)}
         />}
 
@@ -1438,6 +1457,7 @@ export function App() {
             onEnter={(f) => enterGroup(f)}
             onToggleMock={doToggleMock}
             onRow={openRow}
+            pickedActions={outlinerPicks.length > 1 && outlinerPicks.every((x) => x.kind === "action") ? outlinerPicks.map((x) => x.path) : null}
             multi={selection}
             multiParams={multiLoaded?.list ?? null}
             onCommitMany={commitMany}

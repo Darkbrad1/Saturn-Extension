@@ -3629,3 +3629,15 @@ body.nv-scrubbing * {
   font-size: 13px;
 }
 #sonover-node-view .nv-layers-open:hover { color: #fff; background: #333; }
+
+/* several stages picked (0.3.60), like picked actions; the layers panel takes keys when clicked, without a ring */
+#sonover-node-view .nv-ol-stagehead.is-picked {
+  background: #2b3b57;
+  box-shadow: inset 2px 0 0 #0d99ff;
+}
+#sonover-node-view .nv-outliner:focus {
+  outline: none;
+}
+#sonover-node-view .nv-confirm {
+  width: 300px;
+}

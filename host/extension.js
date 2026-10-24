@@ -2433,6 +2433,48 @@ function removeItems(definition, paths) {
   for (let path of ordered) result = removeAt(result, path).next;
   return result;
 }
+// isItemPath — Is `path` where a stage, an action (global or in a stage) or a command sits?
+function isItemPath(kind, path) {
+  let n = (x) => typeof x == "number" && Number.isInteger(x) && x >= 0;
+  if (!Array.isArray(path)) return false;
+  if (kind === "stage") return path.length === 2 && path[0] === "stages" && n(path[1]);
+  if (kind === "command") return path.length === 2 && path[0] === "commands" && n(path[1]);
+  if (kind === "action") return path.length === 2 && path[0] === "actions" && n(path[1]) || path.length === 4 && path[0] === "stages" && n(path[1]) && path[2] === "actions" && n(path[3]);
+  return false;
+}
+// deleteItemsEdit — The stages, actions or commands at `paths` removed, as ONE change (a stage takes its actions with
+// it). Refuses a path that isn't one of `kind`, or no longer holds one.
+function deleteItemsEdit(definition, kind, paths) {
+  if (!Array.isArray(paths) || paths.length === 0) throw new Error("Nothing selected to delete.");
+  for (let path of paths) {
+    let item = getAt(definition, path);
+    if (!isItemPath(kind, path) || !item || typeof item != "object" || Array.isArray(item)) throw new Error(`A selected ${kind} is no longer where it was \u2014 reopen the workflow and try again.`);
+  }
+  return removeItems(definition, paths);
+}
+// duplicateItemsEdit — A copy of each action or command at `paths`, right below its own (duplicateWorkflowItem), as
+// ONE change. Done last-first, so the earlier paths stay valid.
+function duplicateItemsEdit(definition, kind, paths) {
+  if (!["action", "command"].includes(kind) || !Array.isArray(paths) || paths.length === 0 || !paths.every(path => isItemPath(kind, path))) throw new Error("Only actions or commands can be duplicated.");
+  let result = definition;
+  for (let path of [...paths].sort(comparePaths).reverse()) result = duplicateWorkflowItem(result, kind, path);
+  return result;
+}
+// moveStagesEdit — The stages at `indexes` moved together, in their order, to before the stage now at `toIndex` (the
+// end when it's null or past the end), as ONE change. Found by identity, so the indexes shifting doesn't matter.
+function moveStagesEdit(definition, indexes, toIndex) {
+  let draft = structuredClone(definition),
+    stages = draft?.stages;
+  if (!Array.isArray(stages)) throw new Error("This workflow has no stages to reorder");
+  let picked = [...new Set(indexes)].sort((a, b) => a - b);
+  if (picked.length === 0 || !picked.every(i => Number.isInteger(i) && i >= 0 && i < stages.length)) throw new Error("A selected stage is no longer where it was \u2014 reopen the workflow and try again");
+  let moving = picked.map(i => stages[i]),
+    marker = {};
+  stages.splice(typeof toIndex == "number" && toIndex >= 0 && toIndex <= stages.length ? toIndex : stages.length, 0, marker);
+  for (let stage of moving) stages.splice(stages.indexOf(stage), 1);
+  stages.splice(stages.indexOf(marker), 1, ...moving);
+  return draft;
+}
 // copyItemsAs — Several actions made into commands ("command"), or commands into actions in one list ("action"), as
 // ONE change: each in the order given, placed one after another from `index` (null: the end). The originals stay
 // while the copies go in (so the paths stay valid); with `move` they are then removed.
@@ -8606,6 +8648,56 @@ var draftHistoryLimit = 20,
         });
       }
     }
+    // The same access rules for several actions, as ONE draft edit (0.3.60). A rule whose kind this extension can't
+    // build is kept as each action has it (and left out where it has none). Opening them all to everyone asks first.
+    async saveAccessMany(workflowId, actionPaths, rules) {
+      let webview = this.panel.webview;
+      try {
+        if (!Array.isArray(actionPaths) || actionPaths.length === 0 || !actionPaths.every(path => isItemPath("action", path))) throw new Error("No actions selected.");
+        let definition = await this.definitionFor(workflowId),
+          actions = actionPaths.map(path => getAt(definition, path));
+        if (actions.some(action => !action || typeof action != "object")) throw new Error("A selected action is no longer there \u2014 reopen the workflow.");
+        if (rules.length === 0 && actions.some(action => accessRules(action).length > 0)) {
+          let confirm = "Open to everyone";
+          if ((await vscode12.window.showWarningMessage(`Remove every restriction on ${actionPaths.length} actions? Any user will be able to perform them.`, {
+            modal: !0
+          }, confirm)) !== confirm) {
+            webview.postMessage({
+              type: "editRejected",
+              payload: {
+                cancelled: !0
+              }
+            });
+            return;
+          }
+        }
+        await this.applyEdit(workflowId, rules.length === 0 ? `Removed every access restriction on ${actionPaths.length} actions` : `Set access on ${actionPaths.length} actions`, draft => {
+          let result = draft;
+          for (let path of actionPaths) {
+            let action = getAt(result, path);
+            if (!action || typeof action != "object") throw new Error("A selected action is no longer there \u2014 reopen the workflow.");
+            let stored = Array.isArray(action.access_control) ? action.access_control : [],
+              nextRules = rules.flatMap(rule => {
+                if (isKnownAccessMethod(rule.method)) return [newAccessRule(rule.method, rule.data ?? [])];
+                let existing = stored.find(candidate => candidate?.method === rule.method);
+                return existing ? [existing] : [];
+              });
+            result = setAt(result, path, {
+              ...action,
+              access_control: nextRules
+            });
+          }
+          return result;
+        });
+      } catch (error) {
+        webview.postMessage({
+          type: "editFailed",
+          payload: {
+            message: errorMessage(error, "Could not save access")
+          }
+        });
+      }
+    }
     // Tells the webview what is on the shared clipboard.
     postClipboard() {
       let clip = SelfWorkflowsPanel.clipboard;
@@ -9723,6 +9815,66 @@ var draftHistoryLimit = 20,
             } = message.payload ?? {};
             if (!Array.isArray(rules)) return;
             await this.saveAccess(String(workflowId), actionPath, rules);
+            break;
+          }
+        // Several picked in the layers panel (0.3.60), each ONE draft edit: deleted, duplicated, stages moved, access set.
+        case "deleteItems":
+          {
+            let {
+              workflowId,
+              kind,
+              paths
+            } = message.payload ?? {};
+            let count = Array.isArray(paths) ? paths.length : 0;
+            await this.applyEdit(workflowId, `Deleted ${count} ${kind}s`, draft => deleteItemsEdit(draft, kind, paths));
+            break;
+          }
+        case "duplicateItems":
+          {
+            let {
+              workflowId,
+              kind,
+              paths
+            } = message.payload ?? {};
+            await this.applyEdit(workflowId, `Duplicated ${Array.isArray(paths) ? paths.length : 0} ${kind}s`, draft => duplicateItemsEdit(draft, kind, paths));
+            break;
+          }
+        case "moveStages":
+          {
+            let {
+              workflowId,
+              indexes,
+              toIndex
+            } = message.payload ?? {};
+            if (!Array.isArray(indexes)) {
+              webview.postMessage({
+                type: "editFailed",
+                payload: {
+                  message: "No stages selected to move."
+                }
+              });
+              break;
+            }
+            await this.applyEdit(workflowId, `Moved ${indexes.length} stages`, draft => moveStagesEdit(draft, indexes.map(Number), typeof toIndex == "number" ? toIndex : null));
+            break;
+          }
+        case "setAccessMany":
+          {
+            let {
+              workflowId,
+              paths,
+              rules
+            } = message.payload ?? {};
+            if (!Array.isArray(rules)) {
+              webview.postMessage({
+                type: "editFailed",
+                payload: {
+                  message: "No rules to set."
+                }
+              });
+              break;
+            }
+            await this.saveAccessMany(String(workflowId), paths, rules);
             break;
           }
         // Tells the webview what is on the shared clipboard.

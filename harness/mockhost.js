@@ -261,6 +261,14 @@
 
   // ---------------------------------------------------------------- plumbing
   const get = (o, p) => p.reduce((a, k) => (a == null ? a : a[k]), o);
+  // a copy of an action or command right below it (duplicateItem, duplicateItems), like the host's duplicateWorkflowItem
+  function dupItem(d, kind, path) {
+    const list = get(d, path.slice(0, -1)), i = path[path.length - 1], item = list[i], nk = kind === "command" ? "name" : "action", sk = kind === "command" ? "command" : "task";
+    const copy = JSON.parse(JSON.stringify(item)); let name = `${item[nk]}_copy`; for (let n = 2; list.some((x) => x[nk] === name); n++) name = `${item[nk]}_copy_${n}`;
+    Object.assign(copy, { id: Math.random().toString(36).slice(2, 8), label: `${item.label} (copy)`, [nk]: name }); const strip = (o) => { if (o && typeof o === "object") { delete o.id; Object.entries(o).forEach(([k, v]) => k !== "data" && strip(v)); } }; strip(copy[sk]);
+    list.splice(i + 1, 0, copy);
+  }
+  const cmpPath = (a, b) => { for (let i = 0; i < Math.min(a.length, b.length); i++) { const x = a[i], y = b[i]; if (x === y) continue; if (typeof x === "number" && typeof y === "number") return x - y; return String(x) < String(y) ? -1 : 1; } return a.length - b.length; };
   function ensureArray(o, p) { let cur = o; for (let i = 0; i < p.length - 1; i++) { const k = p[i]; if (cur[k] == null) cur[k] = typeof p[i + 1] === "number" ? [] : { type: "series" }; cur = cur[k]; } const last = p[p.length - 1]; if (!Array.isArray(cur[last])) cur[last] = []; return cur[last]; }
   const history = {}; const summaries = {};
   // each workflow as saved on the instance (what the Form tab's "was …" compares with)
@@ -479,11 +487,19 @@
           if (p.color !== undefined) { if (p.color && !/^#[0-9a-f]{6}$/i.test(p.color)) throw new Error(`"${p.color}" is not a colour`); n.color = p.color; } });
         break;
       // like the host's duplicateWorkflowItem / actionToCommand (new ids; step ids dropped, as the host gives fresh ones)
-      case "duplicateItem": apply(id, `Duplicated ${p.kind}`, (d) => {
-        const list = get(d, p.path.slice(0, -1)), i = p.path[p.path.length - 1], item = list[i], nk = p.kind === "command" ? "name" : "action", sk = p.kind === "command" ? "command" : "task";
-        const copy = JSON.parse(JSON.stringify(item)); let name = `${item[nk]}_copy`; for (let n = 2; list.some((x) => x[nk] === name); n++) name = `${item[nk]}_copy_${n}`;
-        Object.assign(copy, { id: Math.random().toString(36).slice(2, 8), label: `${item.label} (copy)`, [nk]: name }); const strip = (o) => { if (o && typeof o === "object") { delete o.id; Object.entries(o).forEach(([k, v]) => k !== "data" && strip(v)); } }; strip(copy[sk]);
-        list.splice(i + 1, 0, copy); }); break;
+      case "duplicateItem": apply(id, `Duplicated ${p.kind}`, (d) => dupItem(d, p.kind, p.path)); break;
+      // several picked in the layers panel (0.3.60), each one edit, like the host
+      case "duplicateItems": (window.__posted = window.__posted || []).push(msg);
+        apply(id, `Duplicated ${p.paths.length} ${p.kind}s`, (d) => { for (const x of [...p.paths].sort((a, b) => cmpPath(a, b)).reverse()) dupItem(d, p.kind, x); }); break;
+      case "deleteItems": (window.__posted = window.__posted || []).push(msg);
+        apply(id, `Deleted ${p.paths.length} ${p.kind}s`, (d) => { const found = p.paths.map((x) => ({ list: get(d, x.slice(0, -1)), item: get(d, x) }));
+          if (found.some((f) => !f.item)) throw new Error(`A selected ${p.kind} is no longer where it was \u2014 reopen the workflow and try again.`);
+          for (const f of found) f.list.splice(f.list.indexOf(f.item), 1); }); break;
+      case "moveStages": (window.__posted = window.__posted || []).push(msg);
+        apply(id, `Moved ${p.indexes.length} stages`, (d) => { const moving = [...p.indexes].sort((a, b) => a - b).map((i) => d.stages[i]); const marker = {};
+          d.stages.splice(p.toIndex ?? d.stages.length, 0, marker); for (const st of moving) d.stages.splice(d.stages.indexOf(st), 1); d.stages.splice(d.stages.indexOf(marker), 1, ...moving); }); break;
+      case "setAccessMany": (window.__posted = window.__posted || []).push(msg);
+        apply(id, `Set access on ${p.paths.length} actions`, (d) => { for (const x of p.paths) get(d, x).access_control = p.rules.map((r) => ({ method: r.method, lable: ke(r.method), data: r.data })); }); break;
       // like the host's copyActions: copies with new ids (step ids dropped) and unused names, the originals stay
       case "copyActions": {
         if (!(p.paths || []).length) { post("editFailed", { message: "Nothing selected to copy." }); break; }

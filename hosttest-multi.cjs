@@ -1,13 +1,14 @@
+// v0.3.60: several picked in the layers panel: deleteItemsEdit, duplicateItemsEdit, moveStagesEdit, saveAccessMany.
 // v0.3.59: several steps at once on the canvas: moveStepsEdit (picked steps dragged together onto a wire, one edit,
 // in document order, by identity) and updateOperatorsEdit (the same changed settings on several steps of one
 // operator, each keeping the rest), plus the readNodes / moveSteps / updateOperators messages.
 const fs = require("fs"), Module = require("module");
-const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={moveStepsEdit,updateOperatorsEdit,outermostPaths};";
+const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={moveStepsEdit,updateOperatorsEdit,outermostPaths,deleteItemsEdit,duplicateItemsEdit,moveStagesEdit,isItemPath};";
 const stub = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => "" : stub), apply: () => stub, construct: () => stub });
 const m = new Module("ext"); m.filename = "/x/extension.js";
 const orig = Module._load; Module._load = (r, p, i) => (r === "vscode" ? stub : orig(r, p, i));
 m._compile(src, m.filename);
-const { moveStepsEdit, updateOperatorsEdit, outermostPaths } = m.exports.__t;
+const { moveStepsEdit, updateOperatorsEdit, outermostPaths, deleteItemsEdit, duplicateItemsEdit, moveStagesEdit, isItemPath } = m.exports.__t;
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 const op = (o, data = {}) => ({ type: "command", operator: o, data });
 const mk = () => ({ actions: [{ task: { type: "series", commands: [op("A"), { type: "if", true: { type: "series", commands: [op("T1"), op("T2")] }, false: { type: "series", commands: [] } }, op("B"), op("C")] } }] });
@@ -54,3 +55,35 @@ const raw = fs.readFileSync(process.argv[2], "utf8");
 ok(/case "moveSteps":[\s\S]{0,1500}moveStepsEdit\(draft, paths, toChildrenPath/.test(raw), "moveSteps is one draft edit through moveStepsEdit");
 ok(/case "updateOperators":[\s\S]{0,1800}updateOperatorsEdit\(draft, paths, operator/.test(raw) && /RESERVED_PATH_KEYS\.has\(key\)/.test(raw.slice(raw.indexOf('case "updateOperators"'), raw.indexOf('case "updateOperators"') + 1500)), "updateOperators is one draft edit, prototype keys left out");
 ok(/case "readNodes":[\s\S]{0,1200}type: "nodesParams"[\s\S]{0,400}stepFormValues\(definition, stepPath, catalog\)/.test(raw), "readNodes answers nodesParams with each step's settings");
+
+// ---- the layers panel (0.3.60)
+const labels = (list) => list.map((x) => x.label).join();
+const wf = () => ({
+  stages: [{ stage: "a", label: "A", actions: [{ id: "x1", action: "one", label: "One", task: { type: "series", commands: [] } }, { id: "x2", action: "two", label: "Two", task: { type: "series", commands: [] } }] }, { stage: "b", label: "B", actions: [] }, { stage: "c", label: "C", actions: [] }],
+  actions: [{ id: "g1", action: "glob", label: "Glob", task: { type: "series", commands: [op("A")] } }],
+  commands: [{ id: "c1", name: "cmd", label: "Cmd", command: { type: "series", commands: [] } }],
+});
+ok(isItemPath("action", ["stages", 0, "actions", 1]) && isItemPath("action", ["actions", 0]) && isItemPath("stage", ["stages", 2]) && !isItemPath("stage", ["actions", 0]) && !isItemPath("command", ["commands", "__proto__"]), "isItemPath knows where each kind sits");
+let w = deleteItemsEdit(wf(), "action", [["stages", 0, "actions", 0], ["actions", 0]]);
+ok(labels(w.stages[0].actions) === "Two" && w.actions.length === 0, "deleteItemsEdit removes actions from different lists in one change");
+w = deleteItemsEdit(wf(), "stage", [["stages", 0], ["stages", 2]]);
+ok(labels(w.stages) === "B", "and stages (with their actions)");
+threw = "";
+try { deleteItemsEdit(wf(), "action", [["stages", 0, "actions", 5]]); } catch (e) { threw = e.message; }
+ok(/no longer where it was/.test(threw), "a stale path refuses the delete");
+threw = "";
+try { deleteItemsEdit(wf(), "stage", [["actions", 0]]); } catch (e) { threw = e.message; }
+ok(/no longer where it was/.test(threw), "a path of another kind refuses it");
+w = duplicateItemsEdit(wf(), "action", [["stages", 0, "actions", 0], ["stages", 0, "actions", 1], ["actions", 0]]);
+ok(labels(w.stages[0].actions) === "One,One (copy),Two,Two (copy)" && labels(w.actions) === "Glob,Glob (copy)", "duplicateItemsEdit puts a copy right below each");
+ok(new Set([...w.stages[0].actions, ...w.actions].map((a) => a.id)).size === 6 && w.stages[0].actions[1].action === "one_copy", "with new ids and unused names");
+w = moveStagesEdit(wf(), [1, 2], 0);
+ok(labels(w.stages) === "B,C,A", "moveStagesEdit moves several stages together, in order, before the one at toIndex: " + labels(w.stages));
+w = moveStagesEdit(wf(), [0, 2], null);
+ok(labels(w.stages) === "B,A,C", "to the end");
+threw = "";
+try { moveStagesEdit(wf(), [7], 0); } catch (e) { threw = e.message; }
+ok(/no longer where it was/.test(threw), "a stale index refuses the move");
+const raw2 = fs.readFileSync(process.argv[2], "utf8");
+ok(/case "deleteItems":[\s\S]{0,400}deleteItemsEdit\(draft, kind, paths\)/.test(raw2) && /case "duplicateItems":[\s\S]{0,400}duplicateItemsEdit\(draft, kind, paths\)/.test(raw2) && /case "moveStages":[\s\S]{0,800}moveStagesEdit\(draft/.test(raw2), "deleteItems / duplicateItems / moveStages are each one draft edit");
+ok(/case "setAccessMany":[\s\S]{0,800}this\.saveAccessMany\(/.test(raw2) && /async saveAccessMany\(workflowId, actionPaths, rules\)[\s\S]{0,900}Open to everyone[\s\S]{0,1500}applyEdit\(/.test(raw2), "setAccessMany asks before opening them to everyone, then one draft edit");
