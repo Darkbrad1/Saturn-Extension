@@ -1,6 +1,16 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.58",
+    title: "Property settings back to their groups",
+    items: [
+      "A property's settings are back in their earlier groups: General, Visibility, Input, Data, Display and Access, with nothing folded away.",
+      "The \"Where the choices come from\" picker is gone: the map, the lookup and the value source are their own sections in Data again.",
+      "Kept: Favourites at the top, the Countries lookup's Value field and Label field (Data > Lookup), and the one switch for every place, now called Everywhere, first in Visibility > Show in.",
+      "Put back on a setting also takes out what was filled in with it (like a Countries lookup's two fields).",
+    ],
+  },
+  {
     version: "0.3.57",
     title: "Countries lookups",
     items: [

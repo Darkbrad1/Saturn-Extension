@@ -67,32 +67,33 @@ await p.getByRole("button", { name: "Discard" }).click();
 ok(!(await box().isChecked()) && await p.locator(".rs-unsaved").count() === 0, "Discard drops the changes");
 
 // the settings: a menu beside one long page
-ok((await p.locator(".pe-page .pe-group-title").allInnerTexts()).map((t) => t.replace(/\s*Edit$/, "")).join() === "★ Favourites,Basics,Rules,Choices,In forms,In tables,In record views,Access,Advanced,JSON", "every group is on one long page, grouped by place (0.3.55)");
+ok((await p.locator(".pe-page .pe-group-title").allInnerTexts()).map((t) => t.replace(/\s*Edit$/, "")).join() === "★ Favourites,General,Visibility,Input,Data,Display,Access,JSON", "every group is on one long page, Visibility right after General (Favourites first)");
 ok(await p.getByRole("switch").count() > 5 && await p.locator(".pe-page input[type=checkbox]:not([role=switch])").count() === await p.locator(".pe-picks input[type=checkbox]").count(), "on/off settings are switches (only the long property lists keep checkboxes)");
 ok(await p.locator(".pe-page input[type=radio]").count() === 0, "there are no round radio buttons");
 ok((await p.getByRole("radiogroup", { name: "Type" }).getByRole("radio").allInnerTexts()).map((t) => t.split("\n")[0]).join() === "String,Number,Boolean,Date,Array,Object" && (await p.getByRole("radio", { name: /^String/ }).getAttribute("aria-checked")) === "true", "the type is a card for each type, the chosen one marked");
-await tab("In forms");
+await tab("Display");
 await p.waitForTimeout(100);
-ok((await p.locator(".pe-menu-sub").allInnerTexts()).join() === "Input,Look", "picking a group in the menu opens its sections");
-ok((await p.locator(".pe-page").innerText()).includes("Default renderer") && (await p.locator(".pe-page").innerText()).includes("Column width"), "the page has the display settings");
+ok((await p.locator(".pe-menu-sub").allInnerTexts()).join() === "Table,Record view,Form", "picking a group in the menu opens its sections");
+ok((await p.locator(".pe-page").innerText()).includes("Default renderer") && (await p.locator(".pe-page").innerText()).includes("Column width"), "the Display group has the display settings");
+await tab("Input");
 ok(!(await p.locator(".pe-page").innerText()).includes("Rows"), "a setting only shows when it applies (Rows only for a textarea)");
 await p.getByLabel("Input type").selectOption("textarea");
 ok((await p.locator(".pe-page").innerText()).includes("Rows"), "and shows once it does");
 await p.getByRole("button", { name: "Put back" }).click();
-await tab("Choices");
-await p.getByRole("radio", { name: /^Another resource/ }).click();
+await tab("Data");
+await p.getByRole("switch", { name: "Include map" }).check();
 await p.getByLabel("Reference").first().selectOption("LoanCategory");
 await p.waitForTimeout(150);
 ok((await p.evaluate(() => window.__posted.some((m) => m.type === "fields" && m.payload.resource === "LoanCategory"))) && (await p.getByLabel("Value field").first().locator("option").allInnerTexts()).includes("Code (code)"), "a map's fields are picked from the referenced resource's properties");
-ok((await p.locator(".pe-menu-item", { hasText: "Choices" }).locator(".pe-count").innerText()) === "1", "the group's tab counts its changes (a new map is one)");
+ok((await p.locator(".pe-menu-item", { hasText: "Data" }).locator(".pe-count").innerText()) === "1", "the group's tab counts its changes (a new map is one)");
 await p.fill(".pe-find", "column width");
-ok((await p.locator(".pe-page .pe-row").count()) === 1 && (await p.locator(".pe-page .pe-group-title").allInnerTexts()).join() === "In tables", "Find a setting narrows the page to it, under its group");
+ok((await p.locator(".pe-page .pe-row").count()) === 1 && (await p.locator(".pe-page .pe-group-title").allInnerTexts()).join() === "Display", "Find a setting narrows the page to it, under its group");
 await p.fill(".pe-find", "");
 await tab("JSON");
 ok((await p.locator(".pe-page").innerText()).includes('"reference": "LoanCategory"'), "the JSON tab shows the whole property as edited");
 await p.getByRole("button", { name: "Undo all changes to it" }).click();
 ok(await p.locator(".rs-unsaved").count() === 0, "Undo all changes to it puts the property back");
-await tab("Basics");
+await tab("General");
 
 // search
 await p.fill(".rs-search", "loan");

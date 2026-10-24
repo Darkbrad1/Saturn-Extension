@@ -1,7 +1,5 @@
 // The editor for one property (or several at once), on the right of the Resources screen: a menu of its setting groups
-// and their sections (spec.ts) beside one long page with all of them, like VS Code's settings. The groups are by
-// place (Basics, Rules, Choices, In forms, In tables, In record views, Access, Advanced); a place the property is
-// hidden in says so and folds its settings, and Advanced starts folded. Favourites, at the top, are the settings
+// and their sections (spec.ts) beside one long page with all of them, like VS Code's settings. Favourites, at the top, are the settings
 // you picked (one list everywhere, kept by the extension: host/favourites.js); they edit the same values.
 // The menu jumps to a section and follows the scrolling; its search narrows the page. Each row
 // has its name and hint on the left and its control on the right (switches for on/off, cards for
@@ -12,7 +10,7 @@ import { HighlightInput } from "../src/controls";
 import { IconField } from "./icons";
 import { PropertyAccess, accessSummary } from "./access";
 import type { Subjects } from "../src-menus/model";
-import { ALL, CHOICE_KINDS, GROUPS, KEY_PATTERN, choicesOf, get, settingId, shownEverywhere, withChoices, withShownEverywhere, type ChoiceKind, type Group, type Path, type Prop, type Setting } from "./spec";
+import { ALL, GROUPS, KEY_PATTERN, get, settingId, shownEverywhere, withShownEverywhere, type Group, type Path, type Prop, type Setting } from "./spec";
 
 export interface Field { key: string; label: string | null; type: string | null }
 export interface Lookups {
@@ -56,17 +54,13 @@ const short = (s: string) => (s.length > 60 ? `${s.slice(0, 60)}…` : s);
 /** One property being edited: what the instance has, and how it is here. */
 export interface Item { original: Prop; draft: Prop }
 
-// where the choices come from isn't stored itself: it differs when the kinds do
-// (and Show everywhere when what it shows does)
+// Show everywhere isn't stored itself: it differs when what it shows does
 const differs = (s: Setting, it: Item) =>
-  s.edit.kind === "choices" ? !same(choicesOf(it.original), choicesOf(it.draft)) : s.edit.kind === "showAll" ? shownEverywhere(it.original) !== shownEverywhere(it.draft) : !same(get(it.original, s.path), get(it.draft, s.path));
-const kindNames = (p: Prop) => choicesOf(p).map((k) => CHOICE_KINDS.find(([v]) => v === k)![1]).join(" and ");
+  s.edit.kind === "showAll" ? shownEverywhere(it.original) !== shownEverywhere(it.draft) : !same(get(it.original, s.path), get(it.draft, s.path));
 
 /** Where each setting is: its group and part, by its id (for Favourites). */
 const WHERE = new Map(GROUPS.flatMap((g) => g.parts.flatMap((part) => part.settings.map((s) => [settingId(s), { g, part, s }] as const))));
 
-/** Whether a place (forms, tables, record views) is hidden for every property edited. */
-const hiddenIn = (g: Group, items: Item[]) => !!g.place && items.every((it) => get(it.draft, g.place!) === true);
 
 /** How many settings of a group differ, on any of the properties. */
 export function changedIn(group: Group, items: Item[]) {
@@ -105,11 +99,9 @@ export function PropertyEditor(props: {
   // the part of the page in view: "group" or "group-part"
   const [inView, setInView] = useState(props.group);
   const page = useRef<HTMLDivElement>(null);
-  // groups opened by hand: a hidden place's settings, Advanced
-  const [opened, setOpened] = useState<string[]>([]);
   const [editingFavs, setEditingFavs] = useState(false);
   const favs = props.onFavourites ? (props.favourites ?? []).filter((id) => WHERE.has(id)) : null;
-  /** A change made by a function of each property (where the choices come from). */
+  /** A change made by a function of each property (Show everywhere). */
   const retarget = (fn: (draft: Prop) => Prop) => props.onChange(items.map((it) => fn(it.draft)));
   const set = (path: Path, value: unknown, remove = false) => {
     // what Saturn keeps next to this setting (like a renderer option's type), filled in when it's missing
@@ -124,10 +116,10 @@ export function PropertyEditor(props: {
       }),
     );
   };
-  // a setting that isn't stored itself puts back every path it sets
+  // a setting that isn't stored itself puts back every path it sets; any other, what was written alongside it too
   const revert = (setting: Setting) =>
     props.onChange(
-      items.map((it) => (setting.sets ?? [setting.path]).reduce((d, at) => setAt(d, at, get(it.original, at), get(it.original, at) === undefined), it.draft)),
+      items.map((it) => (setting.sets ?? [setting.path, ...(setting.alongside ?? []).map((x) => x.path)]).reduce((d, at) => setAt(d, at, get(it.original, at), get(it.original, at) === undefined), it.draft)),
     );
 
   const q = find.trim().toLowerCase();
@@ -147,9 +139,8 @@ export function PropertyEditor(props: {
   };
   const otherChanges = items.some((it) => !same(stripKnown(it.original), stripKnown(it.draft)));
   // whether a setting does something for the properties edited (or was changed and nothing else shows its value)
-  const applies = (s: Setting, part: Group["parts"][number]) =>
+  const applies = (s: Setting) =>
     !(many && s.single) &&
-    (!part.when || items.some((it) => part.when!(it.draft))) &&
     (!s.when || items.some((it) => s.when!(it.draft) || (differs(s, it) && !sharedShown(s, it.draft))));
   // what the page shows: each group's parts, with the rows that apply (and match the search)
   const shownParts = (g: Group) =>
@@ -157,12 +148,10 @@ export function PropertyEditor(props: {
       .map((part, i) => ({
         part,
         i,
-        rows: part.settings.filter((s) => applies(s, part) && matches(s, g, part.title)),
+        rows: part.settings.filter((s) => applies(s) && matches(s, g, part.title)),
       }))
       .filter((x) => x.rows.length);
-  // a group folded: a place it's hidden in (all but its switch), or Advanced, until opened, searched or changed
-  const folded = (g: Group) => !q && !opened.includes(g.id) && (hiddenIn(g, items) || (!!g.folded && changedIn(g, items) === 0));
-  const favRows = (favs ?? []).map((id) => WHERE.get(id)!).filter(({ g, part, s }) => applies(s, part) && matches(s, g, part.title));
+  const favRows = (favs ?? []).map((id) => WHERE.get(id)!).filter(({ g, part, s }) => applies(s) && matches(s, g, part.title));
   const showJson = !many && (!words.length || words.every((w) => "json whole property".includes(w)));
 
   const jump = (id: string) => {
@@ -172,7 +161,7 @@ export function PropertyEditor(props: {
   };
   // open where it was left
   useEffect(() => {
-    if (props.group && props.group !== "basics" && props.group !== "favourites") jump(anchor(props.group));
+    if (props.group && props.group !== "general" && props.group !== "favourites") jump(anchor(props.group));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // the menu follows the scrolling: the last section whose top has passed the top of the page
@@ -195,7 +184,7 @@ export function PropertyEditor(props: {
   const row = (setting: Setting, prefix = "pe") => (
     <SettingRow key={settingId(setting)} prefix={prefix} setting={props.hints?.[setting.path.join(".")] ? { ...setting, hint: props.hints[setting.path.join(".")] } : setting} items={items} set={set} retarget={retarget} revert={revert} lookups={props.lookups} disabled={props.disabled} />
   );
-  const toggleOpen = (id: string) => setOpened((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
+
 
   return (
     <div className="pe">
@@ -219,12 +208,10 @@ export function PropertyEditor(props: {
             <div key={g.id} className={`pe-menu-group${open ? " is-open" : ""}`}>
               <button className={`pe-menu-item${activeGroup === g.id && !inView.includes("-") ? " is-on" : ""}`} aria-current={activeGroup === g.id ? "true" : undefined} onClick={() => jump(anchor(g.id))}>
                 <span>{g.title}</span>
-                {hiddenIn(g, items) && <span className="pe-hidden-tag">Hidden</span>}
                 {n > 0 && <span className="pe-count" title={`${n} changed`}>{n}</span>}
                 {titled.length > 0 && <span className="pe-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>}
               </button>
               {open &&
-                !folded(g) &&
                 titled.map(({ part, i }) => (
                   <button key={i} className={`pe-menu-sub${inView === `${g.id}-${i}` ? " is-on" : ""}`} onClick={() => jump(anchor(g.id, i))}>
                     {part.title}
@@ -268,40 +255,18 @@ export function PropertyEditor(props: {
           )}
           {GROUPS.flatMap((g) => {
             const parts = shownParts(g);
-            const isFolded = folded(g);
-            const hidden = hiddenIn(g, items);
-            // folded: the place's own switch stays (Show in …), the rest waits behind a button
-            const shown = isFolded ? (g.place ? parts.slice(0, 1).map((x) => ({ ...x, rows: x.rows.filter((s) => s.path.join(".") === g.place!.join(".")) })).filter((x) => x.rows.length) : []) : parts;
-            if (!parts.length) return [];
-            const head = (
-              <header className="pe-group-head" aria-label={g.title}>
-                <h2 className="pe-group-title">
-                  {g.title}
-                  {hidden && <span className="pe-hidden-tag">Hidden</span>}
-                </h2>
-                <p className="pe-blurb">{g.blurb}</p>
-              </header>
-            );
-            const fold = (g.folded || hidden) && !q && (
-              <button className="rs-link pe-fold" aria-expanded={!isFolded} onClick={() => toggleOpen(g.id)}>
-                {isFolded ? (hidden ? `Hidden here. Show its other settings (kept as they are)` : `Show ${g.title.toLowerCase()} settings`) : hidden ? "Fold its other settings" : `Fold ${g.title.toLowerCase()} settings`}
-              </button>
-            );
-            if (!shown.length)
-              return [
-                <div key={g.id} id={anchor(g.id)} data-sec={g.id} className="pe-block is-first">
-                  {head}
-                  {fold}
-                </div>,
-              ];
-            return shown.map(({ part, i, rows }, n) => (
+            return parts.map(({ part, i, rows }, n) => (
               <div key={`${g.id}-${i}`} id={n === 0 ? anchor(g.id) : undefined} data-sec={part.title ? `${g.id}-${i}` : g.id} className={`pe-block${n === 0 ? " is-first" : ""}`}>
-                {n === 0 && head}
+                {n === 0 && (
+                  <header className="pe-group-head" aria-label={g.title}>
+                    <h2 className="pe-group-title">{g.title}</h2>
+                    <p className="pe-blurb">{g.blurb}</p>
+                  </header>
+                )}
                 <div id={anchor(g.id, i)} className="pe-part">
                   {part.title && <h3 className="pe-part-title">{part.title}</h3>}
                   <div className="pe-card">{rows.map((s) => row(s))}</div>
                 </div>
-                {n === shown.length - 1 && fold}
               </div>
             ));
           })}
@@ -354,7 +319,7 @@ function SettingRow(props: {
   const edit = setting.edit;
   const hint = setting.hint ?? (edit.kind === "bool" ? edit.hint : undefined);
   // big controls (code, lists, cards…) go under the text; small ones on the right of it
-  const wide = ["textarea", "code", "json", "tags", "csv", "fields", "ownFields", "choice", "cards", "access", "choices"].includes(edit.kind);
+  const wide = ["textarea", "code", "json", "tags", "csv", "fields", "ownFields", "choice", "cards", "access"].includes(edit.kind);
   return (
     <div className={`pe-row${wide ? " is-wide" : ""}${shown ? " is-changed" : ""}`}>
       <div className="pe-text">
@@ -366,7 +331,7 @@ function SettingRow(props: {
         {shown && (
           <span className="pe-was">
             <span className="rs-dot is-inline" />
-            {items.length > 1 ? `changed on ${changedOn} of ${items.length}` : `was ${edit.kind === "choices" ? kindNames(items[0].original) : edit.kind === "showAll" ? { true: "on", false: "off", null: "shown in some" }[String(shownEverywhere(items[0].original))] : edit.kind === "access" ? accessSummary(before) : short(show(setting.toggles ? before !== undefined : edit.kind === "bool" && edit.invert ? before !== true : before))}`}
+            {items.length > 1 ? `changed on ${changedOn} of ${items.length}` : `was ${edit.kind === "showAll" ? { true: "on", false: "off", null: "shown in some" }[String(shownEverywhere(items[0].original))] : edit.kind === "access" ? accessSummary(before) : short(show(setting.toggles ? before !== undefined : edit.kind === "bool" && edit.invert ? before !== true : before))}`}
             <button className="rs-link" disabled={props.disabled} onClick={() => props.revert(setting)}>Put back</button>
           </span>
         )}
@@ -522,19 +487,6 @@ function Control(props: { setting: Setting; id: string; value: unknown; mixed: b
       // half on (shown in some places, or the properties differ); a click shows it everywhere
       const some = !on && !states.every((v) => v === false);
       return <Switch id={id} on={on} mixed={some} label={setting.label} disabled={disabled} onSet={(v) => props.retarget((d) => withShownEverywhere(d, v))} />;
-    }
-    case "choices": {
-      // what each property has; one card is outlined when they all have the same single kind
-      const kinds = props.drafts.map(choicesOf);
-      const one = kinds.every((k) => k.length === 1 && k[0] === kinds[0][0]) ? kinds[0][0] : "";
-      const several = kinds.find((k) => k.length > 1);
-      return (
-        <>
-          <Cards label={setting.label} value={one} options={CHOICE_KINDS} disabled={disabled} onPick={(v) => props.retarget((d) => withChoices(d, v as ChoiceKind))} />
-          {several && <span className="pe-hint">Several are set: {several.map((k) => CHOICE_KINDS.find(([v]) => v === k)![1].toLowerCase()).join(" and ")}. Pick one to keep only it.</span>}
-          {!several && !one && <span className="pe-hint">They differ. Picking one sets it on all of them.</span>}
-        </>
-      );
     }
     case "json":
       return <JsonBox id={id} value={value} mixed={mixed} disabled={disabled} onSet={(v, remove) => set(path, v, remove)} />;

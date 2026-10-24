@@ -61,7 +61,7 @@ await menu("Requested Loan Amount", "Copy settings");
 await item("Application Number").click();
 await item("Submitted At").click({ modifiers: ["Control"] });
 await menu("Submitted At", /^Paste settings/);
-ok((await p.getByRole("dialog", { name: "Paste settings" }).innerText()).includes("Paste settings from Requested Loan Amount") && !(await p.getByRole("dialog").getByRole("switch", { name: "Basics" }).isChecked()) && (await p.getByRole("dialog").getByRole("switch", { name: "In tables" }).isChecked()), "Paste asks which groups to bring over: all but Basics");
+ok((await p.getByRole("dialog", { name: "Paste settings" }).innerText()).includes("Paste settings from Requested Loan Amount") && !(await p.getByRole("dialog").getByRole("switch", { name: "General" }).isChecked()) && (await p.getByRole("dialog").getByRole("switch", { name: "Display" }).isChecked()), "Paste asks which groups to bring over: all but General");
 await p.getByRole("dialog").getByRole("button", { name: "Paste" }).click();
 const pasted = await p.evaluate(() => window.acquireVsCodeApi().getState().works.Application.drafts);
 ok(pasted.application_number?.searchable === true && pasted.submitted_at?.searchable === true && pasted.application_number.label === "Application Number", "the settings go to both picked properties; their labels stay");
@@ -117,8 +117,8 @@ await item("Amount").click();
 const gaps = () =>
   p.evaluate(() => {
     // the space from each card to the next block below it, in the same column
-    // (a folded group has no card; a fold button under a card is not a gap)
-    const blocks = [...document.querySelectorAll(".pe-flow > .pe-block:not(.is-wide)")].filter((el) => el.querySelector(".pe-card") && !el.querySelector(".pe-fold")).map((el) => {
+    // (Favourites with none picked has no card)
+    const blocks = [...document.querySelectorAll(".pe-flow > .pe-block:not(.is-wide)")].filter((el) => el.querySelector(".pe-card")).map((el) => {
       const card = el.querySelector(".pe-card").getBoundingClientRect();
       const box = el.getBoundingClientRect();
       return { left: Math.round(box.left), top: box.top, cardBottom: card.bottom };
@@ -142,11 +142,11 @@ ok(groups.join(" | ") === "Resources: Application,Deal,Loan,LoanApplication,Loan
 await p.selectOption(".rs-select select", "Loan");
 await p.waitForTimeout(300);
 await item("Term").click();
-const formsSwitch = p.getByRole("switch", { name: "Show in forms", exact: true });
-ok((await formsSwitch.isChecked()), "In forms has Show in forms, and a property that isn't hidden is on");
+const formsSwitch = p.locator(".pe-block", { hasText: "Show in" }).getByRole("switch", { name: "Forms", exact: true });
+ok((await p.locator(".pe-part-title").allInnerTexts()).includes("Show in") && (await formsSwitch.isChecked()), "Visibility has Show in, and a property that isn't hidden is on");
 await formsSwitch.click();
 const termDraft = await p.evaluate(() => window.acquireVsCodeApi().getState().works.Loan.drafts.term);
-ok(termDraft.hideInForm === true && (await p.locator(".pe-row", { has: formsSwitch }).innerText()).includes("was on"), "switching it off stores hideInForm: true, as Saturn does, and says it was on");
+ok(termDraft.hideInForm === true && (await p.locator(".pe-block", { hasText: "Show in" }).locator(".pe-row").first().innerText()).includes("was on"), "switching it off stores hideInForm: true, as Saturn does, and says it was on");
 await formsSwitch.click();
 ok((await p.evaluate(() => window.acquireVsCodeApi().getState().works.Loan?.drafts?.term?.hideInForm)) === false, "switching it back on stores hideInForm: false");
 await p.getByRole("button", { name: "Discard" }).click();

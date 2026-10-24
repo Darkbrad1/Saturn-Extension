@@ -297,10 +297,7 @@ textarea.pe-input { height: auto; padding: 6px 8px; resize: vertical; }
 .pe-access { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .pe-access .pe-card { border: 1px solid var(--rs-line); }
 
-/* places hidden, Advanced folded, Favourites (0.3.55) */
-.pe-hidden-tag { margin-left: 8px; font-size: 10px; font-weight: 500; color: var(--rs-muted); border: 1px solid var(--rs-line); border-radius: 8px; padding: 0 6px; vertical-align: 2px; }
-.pe-menu-item .pe-hidden-tag { margin-left: 0; vertical-align: 0; }
-.pe-fold { display: inline-block; margin: 4px 0 0; font-size: 11px; }
+/* Favourites (0.3.55) */
 .pe-menu-item.is-fav span:first-child { color: #ffc700; }
 .pe-group-title .pe-fav-edit { margin-left: 10px; font-size: 11px; vertical-align: 2px; }
 .pe-fav-empty { margin: 0; padding: 10px 12px; border: 1px dashed var(--rs-line); border-radius: 8px; color: var(--rs-muted); font-size: 11px; }

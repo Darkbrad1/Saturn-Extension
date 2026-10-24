@@ -1,7 +1,6 @@
-// v0.3.55: a property's settings grouped by place (Basics, Rules, Choices, In forms, In tables, In record views,
-// Access, Advanced), one "Where the choices come from" picker, a place the property is hidden in folded, Advanced
-// folded, and Favourites at the top: picked with Edit, reordered (↑ / ↓ and dragging), the same values as in the
-// groups, one list for the Resources screen and the node view's Form tab.
+// v0.3.55 / 0.3.58: Favourites at the top of a property's settings: picked with Edit, reordered (↑ / ↓ and dragging), the
+// same values as in the groups, one list for the Resources screen and the node view's Form tab. 0.3.58: the groups
+// are back to General, Visibility, Input, Data, Display, Access.
 import { chromium } from "playwright";
 const out = process.env.SHOTS ?? "shots";
 const b = await chromium.launch({ executablePath: process.env.CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
@@ -22,63 +21,10 @@ await p.waitForTimeout(300);
 await p.locator(".rs-item", { hasText: "Status" }).first().click();
 await p.waitForTimeout(300);
 
-// ===== grouped by place =====
-ok((await titles()).join() === "★ Favourites,Basics,Rules,Choices,In forms,In tables,In record views,Access,Advanced,JSON", "the groups go by place: " + (await titles()).join());
-ok((await p.locator(".pe-menu > .pe-menu-group > .pe-menu-item").allInnerTexts()).map((t) => t.split("\n")[0]).join() === "★ Favourites,Basics,Rules,Choices,In forms,In tables,In record views,Access,Advanced,JSON", "the menu lists the same groups");
+// ===== the groups as before 0.3.55, Favourites first =====
+ok((await titles()).join() === "★ Favourites,General,Visibility,Input,Data,Display,Access,JSON", "the groups: " + (await titles()).join());
 ok((await p.locator(".pe-favs .pe-fav-empty").innerText()).includes("Press Edit"), "Favourites starts empty and says how to add some");
-
-// ===== Advanced starts folded; a search finds its settings anyway =====
-ok((await p.locator(".pe-page .pe-label", { hasText: /^Hide from the API$/ }).count()) === 0, "Advanced starts folded");
-await p.getByRole("button", { name: "Show advanced settings" }).click();
-ok((await p.locator(".pe-page .pe-label", { hasText: /^Hide from the API$/ }).count()) === 1, "Show advanced settings opens it");
-await p.getByRole("button", { name: "Fold advanced settings" }).click();
-await p.fill(".pe-find", "api");
-await p.waitForTimeout(150);
-ok((await p.locator(".pe-page .pe-label", { hasText: /^Hide from the API$/ }).count()) === 1, "Find a setting finds a folded one");
-await p.fill(".pe-find", "");
-
-// ===== a place it's hidden in: says so and folds =====
-await p.getByRole("switch", { name: "Show in tables", exact: true }).click();
-await p.waitForTimeout(100);
-ok((await draft("status"))?.hideInTable === true, "switching off Show in tables stores hideInTable: true, as before");
-const tableBlock = p.locator(".pe-block", { has: p.locator(".pe-group-title", { hasText: /^In tables/ }) });
-ok((await tableBlock.locator(".pe-hidden-tag").count()) === 1 && (await p.locator(".pe-menu-item", { hasText: "In tables" }).locator(".pe-hidden-tag").count()) === 1, "the group and its menu item say Hidden");
-ok((await p.locator(".pe-page .pe-label", { hasText: /^Column width$/ }).count()) === 0 && (await p.getByRole("switch", { name: "Show in tables", exact: true }).count()) === 1, "its other settings fold; its switch stays");
-await p.screenshot({ path: out + "/g1-hidden-place.png" });
-await p.getByRole("button", { name: /^Hidden here\. Show its other settings/ }).click();
-ok((await p.locator(".pe-page .pe-label", { hasText: /^Column width$/ }).count()) === 1, "they can be opened, kept as they are");
-await p.getByRole("button", { name: "Discard" }).click();
-await p.waitForTimeout(200);
-
-// ===== where the choices come from =====
-const choice = (name) => p.getByRole("radiogroup", { name: "Where the choices come from" }).getByRole("radio", { name: new RegExp(`^${name}`) });
-ok((await choice("None").getAttribute("aria-checked")) === "true", "a plain property's choices: None");
-ok((await p.locator(".pe-part-title", { hasText: /^A fixed list$/ }).count()) === 0, "and only the picker shows");
-await choice("A fixed list").click();
-await p.waitForTimeout(100);
-ok((await draft("status"))?.lookup_type === "values" && (await p.locator(".pe-part-title", { hasText: /^A fixed list$/ }).count()) === 1, "A fixed list stores lookup_type: values and shows its Values");
-const values = p.locator(".pe-row", { has: p.locator(".pe-label", { hasText: /^Values$/ }) }).locator("input");
-await values.fill("Open");
-await values.press("Enter");
-await values.fill("Closed");
-await values.press("Enter");
-ok((await draft("status"))?.lookup_reference === "Open,Closed", "the values are stored as Saturn keeps them");
-ok((await p.locator(".pe-menu-item", { hasText: "Choices" }).locator(".pe-count").count()) === 1, "the change counts in the Choices group");
-await choice("Another resource").click();
-await p.waitForTimeout(100);
-let d = await draft("status");
-ok(d.map && d.map.type === "model" && d.lookup_type === "" && (await p.locator(".pe-part-title", { hasText: /^A fixed list$/ }).count()) === 0 && (await p.locator(".pe-part-title", { hasText: /^Another resource$/ }).count()) === 1, "Another resource adds a map and switches the list off");
-await choice("A fixed list").click();
-await p.waitForTimeout(100);
-d = await draft("status");
-ok(d.lookup_type === "values" && d.lookup_reference === "Open,Closed" && d.map === undefined, "switching back brings the typed values back");
-const choicesRow = p.locator(".pe-row", { has: p.getByRole("radiogroup", { name: "Where the choices come from" }) });
-ok((await choicesRow.innerText()).includes("was None"), "the picker says what it was");
-await p.locator(".rs-top").getByRole("button", { name: "Save", exact: true }).click();
-await p.locator(".rs-confirm").getByRole("button", { name: "Save", exact: true }).click();
-await p.waitForTimeout(400);
-const saved = await p.evaluate(() => window.__data.Application.find((x) => x.key === "status"));
-ok(saved.lookup_type === "values" && saved.lookup_reference === "Open,Closed" && saved.map === undefined, "saved where Saturn keeps it: lookup_type and lookup_reference");
+ok((await p.locator(".pe-fold").count()) === 0 && (await p.getByRole("radiogroup", { name: "Where the choices come from" }).count()) === 0, "no folded groups, no Choices picker");
 
 // ===== Favourites =====
 await p.locator(".pe-fav-edit").click();
@@ -96,7 +42,7 @@ await p.screenshot({ path: out + "/g2-favourites.png" });
 // the same value as in its group
 await p.locator(".pe-favs").getByRole("switch", { name: "Required", exact: true }).click();
 await p.waitForTimeout(100);
-ok((await draft("status"))?.required === true && (await p.locator(".pe-block", { has: p.locator(".pe-group-title", { hasText: /^Rules/ }) }).getByRole("switch", { name: "Required", exact: true }).isChecked()), "a favourite edits the same value as its group");
+ok((await draft("status"))?.required === true && (await p.locator(".pe-block", { has: p.locator(".pe-part-title", { hasText: /^Rules$/ }) }).getByRole("switch", { name: "Required", exact: true }).isChecked()), "a favourite edits the same value as its group");
 await p.getByRole("button", { name: "Discard" }).click();
 await p.waitForTimeout(200);
 
@@ -125,7 +71,7 @@ await p.waitForTimeout(500);
 await p.locator(".rs-item", { hasText: "Staff" }).first().click();
 await p.waitForTimeout(300);
 ok((await favLabels()).join() === "Input type,Required,Column width", "the Form tab shows the same favourites: " + (await favLabels()).join());
-ok((await titles()).includes("In forms") && (await titles()).includes("Choices"), "and the same groups");
+ok((await titles()).includes("Visibility") && (await titles()).includes("Data"), "and the same groups");
 await p.locator(".pe-fav-edit").click();
 await p.getByRole("button", { name: "Take Column width out" }).click();
 await p.locator(".pe-fav-edit").click();

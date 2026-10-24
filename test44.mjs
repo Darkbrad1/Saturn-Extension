@@ -1,5 +1,5 @@
-// v0.3.56: Show everywhere (Basics, under Type): one switch for the six Show in switches (forms, add forms, edit
-// forms, tables, drawers, record views). Half on when shown in some; stored as Saturn's hideIn… settings.
+// v0.3.56 / 0.3.58: Everywhere (first in Visibility > Show in): one switch for the six Show in switches (forms, add
+// forms, edit forms, tables, drawers, record views). Half on when shown in some; stored as Saturn's hideIn… settings.
 import { chromium } from "playwright";
 const out = process.env.SHOTS ?? "shots";
 const b = await chromium.launch({ executablePath: process.env.CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
@@ -8,10 +8,9 @@ const errs = [];
 p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 const draft = () => p.evaluate(() => window.acquireVsCodeApi().getState().works?.Application?.drafts?.status ?? null);
-const all = () => p.getByRole("switch", { name: "Show everywhere", exact: true });
+const all = () => p.getByRole("switch", { name: "Everywhere", exact: true });
 const one = (name) => p.getByRole("switch", { name, exact: true });
-const SIX = ["Show in forms", "Show in add forms", "Show in edit forms", "Show in tables", "Show in drawers", "Show in record views"];
-const unfold = async () => { while (await p.locator(".pe-fold[aria-expanded=false]").count()) { await p.locator(".pe-fold[aria-expanded=false]").first().click(); await p.waitForTimeout(50); } };
+const SIX = ["Forms", "Edit forms", "Add forms", "Tables", "Drawers", "Record views"];
 
 await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
@@ -20,22 +19,20 @@ await p.waitForTimeout(300);
 await p.locator(".rs-item", { hasText: "Status" }).first().click();
 await p.waitForTimeout(300);
 
-const basics = await p.locator(".pe-block", { has: p.locator(".pe-group-title", { hasText: /^Basics/ }) }).locator(".pe-label").allInnerTexts();
-ok(basics.indexOf("Show everywhere") === basics.indexOf("Type") + 1, "Show everywhere is in Basics, right under Type: " + basics.join(", "));
+const showIn = await p.locator(".pe-block", { has: p.locator(".pe-part-title", { hasText: /^Show in$/ }) }).locator(".pe-label").allInnerTexts();
+ok(showIn[0] === "Everywhere" && showIn.join() === "Everywhere,Forms,Edit forms,Add forms,Tables,Drawers,Record views", "Everywhere is first in Visibility's Show in: " + showIn.join(", "));
 ok((await all().isChecked()) && (await all().getAttribute("aria-checked")) === "true", "a property shown everywhere: on");
 
 await all().click();
 await p.waitForTimeout(100);
 let d = await draft();
 ok(["hideInForm", "hideInForm_add", "hideInForm_edit", "hideInTable", "hideInDrawer", "hideInView"].every((k) => d[k] === true), "off hides it in all six places (hideIn…: true)");
-await unfold();
 let states = await Promise.all(SIX.map((n) => one(n).isChecked()));
 ok(states.every((s) => !s), "and every Show in switch is off");
-ok((await p.locator(".pe-menu-item", { hasText: "In tables" }).locator(".pe-hidden-tag").count()) === 1, "the places say Hidden");
 ok((await p.locator(".pe-row", { has: all() }).innerText()).includes("was on"), "it says it was on");
 await p.screenshot({ path: out + "/h1-hidden-everywhere.png" });
 
-await one("Show in tables").click();
+await one("Tables").click();
 await p.waitForTimeout(100);
 ok((await all().getAttribute("aria-checked")) === "mixed", "shown in some places: half on");
 await all().click();

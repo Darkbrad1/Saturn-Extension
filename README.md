@@ -7,6 +7,9 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
 
+## New in 0.3.58 — Property settings back to their groups
+- `src-res/spec.ts`: `GROUPS` back to the 0.3.54 layout (General, Visibility, Input, Data, Display, Access). Kept: Show everywhere, now "Everywhere", first in Visibility > Show in (`showAll`, `SHOW_PATHS`); the Countries settings in Data > Lookup; Favourites (setting ids unchanged: `lookup_reference.values` / `.text` / `.function`, `lookup_value.countries`, `lookup_label.countries`). Gone: the Choices picker (`choicesOf`, `withChoices`, `CHOICE_KINDS`), a group's `place`, `folded` and `copies`, a part's `when`. `src-res/editor.tsx`: no folding; Put back also restores a setting's `alongside` paths. Paste settings: all on but General again. test13 / 14 / 31 / 42 back to their 0.3.54 form (Favourites allowed for); `test43.mjs` (Favourites, 19), `test44.mjs` (13), `test45.mjs` (8).
+
 ## New in 0.3.57 — Countries lookups
 - `src-res/spec.ts`: a Countries lookup (`lookup_type: "countries"`) has Value field (`lookup_value`) and Label field (`lookup_label`), each a pick of a country's field (`COUNTRY_FIELDS`: `country_code`, `country_name`; another stored value still shows), as Saturn's own editor stores them; Label function no longer shows for Countries. Picking Countries fills them in (`alongside` with `if`: only for that value). Choices' `sets` include `lookup_value` / `lookup_label`. `harness/appschema.js`: the real `student_institution_country` property. `test45.mjs` (10).
 

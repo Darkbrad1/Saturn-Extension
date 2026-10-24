@@ -20,19 +20,19 @@ await p.waitForTimeout(300);
 
 await find("show");
 let l = await labels();
-ok(["Show in forms", "Show in tables", "Show in record views"].every((x) => l.includes(x)), "\"show\" finds the Show in switches: " + l.join(", "));
-ok((await groups()).includes("In forms") && (await groups()).includes("In tables"), "under their places");
+ok(["Forms", "Tables", "Record views"].every((x) => l.includes(x)), "\"show\" finds the Show in switches: " + l.join(", "));
+ok((await groups()).includes("Visibility"), "under Visibility");
 await p.screenshot({ path: out + "/f1-find-show.png" });
 
-await find("choices");
-ok((await groups()).includes("Choices") && (await labels()).includes("Where the choices come from"), "\"choices\" shows the Choices group's settings: " + (await groups()).join(", "));
+await find("data");
+ok((await groups()).includes("Data") && (await labels()).includes("Value source"), "\"data\" shows the Data group's settings: " + (await groups()).join(", "));
 
 await find("currency");
 ok((await labels()).some((x) => /renderer/i.test(x)), "a choice's name finds its setting (Currency → the renderers): " + (await labels()).join(", "));
 
 await find("tables show");
 l = await labels();
-ok(l.includes("Show in tables") && !l.includes("Show in forms"), "several words match anywhere: \"tables show\" → " + l.join(", "));
+ok(l.includes("Tables") && !l.includes("Forms"), "several words match anywhere: \"tables show\" → " + l.join(", "));
 
 await find("column width");
 ok((await labels()).length === 1, "words typed together that appear together find just that: " + (await labels()).join(", "));
