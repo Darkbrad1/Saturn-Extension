@@ -215,7 +215,8 @@ await p.getByRole("button", { name: "Discard", exact: true }).click();
 await menu("Admin").click({ button: "right" });
 await p.locator(".rs-menu").getByRole("menuitem", { name: /Delete menu/ }).click();
 await p.waitForTimeout(300);
-ok((await posted("delete")).some((d) => d.id === "menu-admin") && (await menu("Admin").count()) === 0, "Delete menu asks the host (which confirms) and the card goes");
+// 0.3.61: crossed out until Save (test48.mjs saves it)
+ok((await posted("delete")).length === 0 && (await menu("Admin").getAttribute("class")).includes("is-deleted"), "Delete menu crosses the card out until Save");
 
 // ===== the node view's Hooks section =====
 await p.goto("http://localhost:8765/csp.html");

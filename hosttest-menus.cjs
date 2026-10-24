@@ -1,5 +1,6 @@
 // v0.3.30: the Menus panel's openInSaturn message opens <instance url>/menus in the browser.
 // v0.3.40: openResourceScreen opens a tab's resource on the Resources screen.
+// v0.3.61: a delete sent by Save (confirmed) doesn't ask again, and the Undo offer doesn't hold up the next change.
 const fs = require("fs"), Module = require("module");
 const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={MenusPanel,ResourcePropertiesHost};";
 const opened = [];
@@ -30,4 +31,8 @@ const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
   Object.assign(panel, { extensionUri: "ext", manager: "mgr", instance: { id: "i", url: "https://x" }, post() {} });
   await panel.handle({ type: "openResourceScreen", resource: "Loan" });
   ok(shown.length === 1 && shown[0].resource === "Loan" && shown[0].uri === "ext" && shown[0].manager === "mgr" && shown[0].instance.id === "i", "openResourceScreen opens that resource on the Resources screen");
+  const raw = fs.readFileSync(process.argv[2], "utf8");
+  ok(/case "delete":\s*await this\.serial\(\(\) => this\.remove\(String\(message\.id \?\? ""\), message\.confirmed === true\)\)/.test(raw), "the Menus panel's delete passes confirmed on");
+  ok(/async remove\(menuId, confirmed = false\)[\s\S]{0,400}if \(!confirmed && \(await vscode16\.window\.showWarningMessage/.test(raw), "a confirmed delete skips the question");
+  ok(/Promise\.resolve\(vscode16\.window\.showInformationMessage\(`Saturn: "\$\{safeText\(menu\.label, 60\)\}" menu deleted\.`, "Undo"\)\)\.then/.test(raw), "the Undo offer isn't waited for");
 })();

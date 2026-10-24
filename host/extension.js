@@ -14049,8 +14049,9 @@ var MenusPanel = class SelfMenusPanel {
       case "undo":
         await this.serial(() => this.undo(String(message.id ?? "")));
         return;
+      // confirmed: the screen's Save already named it (0.3.61, a menu crossed out until Save), so no second question
       case "delete":
-        await this.serial(() => this.remove(String(message.id ?? "")));
+        await this.serial(() => this.remove(String(message.id ?? ""), message.confirmed === true));
         return;
       case "listAccessSubjects":
         this.post({
@@ -14194,20 +14195,21 @@ var MenusPanel = class SelfMenusPanel {
     });
   }
   // Deletes a menu after confirming, keeps a local copy, and offers Undo (which recreates it).
-  async remove(menuId) {
+  async remove(menuId, confirmed = false) {
     let menu = await getMenu(this.manager, this.instance, menuId);
     if (!menu || !menu.label && menu.references.length === 0) throw new Error("That menu is no longer on the instance.");
     let tabCount = menu.references.length;
-    if ((await vscode16.window.showWarningMessage(`Delete the "${safeText(menu.label, 80)}" menu from ${instanceLabel(this.instance)}?`, {
+    if (!confirmed && (await vscode16.window.showWarningMessage(`Delete the "${safeText(menu.label, 80)}" menu from ${instanceLabel(this.instance)}?`, {
       modal: !0,
       detail: `It and its ${tabCount} tab${tabCount === 1 ? "" : "s"} disappear from the app's navigation for everyone. The records the tabs show are not touched. A copy is kept on this machine, so it can be recreated.`
     }, "Delete Menu")) !== "Delete Menu") return;
     // Some instances report success without deleting; check the list again.
     if (await this.backup(menu), await deleteMenu(this.manager, this.instance, menuId), this.menus = await listMenus(this.manager, this.instance), this.menus.some(listed => listed.id === menuId)) throw await this.postState(), new Error("The instance reported the menu deleted, but it is still listed.");
+    // the Undo offer doesn't hold up the next change (a Save deleting several goes on at once)
     await this.postState(), this.post({
       type: "deleted",
       id: menuId
-    }), (await vscode16.window.showInformationMessage(`Saturn: "${safeText(menu.label, 60)}" menu deleted.`, "Undo")) === "Undo" && (await this.serial(() => this.recreate(menu)));
+    }), Promise.resolve(vscode16.window.showInformationMessage(`Saturn: "${safeText(menu.label, 60)}" menu deleted.`, "Undo")).then(choice => choice === "Undo" && this.serial(() => this.recreate(menu))).catch(() => {});
   }
   // Creates a menu again from a deleted menu's copy (Undo after delete).
   async recreate(menu) {

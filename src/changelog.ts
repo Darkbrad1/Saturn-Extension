@@ -1,6 +1,16 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.61",
+    title: "Picking several menus",
+    items: [
+      "On the Menus screen, Ctrl/Cmd+click or Shift+click picks several menus. Drag one (or Alt+↑/↓) and they move together, in order.",
+      "With several picked, the settings column changes their icon and who can see them for all of them; what they don't share says Mixed. Each keeps its own label and tabs.",
+      "Deleting a menu is now crossed out until you press Save, like a tab, one menu or several (right-click › Delete, or the Delete key). Restore brings it back. Save's confirm names the menus it deletes.",
+      "Drag tabs (one or several picked) onto another menu's card: a box asks Copy or Move. They go at the end of that menu, with their sub-tabs.",
+    ],
+  },
+  {
     version: "0.3.60",
     title: "Picking several in the layers panel",
     items: [

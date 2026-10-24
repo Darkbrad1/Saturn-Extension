@@ -15,7 +15,7 @@ import { FaIcon, IconField, isIcon } from "../src-res/icons";
 import { AccessBox } from "./access";
 import { Mark, Row, TabSettings, type Host } from "./tabsettings";
 import {
-  accessSummary, bodyOf, checkMenu, clone, find, flat, newResourceTab, referencesOf, ruleRows, rulesToSave, same, tabName, tabTarget, treeOf,
+  RULE_KINDS, accessSummary, bodyOf, checkMenu, clone, find, flat, newResourceTab, referencesOf, ruleRows, rulesToSave, same, tabName, tabTarget, treeOf,
   type Field, type Group, type Menu, type MenuBody, type Node, type Page, type Problem, type Rule, type SavedView, type Subjects, type Tab, type ViewSpec,
 } from "./model";
 
@@ -26,7 +26,7 @@ const post = (m: Record<string, unknown>) => vscode.postMessage(m);
 /** A menu's unsaved changes: its label, icon, rules and tabs as edited. */
 interface Work { label: string; icon: string; access_control: Rule[]; nodes: Node[]; isNew?: boolean }
 /** What's kept while the screen is hidden or reloaded. */
-interface Saved { works?: Record<string, Work>; order?: string[] | null; current?: string | null; picked?: string[]; folded?: string[]; listHidden?: boolean }
+interface Saved { works?: Record<string, Work>; order?: string[] | null; current?: string | null; picked?: string[]; folded?: string[]; listHidden?: boolean; deletedMenus?: string[] }
 type Drop = { parent: string | null; before: string | null } | { into: string };
 
 /** Settings copied from a tab, by group (the caption is never copied). */
@@ -61,7 +61,15 @@ function App() {
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState<{ queue: string[]; now: string | null } | null>(null);
-  const [menuDrag, setMenuDrag] = useState<{ id: string; at: number | null } | null>(null);
+  // the menus being dragged (several when picked), and where they'd go
+  const [menuDrag, setMenuDrag] = useState<{ ids: string[]; at: number | null } | null>(null);
+  // several menus picked (Ctrl/Cmd or Shift+click on their cards): moved, deleted and edited together
+  const [pickedMenus, setPickedMenus] = useState<string[]>([]);
+  // menus crossed out: deleted when you press Save (0.3.61)
+  const [deletedMenus, setDeletedMenus] = useState<string[]>(saved.deletedMenus ?? []);
+  // tabs dropped on another menu: Copy or Move (0.3.61)
+  const [tabsTo, setTabsTo] = useState<{ x: number; y: number; ids: string[]; to: string } | null>(null);
+  const [tabOver, setTabOver] = useState<string | null>(null);
   const [tabDrag, setTabDrag] = useState<{ ids: string[]; drop: Drop | null } | null>(null);
   const [context, setContext] = useState<{ x: number; y: number; on: "menu" | "tab"; id: string } | null>(null);
   const [clipboard, setClipboard] = useState<{ from: string; tab: Tab } | null>(null);
@@ -90,7 +98,7 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [shortcuts]);
 
-  useEffect(() => { vscode.setState({ works, order, current, picked, folded, listHidden } satisfies Saved); }, [works, order, current, picked, folded, listHidden]);
+  useEffect(() => { vscode.setState({ works, order, current, picked, folded, listHidden, deletedMenus } satisfies Saved); }, [works, order, current, picked, folded, listHidden, deletedMenus]);
 
   // ---- host messages ----------------------------------------------------------------------------
   useEffect(() => {
@@ -122,7 +130,9 @@ function App() {
           setWorks((w) => { const n = { ...w }; delete n[m.id]; return n; });
           setOrder((o) => o && o.filter((x) => x !== m.id));
           setCurrent((c) => (c === m.id ? null : c));
-          setNotice({ kind: "ok", text: "Menu deleted." });
+          setDeletedMenus((d) => d.filter((x) => x !== m.id));
+          setPickedMenus((d) => d.filter((x) => x !== m.id));
+          deletedOne(m.id);
           break;
         case "error":
           setLoading(false);
@@ -185,8 +195,10 @@ function App() {
   }, [works, byId, bodyFor]);
   const serverOrder = (menus ?? []).map((m) => m.id);
   const orderChanged = !!order && !same(ids.filter((id) => byId.has(id)), serverOrder);
-  const dirtyIds = ids.filter(isDirty);
-  const dirty = dirtyIds.length > 0 || orderChanged;
+  // the menus crossed out that are on the instance (a new one crossed out is simply dropped)
+  const deleting = deletedMenus.filter((id) => byId.has(id));
+  const dirtyIds = ids.filter((id) => isDirty(id) && !deleting.includes(id));
+  const dirty = dirtyIds.length > 0 || orderChanged || deleting.length > 0;
 
   /** Changes one menu's work (starting from what's saved); a work that's back to what's saved is dropped. */
   const update = (id: string, change: (w: Work) => Work) => {
@@ -245,7 +257,7 @@ function App() {
 
   // ---- saving -----------------------------------------------------------------------------------------
   // the menus left to save, the one being saved, and the order to write once they're all done
-  const queue = useRef<{ left: string[]; now: string | null; order: string[] | null } | null>(null);
+  const queue = useRef<{ left: string[]; deletes: string[]; now: string | null; order: string[] | null } | null>(null);
   const bodyRef = useRef(bodyFor);
   bodyRef.current = bodyFor;
   const worksRef = useRef(works);
@@ -255,6 +267,14 @@ function App() {
     const q = queue.current;
     if (!q) return;
     const id = q.left.shift();
+    // the saves done: the menus crossed out are deleted, one at a time (the confirm before Save named them)
+    if (!id && q.deletes.length) {
+      const del = q.deletes.shift()!;
+      q.now = del;
+      setSaving({ queue: [...q.deletes], now: del });
+      post({ type: "delete", id: del, confirmed: true });
+      return;
+    }
     if (!id) {
       if (q.order) post({ type: "reorder", ids: q.order });
       queue.current = null;
@@ -267,6 +287,13 @@ function App() {
     setSaving({ queue: [...q.left], now: id });
     post({ type: "save", id: worksRef.current[id]?.isNew ? null : id, menu: bodyRef.current(id) });
   };
+  /** One menu deleted while saving: on to the next. */
+  function deletedOne(id: string) {
+    const q = queue.current;
+    if (!q || q.now !== id) return;
+    q.order = q.order && q.order.filter((x) => x !== id);
+    sendNext();
+  }
   /** One menu saved: its changes are now the instance's; a new one now has the instance's id. */
   function savedOne(id: string | null, unsaved: string[]) {
     const q = queue.current;
@@ -290,10 +317,10 @@ function App() {
     setConfirming(false);
     setNotice(null);
     // the order, once the new menus have ids: written only when it changed
-    queue.current = { left: [...dirtyIds], now: null, order: orderChanged || (order && newIds.length) ? [...ids] : null };
+    queue.current = { left: [...dirtyIds], deletes: [...deleting], now: null, order: orderChanged || (order && newIds.length) ? ids.filter((id) => !deleting.includes(id)) : null };
     sendNext();
   };
-  const discardAll = () => { setWorks({}); setOrder(null); setConfirming(false); setNotice(null); };
+  const discardAll = () => { setWorks({}); setOrder(null); setDeletedMenus([]); setConfirming(false); setNotice(null); };
 
   // ---- the picked menu and its tabs ---------------------------------------------------------------------
   const menuWork = current ? workOf(current) : null;
@@ -432,6 +459,23 @@ function App() {
     if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); toggleRemoved(picked); }
   };
 
+  /** Tabs dropped on another menu (0.3.61): copies go at the end of that menu (new ids, with their sub-tabs); with
+   *  `move` they leave this menu. Crossed-out tabs are left where they are. */
+  const tabsToMenu = (moving: string[], to: string, move: boolean) => {
+    const movers = flat(nodes).filter((n) => moving.includes(n.id) && !n.removed);
+    const top = movers.filter((m) => !nodes.some((p) => moving.includes(p.id) && p.subs.includes(m)));
+    if (!top.length || !current) return;
+    const copyOf = (n: Node): Node => ({ ...n, id: freshId("tab"), tab: clone(n.tab), removed: false, subs: n.subs.filter((x) => !x.removed).map(copyOf) });
+    update(to, (w) => ({ ...w, nodes: [...w.nodes, ...top.map(copyOf)] }));
+    if (move) {
+      // by id: the nodes here are a copy of the ones above
+      const gone = new Set(top.map((n) => n.id));
+      setNodes((ns) => ns.filter((n) => !gone.has(n.id)).map((n) => ({ ...n, subs: n.subs.filter((x) => !gone.has(x.id)) })));
+      setPicked([]);
+    }
+    const name = workOf(to)?.label || "the other menu";
+    setNotice({ kind: "ok", text: `${move ? "Moved" : "Copied"} ${plural(top.length, "tab")} to ${name}. Saved with Save, like any change.` });
+  };
   const paste = (groupsOn: Record<string, boolean>) => {
     if (!clipboard) return;
     const keys = COPY_GROUPS.filter((g) => groupsOn[g.id]).flatMap((g) => g.keys);
@@ -452,11 +496,40 @@ function App() {
 
   // ---- the menus list -------------------------------------------------------------------------------
   const shownIds = ids.filter((id) => { const w = workOf(id); return !query.trim() || (w?.label ?? "").toLowerCase().includes(query.trim().toLowerCase()); });
-  const moveMenu = (id: string, to: number) => {
-    const list = ids.filter((x) => x !== id);
-    const before = ids.slice(0, to).filter((x) => x !== id).length;
-    list.splice(before, 0, id);
+  /** Moves menus (in their order in the list) to before the menu now at `to`. */
+  const moveMenus = (movers: string[], to: number) => {
+    const list = ids.filter((x) => !movers.includes(x));
+    const before = ids.slice(0, to).filter((x) => !movers.includes(x)).length;
+    list.splice(before, 0, ...ids.filter((x) => movers.includes(x)));
     if (!same(list, ids)) setOrder(list);
+  };
+  // several picked (more than one, still in the list), else none
+  const manyMenus = pickedMenus.length > 1 ? ids.filter((id) => pickedMenus.includes(id)) : [];
+  /** What a menu action works on: the picked menus when this one is one of them, else just it. */
+  const menusFor = (id: string) => (manyMenus.includes(id) ? manyMenus : [id]);
+  /** A click on a menu card: Ctrl/Cmd adds or removes it, Shift picks a run; a plain click opens it alone. */
+  const clickMenu = (id: string, e: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => {
+    if (e.shiftKey && current) {
+      const [a, b] = [shownIds.indexOf(current), shownIds.indexOf(id)].sort((x, y) => x - y);
+      if (a >= 0 && b >= 0) return setPickedMenus(shownIds.slice(a, b + 1));
+    }
+    if (e.ctrlKey || e.metaKey) {
+      const from = pickedMenus.length ? pickedMenus : current ? [current] : [];
+      return setPickedMenus(from.includes(id) ? from.filter((x) => x !== id) : [...from, id]);
+    }
+    setPickedMenus([]);
+    pickMenu(id);
+  };
+  /** Crosses out these menus (or, if they all are already, restores them); a new one is simply dropped. */
+  const toggleDeleted = (targets: string[], to?: boolean) => {
+    const fresh = targets.filter((id) => works[id]?.isNew);
+    if (fresh.length) {
+      setWorks((w) => { const n = { ...w }; for (const id of fresh) delete n[id]; return n; });
+      setOrder((o) => o && o.filter((x) => !fresh.includes(x)));
+    }
+    const server = targets.filter((id) => byId.has(id));
+    const remove = to ?? !server.every((id) => deletedMenus.includes(id));
+    setDeletedMenus((d) => (remove ? [...new Set([...d, ...server])] : d.filter((x) => !server.includes(x))));
   };
   const addMenu = () => {
     const id = freshId("new");
@@ -464,27 +537,22 @@ function App() {
     pickMenu(id);
     window.setTimeout(() => document.getElementById("mn-menu-label")?.focus(), 30);
   };
-  const removeMenu = (id: string) => {
-    if (works[id]?.isNew) {
-      setWorks((w) => { const n = { ...w }; delete n[id]; return n; });
-      setOrder((o) => o && o.filter((x) => x !== id));
-      return;
-    }
-    post({ type: "delete", id });
-  };
   const discardMenu = (id: string) => setWorks((w) => { const n = { ...w }; delete n[id]; return n; });
   const onMenuKey = (e: ReactKeyboardEvent) => {
     if (!current) return;
     const i = shownIds.indexOf(current);
     if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && !query.trim()) {
       e.preventDefault();
-      const at = ids.indexOf(current);
-      moveMenu(current, e.key === "ArrowUp" ? Math.max(0, at - 1) : Math.min(ids.length, at + 2));
+      // the picked menus move as a block
+      const movers = manyMenus.length ? manyMenus : [current];
+      const first = ids.indexOf(movers[0]), last = ids.indexOf(movers[movers.length - 1]);
+      moveMenus(movers, e.key === "ArrowUp" ? Math.max(0, first - 1) : Math.min(ids.length, last + 2));
     } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
       const j = i + (e.key === "ArrowUp" ? -1 : 1);
       if (j >= 0 && j < shownIds.length) pickMenu(shownIds[j]);
-    } else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); removeMenu(current); }
+    } else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); toggleDeleted(manyMenus.length ? manyMenus : [current]); }
+    else if (e.key === "Escape" && pickedMenus.length) setPickedMenus([]);
   };
   // focus follows the keyboard in both lists
   useEffect(() => { document.querySelector<HTMLElement>(`[data-menu-id="${CSS.escape(current ?? "")}"]`)?.scrollIntoView?.({ block: "nearest" }); }, [current]);
@@ -517,7 +585,7 @@ function App() {
         <button className="rs-btn" disabled={loading || !!saving} title="Read the menus again (unsaved changes are kept)" onClick={() => { setLoading(true); asked.current.clear(); setFields(new Map()); post({ type: "refresh" }); }}>Reload</button>
         <button className="rs-btn" title="Open Saturn's menus page in your browser" onClick={() => post({ type: "openInSaturn" })}>Open in Saturn ↗</button>
         <span className="rs-push" />
-        {dirty && <span className="rs-unsaved">{saving ? "Saving…" : `Unsaved in ${plural(dirtyIds.length + (orderChanged && !dirtyIds.length ? 1 : 0), dirtyIds.length ? "menu" : "change")}${orderChanged && dirtyIds.length ? " and the order" : ""}`}</span>}
+        {dirty && <span className="rs-unsaved">{saving ? "Saving…" : !dirtyIds.length && !orderChanged ? `Unsaved: ${plural(deleting.length, "menu")} to delete` : `Unsaved in ${plural(dirtyIds.length + (orderChanged && !dirtyIds.length ? 1 : 0), dirtyIds.length ? "menu" : "change")}${orderChanged && dirtyIds.length ? " and the order" : ""}${deleting.length ? `, ${deleting.length} to delete` : ""}`}</span>}
         {errorsIn.length > 0 && <span className="mn-top-errors" title="Fix the errors (red) before saving"><Mark level="error" /> {plural(errorsIn.length, "menu")} with errors</span>}
         {dirty && <button className="rs-btn" disabled={!!saving} onClick={discardAll}>Discard</button>}
         <button className="rs-btn is-primary" disabled={!dirty || !!saving || errorsIn.length > 0} title={errorsIn.length ? "Fix the errors (red) first" : undefined} onClick={() => setConfirming(true)}>Save</button>
@@ -525,13 +593,21 @@ function App() {
       {confirming && (
         <div className="rs-confirm">
           <div className="rs-confirm-text">
-            <span>Save {plural(dirtyIds.length, "menu")}{orderChanged ? `${dirtyIds.length ? " and" : ""} the menu order` : ""} to {instanceName}?</span>
+            <span>
+              {dirtyIds.length || orderChanged ? <>Save {plural(dirtyIds.length, "menu")}{orderChanged ? `${dirtyIds.length ? " and" : ""} the menu order` : ""}</> : null}
+              {deleting.length ? <>{dirtyIds.length || orderChanged ? ", and delete " : "Delete "}{plural(deleting.length, "menu")}</> : null} on {instanceName}?
+            </span>
             {confirmList.map((c) => (
               <span key={c.id} className="rs-confirm-note">
                 <b>{c.label}</b>: {c.what.join(", ") || "changes"}
                 {c.gone.length > 0 && <span className="rs-removing"> · removes {c.gone.map((g) => `“${g}”`).join(", ")}</span>}
               </span>
             ))}
+            {deleting.length > 0 && (
+              <span className="rs-confirm-note rs-removing">
+                Deletes {deleting.map((id) => `“${workOf(id)?.label || id}”`).join(", ")}: they and their tabs disappear from the app's navigation for everyone. The records the tabs show are not touched, and a copy of each is kept on this computer.
+              </span>
+            )}
             <span className="rs-confirm-note">Each menu is read again and backed up first; Undo on its card puts the last version back.</span>
           </div>
           <button className="rs-btn" onClick={() => setConfirming(false)}>Cancel</button>
@@ -556,7 +632,7 @@ function App() {
           <div className="rs-side-info"><span>{plural(ids.length, "menu")}</span><span>{query.trim() ? "Clear the search to reorder" : "Drag to reorder"}</span></div>
           <div className="rs-list" role="listbox" aria-label="Menus" onKeyDown={onMenuKey}
             onDragOver={(e) => { if (menuDrag) e.preventDefault(); }}
-            onDrop={(e) => { e.preventDefault(); if (menuDrag && menuDrag.at !== null) moveMenu(menuDrag.id, menuDrag.at); setMenuDrag(null); }}>
+            onDrop={(e) => { e.preventDefault(); if (menuDrag && menuDrag.at !== null) moveMenus(menuDrag.ids, menuDrag.at); setMenuDrag(null); }}>
             {menus === null && <p className="rs-empty">Reading the menus…</p>}
             {menus !== null && !ids.length && <p className="rs-empty">This instance has no menus your login can see. Add one with +.</p>}
             {menus !== null && ids.length > 0 && !shownIds.length && <p className="rs-empty">No menu matches “{query}”.</p>}
@@ -571,17 +647,36 @@ function App() {
                   {menuDrag && menuDrag.at === at && <div className="rs-drop" />}
                   <div
                     data-menu-id={id}
-                    className={`rs-item mn-menu${current === id ? " is-selected" : ""}${menuDrag?.id === id ? " is-dragging" : ""}`}
+                    className={`rs-item mn-menu${(manyMenus.length ? manyMenus.includes(id) : current === id) ? " is-selected" : ""}${menuDrag?.ids.includes(id) ? " is-dragging" : ""}${deletedMenus.includes(id) ? " is-deleted" : ""}${tabOver === id ? " is-into" : ""}`}
                     role="option"
-                    aria-selected={current === id}
+                    aria-selected={manyMenus.length ? manyMenus.includes(id) : current === id}
                     tabIndex={current === id ? 0 : -1}
                     draggable={!query.trim()}
-                    onClick={() => pickMenu(id)}
-                    onContextMenu={(e) => { e.preventDefault(); pickMenu(id); setContext({ x: e.clientX, y: e.clientY, on: "menu", id }); }}
-                    onDragStart={(e) => { setMenuDrag({ id, at: null }); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); }}
+                    onClick={(e) => clickMenu(id, e)}
+                    onContextMenu={(e) => { e.preventDefault(); if (!manyMenus.includes(id)) { setPickedMenus([]); pickMenu(id); } setContext({ x: e.clientX, y: e.clientY, on: "menu", id }); }}
+                    onDragStart={(e) => { const movers = menusFor(id); setMenuDrag({ ids: movers, at: null }); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", movers.join(",")); }}
                     onDragEnd={() => setMenuDrag(null)}
-                    onDragOver={(e) => { if (!menuDrag) return; e.preventDefault(); const b = e.currentTarget.getBoundingClientRect(); const to = e.clientY < b.top + b.height / 2 ? at : at + 1; if (to !== menuDrag.at) setMenuDrag({ ...menuDrag, at: to }); }}
-                    title={query.trim() ? "Clear the search to reorder" : "Drag to reorder (or Alt+↑ / Alt+↓)"}
+                    onDragOver={(e) => {
+                      // tabs from the middle column: dropped here, they're copied or moved into this menu
+                      if (tabDrag) {
+                        if (id === current || deletedMenus.includes(id)) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (tabOver !== id) setTabOver(id);
+                        return;
+                      }
+                      if (!menuDrag) return; e.preventDefault(); const b = e.currentTarget.getBoundingClientRect(); const to = e.clientY < b.top + b.height / 2 ? at : at + 1; if (to !== menuDrag.at) setMenuDrag({ ...menuDrag, at: to });
+                    }}
+                    onDragLeave={() => tabOver === id && setTabOver(null)}
+                    onDrop={(e) => {
+                      if (!tabDrag) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setTabOver(null);
+                      if (id !== current && !deletedMenus.includes(id)) setTabsTo({ x: e.clientX, y: e.clientY, ids: tabDrag.ids, to: id });
+                      setTabDrag(null);
+                    }}
+                    title={deletedMenus.includes(id) ? "Deleted when you save (right-click to restore)" : query.trim() ? "Clear the search to reorder" : "Drag to reorder (or Alt+↑ / Alt+↓) · Ctrl/Cmd or Shift+click to pick several · drop tabs here to copy or move them"}
                   >
                     <span className="mn-menu-icon"><FaIcon name={w.icon} /></span>
                     <span className="rs-item-text">
@@ -608,8 +703,9 @@ function App() {
           <div className="rs-list mn-tree" role="tree" aria-label="Tabs" aria-multiselectable="true" onKeyDown={onTabKey}
             onDragOver={(e) => { if (tabDrag) e.preventDefault(); }}
             onDrop={(e) => { e.preventDefault(); if (tabDrag?.drop) moveTo(tabDrag.ids, tabDrag.drop); setTabDrag(null); }}>
-            {menuWork && !nodes.length && <p className="rs-empty">No tabs yet. The menu shows nothing until it has one. Add one with +.</p>}
-            {nodes.map((n) => {
+            {manyMenus.length > 0 && <p className="rs-empty">{manyMenus.length} menus picked. Click one (without Ctrl or Shift) to see its tabs.</p>}
+            {!manyMenus.length && menuWork && !nodes.length && <p className="rs-empty">No tabs yet. The menu shows nothing until it has one. Add one with +.</p>}
+            {!manyMenus.length && nodes.map((n) => {
               const open = !isFolded(n.id);
               return (
                 <div key={n.id} role="none">
@@ -635,7 +731,15 @@ function App() {
 
         {/* column 3: the settings */}
         <section className="rs-detail mn-detail">
-          {!menuWork ? (
+          {manyMenus.length > 0 ? (
+            <ManyMenus
+              ids={manyMenus}
+              works={manyMenus.map((id) => workOf(id)!)}
+              deleted={manyMenus.filter((id) => deletedMenus.includes(id)).length}
+              onIcon={(icon) => manyMenus.forEach((id) => update(id, (w) => ({ ...w, icon })))}
+              onAccess={() => { if (!subjects) post({ type: "listAccessSubjects" }); setAccess(true); }}
+            />
+          ) : !menuWork ? (
             <p className="rs-empty">{menus === null ? "Reading the menus…" : "Pick a menu on the left, or add one with +."}</p>
           ) : (
             <div className="pe-page mn-page">
@@ -693,9 +797,16 @@ function App() {
         <div className="rs-menu" role="menu" style={{ left: Math.min(context.x, window.innerWidth - 230), top: Math.min(context.y, window.innerHeight - 200) }} onClick={(e) => e.stopPropagation()}>
           {!works[context.id]?.isNew && <button role="menuitem" onClick={() => { post({ type: "copyId", id: context.id }); setContext(null); }}>Copy id</button>}
           {undoable.includes(context.id) && <button role="menuitem" onClick={() => { post({ type: "undo", id: context.id }); setContext(null); }}>Undo the last save</button>}
-          <button role="menuitem" disabled={!isDirty(context.id) || !!works[context.id]?.isNew} onClick={() => { discardMenu(context.id); setContext(null); }}>Discard its changes</button>
+          <button role="menuitem" disabled={!menusFor(context.id).some((id) => isDirty(id) && !works[id]?.isNew)} onClick={() => { for (const id of menusFor(context.id)) if (!works[id]?.isNew) discardMenu(id); setContext(null); }}>{menusFor(context.id).length > 1 ? "Discard their changes" : "Discard its changes"}</button>
           <div className="rs-menu-line" />
-          <button role="menuitem" className="is-danger" onClick={() => { removeMenu(context.id); setContext(null); }}>{works[context.id]?.isNew ? "Remove this new menu" : "Delete menu…"}</button>
+          {(() => {
+            const targets = menusFor(context.id);
+            const all = targets.every((id) => deletedMenus.includes(id));
+            const n = targets.length;
+            return all
+              ? <button role="menuitem" onClick={() => { toggleDeleted(targets, false); setContext(null); }}>Restore{n > 1 ? ` ${n} menus` : ""}</button>
+              : <button role="menuitem" className="is-danger" onClick={() => { toggleDeleted(targets, true); setContext(null); }}>{n > 1 ? `Delete ${n} menus` : works[context.id]?.isNew ? "Remove this new menu" : "Delete menu"}</button>;
+          })()}
         </div>
       )}
       {context && context.on === "tab" && (() => {
@@ -734,7 +845,39 @@ function App() {
           </div>
         </div>
       )}
-      {access && menuWork && current && (
+      {access && manyMenus.length > 0 && (() => {
+        const sets = manyMenus.map((id) => JSON.stringify(ruleRows(workOf(id)!.access_control)));
+        const sameRules = sets.every((x) => x === sets[0]);
+        return (
+          <AccessBox
+            menuLabel={`${manyMenus.length} menus`}
+            rules={sameRules ? ruleRows(workOf(manyMenus[0])!.access_control) : []}
+            subjects={subjects}
+            onCancel={() => setAccess(false)}
+            onDone={(rows) => {
+              try {
+                // each keeps a rule of a kind this screen can't build, as it has it
+                const next = new Map(manyMenus.map((id) => [id, rulesToSave(rows.filter((r) => Object.prototype.hasOwnProperty.call(RULE_KINDS, r.method) || workOf(id)!.access_control.some((x) => x.method === r.method)), workOf(id)!.access_control)]));
+                for (const [id, rules] of next) update(id, (w) => ({ ...w, access_control: rules }));
+                setAccess(false);
+              } catch (err) {
+                setNotice({ kind: "error", text: err instanceof Error ? err.message : String(err) });
+              }
+            }}
+          />
+        );
+      })()}
+      {tabsTo && (
+        <div className="rs-modal-back" onClick={() => setTabsTo(null)}>
+          <div className="rs-menu mn-tabs-to" role="dialog" aria-label="Copy or move" style={{ left: Math.min(tabsTo.x, window.innerWidth - 260), top: Math.min(tabsTo.y, window.innerHeight - 160) }} onClick={(e) => e.stopPropagation()}>
+            <div className="mn-tabs-to-title">{plural(tabsTo.ids.length, "tab")} to {workOf(tabsTo.to)?.label || "that menu"}</div>
+            <button role="menuitem" autoFocus onClick={() => { tabsToMenu(tabsTo.ids, tabsTo.to, false); setTabsTo(null); }}>Copy <small>they stay here too</small></button>
+            <button role="menuitem" onClick={() => { tabsToMenu(tabsTo.ids, tabsTo.to, true); setTabsTo(null); }}>Move <small>they leave this menu</small></button>
+            <button role="menuitem" onClick={() => setTabsTo(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {access && !manyMenus.length && menuWork && current && (
         <AccessBox
           menuLabel={menuWork.label}
           rules={ruleRows(menuWork.access_control)}
@@ -782,7 +925,7 @@ function App() {
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", moving.join(","));
         }}
-        onDragEnd={() => setTabDrag(null)}
+        onDragEnd={() => { setTabDrag(null); setTabOver(null); }}
         onDragOver={(e) => {
           if (!tabDrag) return;
           e.preventDefault();
@@ -812,6 +955,32 @@ function App() {
       </div>
     );
   }
+}
+
+/** Several menus picked (0.3.61): their icon and who can see them, Mixed where they differ; a change goes to all
+ *  of them. Each keeps its own label and tabs. */
+function ManyMenus(props: { ids: string[]; works: Work[]; deleted: number; onIcon: (icon: string) => void; onAccess: () => void }) {
+  const icons = new Set(props.works.map((w) => w.icon));
+  const rules = new Set(props.works.map((w) => JSON.stringify(w.access_control)));
+  return (
+    <div className="pe-page mn-page">
+      <div className="pe-block is-first">
+        <header className="pe-group-head">
+          <h2 className="pe-group-title">{props.ids.length} menus picked</h2>
+          <p className="pe-blurb">{props.works.map((w) => w.label || "(no label)").join(", ")}. A change here goes to all of them; each keeps its own label and tabs.{props.deleted ? ` ${props.deleted} of them ${props.deleted === 1 ? "is" : "are"} crossed out (deleted when you save).` : ""}</p>
+        </header>
+        <div className="pe-card">
+          <Row label="Icon" hint={icons.size > 1 ? "Mixed: they differ. Picking one gives it to all of them." : "A Font Awesome icon."}>
+            <IconField label="Menu icon" mixed={icons.size > 1} value={icons.size > 1 ? "" : props.works[0].icon} onChange={props.onIcon} />
+          </Row>
+          <Row label="Who can see them" hint={rules.size > 1 ? "Mixed: they have different rules. What you set replaces each one's." : props.works[0].access_control.length ? accessSummary(props.works[0].access_control) : "Everyone. No rules."}>
+            <button className="rs-btn" onClick={props.onAccess}>Change…</button>
+          </Row>
+        </div>
+      </div>
+      <div className="pe-tail" />
+    </div>
+  );
 }
 
 const style = document.createElement("style");

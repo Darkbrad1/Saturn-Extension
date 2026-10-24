@@ -103,3 +103,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .mn-list-fold { padding: 0 8px; }
 .mn-side-open { flex: none; width: 20px; border: 1px solid var(--rs-edge); border-radius: 8px; background: var(--rs-panel); color: var(--rs-muted); cursor: pointer; }
 .mn-side-open:hover { color: var(--rs-fg); background: var(--rs-hover); }
+
+/* several menus picked, a menu card tabs can be dropped on, the Copy or Move box (0.3.61) */
+.mn-menu.is-into { outline: 1px dashed var(--rs-accent); outline-offset: -1px; background: color-mix(in srgb, var(--rs-accent) 14%, transparent); }
+.mn-tabs-to { display: flex; flex-direction: column; min-width: 240px; }
+.mn-tabs-to-title { padding: 6px 10px 4px; font-size: 11px; font-weight: 600; color: var(--rs-fg-2); }
+.mn-tabs-to button small { margin-left: 6px; color: var(--rs-muted); }
