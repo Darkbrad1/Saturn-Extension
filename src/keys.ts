@@ -20,6 +20,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "node.disable", screen: "node", label: "Disable or enable the picked steps", keys: ["M"] },
   { id: "node.delete", screen: "node", label: "Delete the picked steps", keys: ["X", "Delete", "Backspace"] },
   { id: "node.copy", screen: "node", label: "Copy the picked steps", keys: ["Mod+C"] },
+  { id: "node.selectAll", screen: "node", label: "Pick every step in view", keys: ["Mod+A"] },
   { id: "node.paste", screen: "node", label: "Paste", keys: ["Mod+V"] },
   { id: "node.undo", screen: "node", label: "Undo", keys: ["Mod+Z"] },
   { id: "node.save", screen: "node", label: "Save the workflow", keys: ["Mod+S"] },

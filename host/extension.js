@@ -2210,6 +2210,56 @@ function bulkStepEdit(definition, paths, op, mock) {
   }
   return result;
 }
+// outermostPaths — the paths with any that sit inside another one left out (a group and its own steps: just the group).
+function outermostPaths(paths) {
+  return paths.filter(stepPath => !paths.some(other => other !== stepPath && other.length < stepPath.length && samePath(other, stepPath.slice(0, other.length))));
+}
+// moveStepsEdit — a copy of the definition with the steps at `paths` moved, in document order, to `index` of the list
+// at `toChildrenPath` (the end when index is null). Steps inside another moved one go with it. Refuses moving a step
+// into itself, or a path that no longer holds a step. The steps are found by identity, so indexes shifting as they
+// leave their lists don't matter.
+function moveStepsEdit(definition, paths, toChildrenPath, index) {
+  let draft = structuredClone(definition),
+    moving = outermostPaths([...paths].sort(comparePaths));
+  if (moving.length === 0) throw new Error("Nothing selected to move.");
+  for (let stepPath of moving) if (toChildrenPath.length >= stepPath.length && samePath(stepPath, toChildrenPath.slice(0, stepPath.length))) throw new Error("Cannot move a step inside itself");
+  let found = moving.map(stepPath => {
+    let list = getAt(draft, stepPath.slice(0, -1)),
+      step = getAt(draft, stepPath);
+    if (!Array.isArray(list) || !step || typeof step != "object" || Array.isArray(step)) throw new Error("A selected step is no longer where it was — select again and retry.");
+    return { list, step };
+  });
+  let target = getAt(draft, toChildrenPath);
+  if (target === void 0 || target === null) {
+    let { parent, key } = parentOf(draft, toChildrenPath);
+    target = parent[key] = [];
+  }
+  if (!Array.isArray(target)) throw new Error(`Cannot move: ${toChildrenPath.join(".")} is not a list of steps`);
+  // a marker where they go, then each step out of its list, then the steps in place of the marker
+  let marker = {};
+  target.splice(typeof index == "number" && index >= 0 && index <= target.length ? index : target.length, 0, marker);
+  for (let { list, step } of found) list.splice(list.indexOf(step), 1);
+  target.splice(target.indexOf(marker), 1, ...found.map(({ step }) => step));
+  return draft;
+}
+// updateOperatorsEdit — a copy of the definition where every step at `paths` (all of one operator) gets the same
+// changed settings (`changes`: {param: text}, as the side panel sends them); each step keeps its other settings. One
+// step that refuses the change (a required value left empty, bad JSON) refuses it for all.
+function updateOperatorsEdit(definition, paths, operator, changes, catalog) {
+  let entry = catalog?.get(operator);
+  if (!entry) throw new Error(`Unknown operator "${operator}".`);
+  let result = definition;
+  for (let stepPath of paths) {
+    let step = getAt(result, stepPath);
+    if (!step || typeof step != "object" || Array.isArray(step) || nonEmptyString(step.operator) !== operator) throw new Error(`A selected step isn't the ${entry.name ?? operator} step it was any more — select again and retry.`);
+    let values = { ...stepFormValues(result, stepPath, catalog).values, ...changes },
+      stored = step.data && typeof step.data == "object" && !Array.isArray(step.data) ? step.data : void 0,
+      { data, errors } = paramsToData(entry, values, stored);
+    if (errors.length > 0) throw new Error(errors.map(error => `${error.label} ${error.message}`).join("; "));
+    result = setAt(result, stepPath, { ...step, type: "command", operator, data });
+  }
+  return result;
+}
 // comparePaths (minified: bk$cmp) — Orders step paths in document order (bulk edits go last-first).
 function comparePaths(left, right) {
   for (let index = 0; index < Math.min(left.length, right.length); index++) {
@@ -9367,6 +9417,50 @@ var draftHistoryLimit = 20,
             await this.applyEdit(workflowId, op === "delete" ? `Deleted ${count}` : op === "duplicate" ? `Duplicated ${count}` : `${mock ? "Disabled" : "Enabled"} ${count}`, definition => bulkStepEdit(definition, paths, op, mock));
             break;
           }
+        // Several selected steps moved together onto a wire or into an empty branch, as ONE draft edit (0.3.59).
+        case "moveSteps":
+          {
+            let {
+              workflowId,
+              paths,
+              toChildrenPath,
+              toIndex
+            } = message.payload ?? {};
+            if (!Array.isArray(paths) || paths.length === 0 || !paths.every(stepPath => Array.isArray(stepPath) && stepPath.length > 0 && isSafePath(stepPath)) || !Array.isArray(toChildrenPath) || !isSafePath(toChildrenPath)) {
+              webview.postMessage({
+                type: "editFailed",
+                payload: {
+                  message: "Missing the steps or where they go."
+                }
+              });
+              break;
+            }
+            await this.applyEdit(workflowId, `Moved ${paths.length} steps to position ${typeof toIndex == "number" ? toIndex + 1 : "last"} of ${describeStepPath(toChildrenPath)}`, draft => moveStepsEdit(draft, paths, toChildrenPath, typeof toIndex == "number" ? toIndex : null));
+            break;
+          }
+        // The same settings changed on several selected steps of one operator, as ONE draft edit (0.3.59).
+        case "updateOperators":
+          {
+            let {
+              workflowId,
+              paths,
+              operator,
+              changes
+            } = message.payload ?? {};
+            let cleanChanges = changes && typeof changes == "object" && !Array.isArray(changes) ? Object.entries(changes).filter(([key, value]) => typeof value == "string" && !RESERVED_PATH_KEYS.has(key)) : [];
+            if (!Array.isArray(paths) || paths.length === 0 || !paths.every(stepPath => Array.isArray(stepPath) && stepPath.length > 0 && isSafePath(stepPath)) || typeof operator != "string" || cleanChanges.length === 0) {
+              webview.postMessage({
+                type: "editFailed",
+                payload: {
+                  message: "Nothing to change on the selected steps."
+                }
+              });
+              break;
+            }
+            let catalog = await this.getOperatorCatalog();
+            await this.applyEdit(workflowId, `Updated ${cleanChanges.map(([key]) => key).join(", ")} on ${paths.length} steps`, draft => updateOperatorsEdit(draft, paths, operator, Object.fromEntries(cleanChanges), catalog));
+            break;
+          }
         // Copies the selected steps (in document order) to the shared clipboard, which every Workflows panel can paste from.
         case "copyNodes":
           {
@@ -9882,6 +9976,39 @@ var draftHistoryLimit = 20,
                 type: "editFailed",
                 payload: {
                   message: errorMessage(error, "Could not read that step")
+                }
+              });
+            }
+            break;
+          }
+        // The settings of several selected steps, for editing what they share (0.3.59): nodesParams {reqId, list}.
+        case "readNodes":
+          {
+            let {
+              workflowId,
+              paths,
+              reqId
+            } = message.payload ?? {};
+            try {
+              if (!Array.isArray(paths) || !paths.every(stepPath => Array.isArray(stepPath) && isSafePath(stepPath))) throw new Error("No steps to read");
+              let [definition, catalog] = await Promise.all([this.definitionFor(workflowId), this.getOperatorCatalog()]);
+              webview.postMessage({
+                type: "nodesParams",
+                payload: {
+                  reqId,
+                  list: paths.map(stepPath => ({
+                    path: stepPath,
+                    ...stepFormValues(definition, stepPath, catalog)
+                  }))
+                }
+              });
+            } catch (error) {
+              webview.postMessage({
+                type: "nodesParams",
+                payload: {
+                  reqId,
+                  list: null,
+                  message: errorMessage(error, "Could not read those steps")
                 }
               });
             }

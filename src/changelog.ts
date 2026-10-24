@@ -1,6 +1,16 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.59",
+    title: "Picking several steps on the canvas",
+    items: [
+      "Drag on an empty part of the canvas to draw a box: every step inside it is picked. Hold Ctrl (Cmd on a Mac) or Shift to add to what's picked. To move around the canvas, drag with the middle mouse button, or hold Space and drag.",
+      "Ctrl+A (Cmd+A) picks every step in the view you're in. It can be changed on the Keyboard shortcuts page.",
+      "Several steps of the same kind picked (say, two Update Records): the side panel shows the settings they share. One they don't share says Mixed; a change goes to all of them as one change, and each keeps its other settings.",
+      "Drag one of the picked steps onto a wire and all of them move there together, in their order, as one change.",
+    ],
+  },
+  {
     version: "0.3.58",
     title: "Property settings back to their groups",
     items: [

@@ -939,3 +939,90 @@ export function PanelEditor(props: {
     </div>
   );
 }
+
+/** The settings several selected steps of one operator share (0.3.59). A setting they don't all have the same shows
+ *  Mixed (empty, with a hint); a change goes to all of them as one edit (`onCommit` with just that setting). A Mixed
+ *  setting left empty keeps each one's own. Designed emails and the delay are left out (each step keeps its own). */
+export function MultiEditor(props: {
+  operator: string;
+  catalog: Catalog;
+  commands: CommandView[];
+  /** each selected step's settings, as readNode gives them; null while they load */
+  list: LoadedParams[] | null;
+  errors: FormError[];
+  busy: boolean;
+  onCommit: (changes: Record<string, string>) => void;
+}) {
+  const { list } = props;
+  // the value they share, or null when it differs
+  const base = useMemo(() => {
+    const out: Record<string, string | null> = {};
+    if (!list?.length) return out;
+    const keys = new Set(list.flatMap((l) => Object.keys(l.values)));
+    for (const k of keys) {
+      const vs = list.map((l) => l.values[k] ?? "");
+      out[k] = vs.every((v) => v === vs[0]) ? vs[0] : null;
+    }
+    return out;
+  }, [list]);
+  const html = useMemo(() => new Set((list ?? []).flatMap((l) => l.htmlParams)), [list]);
+  const shared = (k: string) => base[k] ?? "";
+  const [values, setValues] = useState<Record<string, string>>({});
+  const dirty = useRef<Set<string>>(new Set());
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  // fresh values from the host; keep whatever is still being typed
+  useEffect(() => {
+    setValues((cur) => {
+      const next: Record<string, string> = {};
+      for (const k of Object.keys(base)) next[k] = dirty.current.has(k) && k in cur ? cur[k] : shared(k);
+      valuesRef.current = next;
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base]);
+  const commit = (k: string, override?: string) => {
+    const v = override ?? valuesRef.current[k] ?? "";
+    dirty.current.delete(k);
+    const mixed = base[k] === null;
+    if (mixed ? v === "" : v === shared(k)) return;
+    props.onCommit({ [k]: v });
+  };
+  // going away with a setting still being typed: apply it, as leaving the field would have
+  const commitRef = useRef<() => void>(() => {});
+  commitRef.current = () => [...dirty.current].forEach((k) => commit(k));
+  useEffect(() => () => commitRef.current(), []);
+
+  if (!list) return <div className="nv-panel-loading">Loading their settings…</div>;
+  const fields = fieldsFor(props.operator, props.catalog, props.commands, Object.fromEntries(Object.keys(base).map((k) => [k, values[k] ?? shared(k)]))).filter((f) => !html.has(f.key));
+  const errFor = (k: string) => props.errors.find((e) => e.param === k)?.message;
+  return (
+    <div className="nv-panel-form nv-multi-form">
+      {fields.length === 0 && <p className="nv-muted">These steps have no settings to change together.</p>}
+      {fields.map((f) => {
+        const mixed = base[f.key] === null;
+        return (
+          <FieldControl
+            key={f.key}
+            f={mixed ? { ...f, caption: "Mixed: they differ. What you type here goes to all of them.", placeholder: "Mixed" } : f}
+            value={values[f.key] ?? shared(f.key)}
+            error={errFor(f.key)}
+            canOpenFiles={false}
+            onChange={(v) => {
+              dirty.current.add(f.key);
+              valuesRef.current = { ...valuesRef.current, [f.key]: v };
+              setValues(valuesRef.current);
+            }}
+            onCommit={(v) => commit(f.key, v)}
+            onRevert={() => {
+              dirty.current.delete(f.key);
+              valuesRef.current = { ...valuesRef.current, [f.key]: shared(f.key) };
+              setValues(valuesRef.current);
+            }}
+          />
+        );
+      })}
+      <div className="nv-panel-hint">{props.busy ? "Applying…" : "A change goes to all of them when you press Enter or leave a field · Esc reverts a field"}</div>
+    </div>
+  );
+}

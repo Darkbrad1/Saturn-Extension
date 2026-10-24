@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { FormEnvContext, PanelEditor, type FormEnv, type FormError, type LoadedParams } from "./forms";
+import { FormEnvContext, MultiEditor, PanelEditor, type FormEnv, type FormError, type LoadedParams } from "./forms";
 import { ActionPanel, CommandPanel, StagePanel, WorkflowPanel, type SettingsOps } from "./settings";
 import { codeParams, isEmailSummary, operatorName, type NvEdge, type NvNode, type RowAction } from "./layout";
 import type { Catalog, CommandView, DraftState, Flow, Path, WorkflowView } from "./types";
@@ -82,6 +82,9 @@ export function SidePanel(props: {
   onRow: (f: Flow, a: RowAction) => void;
   /** steps picked with Shift+click (more than one) */
   multi: Flow[];
+  /** the settings of the picked steps, when they're all one operator (read with readNodes), and what to do on a change */
+  multiParams: LoadedParams[] | null;
+  onCommitMany: (changes: Record<string, string>) => void;
   bulk: BulkOps;
   draft: DraftState | undefined;
   onUndo: () => void;
@@ -128,7 +131,24 @@ export function SidePanel(props: {
         ) : shown === "changes" ? (
           <ChangesTab draft={props.draft} wf={props.wf} onUndo={props.onUndo} onSave={props.onSave} onDiscard={props.onDiscard} />
         ) : props.multi.length > 1 ? (
-          <MultiPanel flows={props.multi} catalog={props.catalog} bulk={props.bulk} />
+          <MultiPanel flows={props.multi} catalog={props.catalog} bulk={props.bulk}>
+            {sameOperator(props.multi) && (
+              <Section title={`${props.catalog[sameOperator(props.multi)!]?.name ?? sameOperator(props.multi)} settings they share`} id="multi-settings" actions={props.busy ? <span className="fg-saving">Saving…</span> : null}>
+                <FormEnvContext.Provider value={props.formEnv}>
+                  <MultiEditor
+                    key={props.multi.map((f) => pathKey(f.path)).join("|")}
+                    operator={sameOperator(props.multi)!}
+                    catalog={props.catalog}
+                    commands={props.wf.commands}
+                    list={props.multiParams}
+                    errors={props.panelErrors}
+                    busy={props.busy}
+                    onCommit={props.onCommitMany}
+                  />
+                </FormEnvContext.Provider>
+              </Section>
+            )}
+          </MultiPanel>
         ) : !f ? (
           shown === "inspect" && props.scope.kind !== "workflow" ? (
             <EmptyPanel {...props} />
@@ -161,7 +181,13 @@ export interface BulkOps {
 }
 
 /** Several steps picked with Shift+click: what they are and what can be done to all of them. */
-function MultiPanel(props: { flows: Flow[]; catalog: Catalog; bulk: BulkOps }) {
+/** The operator every picked step has (all plain operator steps of one kind), else null. */
+export function sameOperator(fs: Flow[]): string | null {
+  const ops = fs.map((f) => (f.kind === "operator" ? f.operator : null));
+  return ops[0] && ops.every((o) => o === ops[0]) ? ops[0] : null;
+}
+
+function MultiPanel(props: { flows: Flow[]; catalog: Catalog; bulk: BulkOps; children?: ReactNode }) {
   const fs = props.flows;
   const allOff = fs.every((f) => f.mock);
   const someOff = fs.some((f) => f.mock);
@@ -172,7 +198,7 @@ function MultiPanel(props: { flows: Flow[]; catalog: Catalog; bulk: BulkOps }) {
         <div className="fg-head-text">
           <div className="fg-head-title">{fs.length} steps selected</div>
           <div className="fg-head-sub">
-            Shift+click to add or remove · Esc to clear{someOff && !allOff ? ` · ${fs.filter((f) => f.mock).length} disabled` : ""}
+            Shift or Ctrl+click to add or remove · drag a box on the canvas · Esc to clear{someOff && !allOff ? ` · ${fs.filter((f) => f.mock).length} disabled` : ""}
           </div>
         </div>
       </div>
@@ -193,6 +219,7 @@ function MultiPanel(props: { flows: Flow[]; catalog: Catalog; bulk: BulkOps }) {
         </div>
         <p className="fg-hint">Each button is one change — a single Ctrl+Z undoes it for all of them.</p>
       </Section>
+      {props.children}
       <Section title="Selected" id="multi-list">
         {fs.map((f) => (
           <div key={f.path.join(".")} className="fg-list-row fg-multi-row">

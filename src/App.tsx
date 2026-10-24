@@ -4,6 +4,7 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  SelectionMode,
   useNodesState,
   useReactFlow,
   type Edge,
@@ -38,7 +39,7 @@ import {
 } from "./layout";
 import { DirContext, NodeActions, edgeTypes, nodeTypes } from "./nodes";
 import { Outliner, machineName, nextStageColor, type CreateRequest } from "./outliner";
-import { SidePanel, countSteps, titleOf, type BulkOps, type PanelScope, type Tree } from "./panel";
+import { SidePanel, countSteps, sameOperator, titleOf, type BulkOps, type PanelScope, type Tree } from "./panel";
 import { searchWorkflow } from "./search";
 import type { Catalog, CommandUsage, CommandView, DraftState, Flow, Path, WorkflowSummary, WorkflowView } from "./types";
 
@@ -158,6 +159,11 @@ export function App() {
   const [panelWidth, setPanelWidth] = useState(saved.panelWidth ?? PANEL_DEFAULT);
   /** Settings of the selected step, read from the host (readNode) for the panel editor. */
   const [loaded, setLoaded] = useState<{ key: string; params: LoadedParams } | null>(null);
+  // the settings of several picked steps of one operator (for editing what they share), by request id
+  const [multiLoaded, setMultiLoaded] = useState<{ reqId: string; list: LoadedParams[] } | null>(null);
+  const multiReq = useRef<string | null>(null);
+  // the canvas's nodes as last laid out (for Select all)
+  const canvasNodes = useRef<NvNode[]>([]);
   const [panelErrors, setPanelErrors] = useState<FormError[]>([]);
   const [focusToken, setFocusToken] = useState(0);
   const [treeByWf, setTreeByWf] = useState<Record<string, string>>(saved.trees);
@@ -319,6 +325,18 @@ export function App() {
           if (p?.workflowId != null)
             setDrafts((d) => ({ ...d, [String(p.workflowId)]: { pending: p.pending ?? 0, summaries: p.summaries ?? [] } }));
           break;
+        case "nodesParams": {
+          if (p?.reqId && p.reqId === multiReq.current)
+            setMultiLoaded(
+              Array.isArray(p.list)
+                ? {
+                    reqId: p.reqId,
+                    list: p.list.map((l: Record<string, unknown>) => ({ values: (l.values as Record<string, string>) ?? {}, delay: (l.delay as number) ?? null, htmlParams: (l.designed as string[]) ?? [], designTree: (l.withDesignTree as string[]) ?? [] })),
+                  }
+                : null,
+            );
+          break;
+        }
         case "nodeParams": {
           // Only the reply to the panel's own request (the list view reads nodes too).
           const k = pathKey(p?.path ?? []);
@@ -508,6 +526,48 @@ export function App() {
     (f: Flow, to: InsertPoint) =>
       edit("moveOperator", { fromPath: f.path, toChildrenPath: to.childrenPath, toIndex: to.index }),
     [edit],
+  );
+  /** Several picked steps dragged together onto a wire: one edit, in their order. */
+  const doMoveMany = useCallback(
+    (to: InsertPoint) => {
+      edit("moveSteps", { paths: selection.map((f) => f.path), toChildrenPath: to.childrenPath, toIndex: to.index });
+      setSelected(null);
+    },
+    [edit, selection],
+  );
+  // several picked steps of one operator: read their settings, again whenever the workflow changes
+  const multiOp = selection.length > 1 ? sameOperator(selection) : null;
+  const multiKey = multiOp ? selection.map((f) => pathKey(f.path)).join("|") : null;
+  useEffect(() => {
+    if (!wf || !multiKey || !panel) {
+      multiReq.current = null;
+      setMultiLoaded(null);
+      return;
+    }
+    const reqId = `${Date.now()}-${Math.random()}`;
+    multiReq.current = reqId;
+    send("readNodes", { workflowId: wf.id, paths: selection.map((f) => f.path), reqId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multiKey, wf, panel]);
+  const commitMany = useCallback(
+    (changes: Record<string, string>) => {
+      if (!multiOp) return;
+      setPanelErrors([]);
+      edit("updateOperators", { paths: selection.map((f) => f.path), operator: multiOp, changes });
+    },
+    [edit, selection, multiOp],
+  );
+  /** Picks several nodes at once (a box drawn on the canvas, Select all): `add` keeps what was picked already. */
+  const pickMany = useCallback(
+    (nodes: NvNode[], add: boolean) => {
+      const have = add ? [...extra, ...(selected ? [selected] : [])] : [];
+      const all = [...have, ...nodes.filter((n) => !have.some((h) => h.id === n.id))];
+      setSelectedEdge(null);
+      setScope({ kind: "tree" });
+      setSelected(all[all.length - 1] ?? null);
+      setExtra(all.slice(0, -1));
+    },
+    [extra, selected],
   );
 
   const openEdit = useCallback(
@@ -943,6 +1003,7 @@ export function App() {
       else if (many && hit("node.disable")) bulk.mock(selection);
       else if (many && hit("node.delete")) bulk.remove(selection);
       else if (many && hit("node.copy")) bulk.copy(selection);
+      else if (hit("node.selectAll")) pickMany(canvasNodes.current.filter(pickableInBox), false);
       else if (hit("node.add")) setAddMenu({ ...mouse.current });
       else if (hit("node.duplicate") && f) doDuplicate(f);
       else if (hit("node.disable") && f) doToggleMock(f);
@@ -981,7 +1042,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [open, wf, selected, addMenu, ctxMenu, wfMenu, doDelete, doDuplicate, doToggleMock, edit, enterGroup, goBack, openEdit, copyStep, pasteAt, insertPoint, selection, bulk, shortcuts]);
+  }, [open, wf, selected, addMenu, ctxMenu, wfMenu, doDelete, doDuplicate, doToggleMock, edit, enterGroup, goBack, openEdit, copyStep, pasteAt, insertPoint, selection, bulk, shortcuts, pickMany]);
 
   // ---- render ------------------------------------------------------------
   if (!open) {
@@ -1286,7 +1347,10 @@ export function App() {
                     setSelected(n);
                   }
                 }}
+                onPickMany={pickMany}
+                onMoveMany={doMoveMany}
                 onRefresh={(nodes) => {
+                  canvasNodes.current = nodes;
                   setExtra((ex) => ex.map((x) => nodes.find((n) => n.id === x.id)).filter((x): x is NvNode => !!x));
                   setSelected((cur) => (cur ? nodes.find((n) => n.id === cur.id) ?? null : cur));
                 }}
@@ -1329,6 +1393,8 @@ export function App() {
               ["node.delete", "delete"],
               ["node.duplicate", "duplicate"],
               ["", "drag onto a wire to move"],
+              ["", "drag on empty canvas to box-pick · middle-drag or Space+drag to pan"],
+              ["node.selectAll", "pick all"],
               ["node.edit", "edit"],
               ["node.open", "open command"],
               ["node.undo", "undo"],
@@ -1373,6 +1439,8 @@ export function App() {
             onToggleMock={doToggleMock}
             onRow={openRow}
             multi={selection}
+            multiParams={multiLoaded?.list ?? null}
+            onCommitMany={commitMany}
             bulk={bulk}
             draft={draft}
             onUndo={() => edit("undoLastEdit", {})}
@@ -1633,6 +1701,10 @@ function Canvas(props: {
   selectedId: string | null;
   extraIds: string[];
   onToggleSelect: (n: NvNode) => void;
+  /** a box drawn on the empty canvas picked these (add: Ctrl/Cmd was held, keep what was picked) */
+  onPickMany: (nodes: NvNode[], add: boolean) => void;
+  /** the picked steps were dragged together onto a wire */
+  onMoveMany: (to: InsertPoint) => void;
   onRefresh: (nodes: NvNode[]) => void;
   inSelection: (n: NvNode) => boolean;
   selectedEdgeId: string | null;
@@ -1674,7 +1746,10 @@ function Canvas(props: {
   const selKeyStr = [...selIds].sort().join("|");
   const [nodes, setNodes, onNodesChange] = useNodesState<NvNode>(layout.nodes);
   const [hotEdge, setHotEdge] = useState<string | null>(null);
-  const dragging = useRef<{ flow: Flow; ports: Set<string> } | null>(null);
+  // what's being dragged: one step, or (many) every picked step, whose ports and paths a wire must not touch
+  const dragging = useRef<{ flow: Flow; flows: Flow[]; ports: Set<string>; many: boolean } | null>(null);
+  // a box being drawn: Ctrl/Cmd held adds to what's picked
+  const boxAdd = useRef(false);
   const first = useRef(true);
 
   useEffect(() => {
@@ -1769,7 +1844,7 @@ function Canvas(props: {
       const ins = e.data?.insert;
       if (!ins) continue;
       if (d.ports.has(e.source) || d.ports.has(e.target)) continue;
-      if (isWithin(ins.childrenPath, d.flow.path)) continue; // can't drop into itself
+      if (d.flows.some((f) => isWithin(ins.childrenPath, f.path))) continue; // can't drop into itself
       const s = handlePoint(e.source, e.sourceHandle, "source");
       const t = handlePoint(e.target, e.targetHandle, "target");
       if (!s || !t) continue;
@@ -1785,7 +1860,7 @@ function Canvas(props: {
     if (!d) return null;
     for (const n of layout.nodes) {
       if (n.type !== "slot" || !n.data.insert) continue;
-      if (isWithin(n.data.insert.childrenPath, d.flow.path)) continue;
+      if (d.flows.some((f) => isWithin(n.data.insert!.childrenPath, f.path))) continue;
       const i = rf.getInternalNode(n.id);
       if (!i) continue;
       const { x, y } = i.internals.positionAbsolute;
@@ -1818,6 +1893,17 @@ function Canvas(props: {
       deleteKeyCode={null}
       selectionKeyCode={null}
       multiSelectionKeyCode="Shift"
+      // drag on the empty canvas draws a box that picks the steps inside it; the middle button, or Space + drag, pans
+      selectionOnDrag
+      panOnDrag={[1]}
+      selectionMode={SelectionMode.Full}
+      onSelectionStart={(ev) => {
+        boxAdd.current = ev.ctrlKey || ev.metaKey || ev.shiftKey;
+      }}
+      onSelectionEnd={() => {
+        const picked = rf.getNodes().filter((n) => n.selected && pickableInBox(n as NvNode)) as NvNode[];
+        props.onPickMany(picked, boxAdd.current);
+      }}
       className={`nv-dir-${props.dir}`}
       zoomOnDoubleClick={false}
       proOptions={{ hideAttribution: true }}
@@ -1863,10 +1949,18 @@ function Canvas(props: {
       }}
       onNodeDragStart={(_, n) => {
         const node = n as NvNode;
-        if ((node.data.role === "step" || node.data.role === "frame") && node.data.flow)
-          dragging.current = { flow: node.data.flow, ports: portsOf(node) };
+        const movable = (node.data.role === "step" || node.data.role === "frame") && !!node.data.flow;
+        // a picked step dragged: every picked step goes along
+        if (movable && props.inSelection(node)) {
+          const picked = layout.nodes.filter((x) => pickableInBox(x) && props.inSelection(x));
+          const ports = new Set<string>();
+          for (const x of picked) for (const id of portsOf(x)) ports.add(id);
+          dragging.current = { flow: node.data.flow!, flows: picked.map((x) => x.data.flow!), ports, many: true };
+          return;
+        }
+        if (movable) dragging.current = { flow: node.data.flow!, flows: [node.data.flow!], ports: portsOf(node), many: false };
         else dragging.current = null;
-        props.onSelect(node.data.role === "step" || node.data.role === "frame" ? node : null);
+        props.onSelect(movable ? node : null);
       }}
       onNodeDrag={(ev) => {
         if (!dragging.current) return;
@@ -1883,7 +1977,8 @@ function Canvas(props: {
         const ins = target.startsWith("s:")
           ? layout.nodes.find((x) => x.id === target)?.data.insert
           : layout.edges.find((x) => x.id === target)?.data?.insert;
-        if (ins) props.onMove(d.flow, ins);
+        if (ins && d.many) props.onMoveMany(ins);
+        else if (ins) props.onMove(d.flow, ins);
       }}
       onEdgeMouseEnter={(_, e) => {
         window.clearTimeout(hoverTimer.current);
@@ -1910,6 +2005,11 @@ function Canvas(props: {
     </NodeActions.Provider>
     </DirContext.Provider>
   );
+}
+
+/** Nodes a box (or Select all) picks: steps and groups, not the head card, slots or reroutes. */
+function pickableInBox(n: NvNode) {
+  return (n.data.role === "step" || n.data.role === "frame") && !!n.data.flow;
 }
 
 const READABLE_ZOOM = 0.8;

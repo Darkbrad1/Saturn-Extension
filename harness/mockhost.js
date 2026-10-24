@@ -158,6 +158,32 @@
   const ke = (s) => s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const txt = (v) => (v == null ? "" : typeof v === "string" ? v : JSON.stringify(v, null, 2));
   const isHtml = (v) => v && typeof v === "object" && !Array.isArray(v) && typeof v.html === "string";
+  // a step's settings as text, as the host's stepFormValues gives them (readNode, readNodes)
+  function formOf(n) {
+    let values = {}, operator = n.operator;
+    if (n.type === "each") { operator = "each"; values = { collection: n.reference ?? "", concurrency: String(n.concurrency ?? "") }; }
+    else if (n.type === "if") { operator = "if"; values = { evaluatorKind: n.evaluator ?? "command", command: n.data?.command ?? "", property: n.data?.property ?? "", conditionOperator: n.data?.operator ?? "==", value: txt(n.data?.value) }; }
+    else if (n.type === "parallel") { operator = "parallel"; values = { concurrency: String(n.concurrency ?? "") }; }
+    else if (n.type === "reference") { operator = "reference"; values = { command: n.reference, ...Object.fromEntries(Object.entries(n.parameters || {}).map(([k, v]) => [k, txt(v)])) }; }
+    const designed = [];
+    if (!["each", "if", "parallel", "reference"].includes(operator)) for (const [k, v] of Object.entries(n.data || {})) { if (k === "_properties") continue; if (isHtml(v)) { designed.push(k); values[k] = v.html; } else values[k] = typeof v === "string" ? v : JSON.stringify(v, null, 2); }
+    return { operator, values, delay: n.delay ?? null, designed, withDesignTree: designed.filter((k) => n.data[k].json) };
+  }
+  // an operator step's data from the panel's text values, like the host's paramsToData (updateOperator, updateOperators)
+  function operatorData(n, operator, values) {
+    const c = catalog[operator];
+    const data = {}; for (const [k, v] of Object.entries(n.data || {})) if (isHtml(v) && !(k in values)) data[k] = v;
+    for (const [k, v] of Object.entries(values)) { const prm = c?.params.find((x) => x.param === k);
+      // like the real host: an empty object param keeps the stored map (so the editor must send "{}" to clear it)
+      if (v === "") { if (prm?.type === "object" && n.data && k in n.data) data[k] = n.data[k]; continue; }
+      // like the host (0.3.50): a setting the catalog doesn't list is JSON when it's an object or a list
+      if ((prm && (prm.type === "object" || prm.type === "array")) || (!prm && ((n.data?.[k] && typeof n.data[k] === "object") || /^\s*[[{]/.test(v)))) { try { data[k] = JSON.parse(v); } catch { data[k] = v; } }
+      else if (prm?.type === "boolean") data[k] = v === "true"; else data[k] = v; }
+    // and settings the catalog doesn't list that weren't sent are kept as stored
+    for (const [k, v] of Object.entries(n.data || {})) if (!(k in data) && !c?.params.some((x) => x.param === k) && !(k === "_properties" && operator === "property_updater")) data[k] = v;
+    if (operator === "property_updater" && data.properties) data._properties = Object.entries(data.properties).map(([key, value]) => ({ editing: false, key, value }));
+    return data;
+  }
   const htmlText = (v) => { const d = !!v.json && typeof v.json === "object"; const rows = Array.isArray(v.json?.body?.rows) ? v.json.body.rows.length : null;
     const parts = [d ? "Designed email" : "HTML email"]; if (rows !== null) parts.push(`${rows} row${rows === 1 ? "" : "s"}`); parts.push(`${Math.round(v.html.length / 1024)} kB of HTML`);
     if (typeof v.json?.schemaVersion === "number") parts.push(`Unlayer schema v${v.json.schemaVersion}`);
@@ -324,14 +350,7 @@
       case "readNode": {
         const n = get(def, p.path);
         if (!n || typeof n !== "object") { post("editFailed", { message: "Could not read that step" }); break; }
-        let values = {}, operator = n.operator;
-        if (n.type === "each") { operator = "each"; values = { collection: n.reference ?? "", concurrency: String(n.concurrency ?? "") }; }
-        else if (n.type === "if") { operator = "if"; values = { evaluatorKind: n.evaluator ?? "command", command: n.data?.command ?? "", property: n.data?.property ?? "", conditionOperator: n.data?.operator ?? "==", value: txt(n.data?.value) }; }
-        else if (n.type === "parallel") { operator = "parallel"; values = { concurrency: String(n.concurrency ?? "") }; }
-        else if (n.type === "reference") { operator = "reference"; values = { command: n.reference, ...Object.fromEntries(Object.entries(n.parameters || {}).map(([k, v]) => [k, txt(v)])) }; }
-        const designed = [];
-        if (!["each", "if", "parallel", "reference"].includes(operator)) for (const [k, v] of Object.entries(n.data || {})) { if (k === "_properties") continue; if (isHtml(v)) { designed.push(k); values[k] = v.html; } else values[k] = typeof v === "string" ? v : JSON.stringify(v, null, 2); }
-        post("nodeParams", { path: p.path, operator, values, delay: n.delay ?? null, designed, withDesignTree: designed.filter((k) => n.data[k].json) });
+        post("nodeParams", { path: p.path, ...formOf(n) });
         break;
       }
       case "updateOperator": {
@@ -344,17 +363,7 @@
           else if (p.operator === "if") { n.evaluator = p.values.evaluatorKind; n.data = p.values.evaluatorKind === "command" ? { command: p.values.command } : { property: p.values.property, operator: p.values.conditionOperator, value: p.values.value }; }
           else if (p.operator === "parallel") n.concurrency = Number(p.values.concurrency || 1);
           else if (p.operator === "reference") { const { command, ...rest } = p.values; n.reference = command; n.parameters = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== "")); }
-          else { const data = {}; for (const [k, v] of Object.entries(n.data || {})) if (isHtml(v) && !(k in p.values)) data[k] = v;
-            for (const [k, v] of Object.entries(p.values)) { const prm = c?.params.find((x) => x.param === k);
-              // like the real host: an empty object param keeps the stored map (so the editor must send "{}" to clear it)
-              if (v === "") { if (prm?.type === "object" && n.data && k in n.data) data[k] = n.data[k]; continue; }
-              // like the host (0.3.50): a setting the catalog doesn't list is JSON when it's an object or a list
-              if ((prm && (prm.type === "object" || prm.type === "array")) || (!prm && ((n.data?.[k] && typeof n.data[k] === "object") || /^\s*[[{]/.test(v)))) { try { data[k] = JSON.parse(v); } catch { data[k] = v; } }
-              else if (prm?.type === "boolean") data[k] = v === "true"; else data[k] = v; }
-            // and settings the catalog doesn't list that weren't sent are kept as stored
-            for (const [k, v] of Object.entries(n.data || {})) if (!(k in data) && !c?.params.some((x) => x.param === k) && !(k === "_properties" && p.operator === "property_updater")) data[k] = v;
-            if (p.operator === "property_updater" && data.properties) data._properties = Object.entries(data.properties).map(([key, value]) => ({ editing: false, key, value }));
-            n.data = data; if (p.delay) n.delay = p.delay; else delete n.delay; } });
+          else { n.data = operatorData(n, p.operator, p.values); if (p.delay) n.delay = p.delay; else delete n.delay; } });
         break;
       }
       case "addOperator": {
@@ -379,6 +388,36 @@
         apply(id, `Add "${c?.name ?? p.operator}"`, (d) => { const arr = ensureArray(d, p.childrenPath); const i = p.index == null || p.index > arr.length ? arr.length : p.index; arr.splice(i, 0, node); });
         break;
       }
+      // several steps' settings at once (0.3.59), like the host
+      case "readNodes":
+        post("nodesParams", { reqId: p.reqId, list: p.paths.map((x) => ({ path: x, ...formOf(get(def, x)) })) });
+        break;
+      // the same changed settings on several steps of one operator, one edit (0.3.59); like the host, each keeps the rest
+      case "updateOperators":
+        (window.__posted = window.__posted || []).push(msg);
+        apply(id, `Updated ${Object.keys(p.changes).join(", ")} on ${p.paths.length} steps`, (d) => {
+          for (const x of p.paths) { const n = get(d, x);
+            if (!n || n.operator !== p.operator) throw new Error("A selected step is no longer where it was \u2014 select again and retry.");
+            const c = catalog[p.operator];
+            const values = { ...formOf(n).values, ...p.changes };
+            const missing = c ? c.params.filter((m) => m.required && !m.mergedInto && !(values[m.param] || "").trim() && !isHtml(n.data?.[m.param])) : [];
+            if (missing.length) throw new Error(missing.map((m) => `${m.label} is required`).join("; "));
+            n.data = operatorData(n, p.operator, values); } });
+        break;
+      // several steps moved together, one edit (0.3.59): by identity, like the host's moveStepsEdit
+      case "moveSteps":
+        (window.__posted = window.__posted || []).push(msg);
+        apply(id, `Moved ${p.paths.length} steps`, (d) => {
+          const cmp = (a, b) => { for (let i = 0; i < Math.min(a.length, b.length); i++) { const x = a[i], y = b[i]; if (x === y) continue; if (typeof x === "number" && typeof y === "number") return x - y; return String(x) < String(y) ? -1 : 1; } return a.length - b.length; };
+          const inside = (q, r) => q.length > r.length && r.every((k, i) => String(k) === String(q[i]));
+          const ps = [...p.paths].sort(cmp).filter((x, _, all) => !all.some((o) => o !== x && inside(x, o)));
+          if (ps.some((x) => p.toChildrenPath.length >= x.length && x.every((k, i) => String(k) === String(p.toChildrenPath[i])))) throw new Error("Cannot move a step inside itself");
+          const found = ps.map((x) => ({ list: get(d, x.slice(0, -1)), step: get(d, x) }));
+          const target = ensureArray(d, p.toChildrenPath); const marker = {};
+          target.splice(p.toIndex == null ? target.length : p.toIndex, 0, marker);
+          for (const { list, step } of found) list.splice(list.indexOf(step), 1);
+          target.splice(target.indexOf(marker), 1, ...found.map((f) => f.step)); });
+        break;
       case "bulkSteps": {
         const cmp = (a, b) => { for (let i = 0; i < Math.min(a.length, b.length); i++) { const x = a[i], y = b[i]; if (x === y) continue; if (typeof x === "number" && typeof y === "number") return x - y; return String(x) < String(y) ? -1 : 1; } return a.length - b.length; };
         const ps = [...p.paths].sort(cmp).reverse(); const n = `${ps.length} steps`;
