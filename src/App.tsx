@@ -1335,7 +1335,17 @@ export function App() {
           {scope.kind === "workflow" ? (
             <WorkflowMap
               wf={wf}
-              onOpen={openTree}
+              onOpen={(key) => {
+                // a stage's header: its settings in the side panel
+                if (key.startsWith("stage:")) {
+                  const i = wf.stages.findIndex((st) => `stage:${st.stage}` === key);
+                  if (i >= 0) {
+                    setSelected(null);
+                    setSelectedEdge(null);
+                    setScope({ kind: "stage", index: i });
+                  }
+                } else openTree(key);
+              }}
               onMove={(t, to) => {
                 edit("setStageTransition", { path: t.path, field: STAGE_FIELD, from: t.to, to });
                 sourceRef.current = "other";

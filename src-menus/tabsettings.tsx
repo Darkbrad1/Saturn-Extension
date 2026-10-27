@@ -26,6 +26,19 @@ export interface Host {
   openResource: (resource: string) => void;
 }
 
+/** The caption box. The stored caption is trimmed, so the box shows what was typed (a space at the end
+ *  too) for as long as the stored caption is still what that text makes; after an undo it shows the
+ *  stored one again. */
+function CaptionInput(props: { tab: Tab; placeholder: string; onChange: (label: string) => void }) {
+  const [typed, setTyped] = useState<string | null>(null);
+  const text = typed !== null && captionFor(props.tab, typed) === props.tab.resource_label ? typed : tabCaption(props.tab);
+  return (
+    <input id="mn-caption" className="pe-input" placeholder={props.placeholder} value={text}
+      onChange={(e) => { setTyped(e.target.value); props.onChange(captionFor(props.tab, e.target.value)); }}
+      onBlur={() => setTyped(null)} />
+  );
+}
+
 /** A resource's chip, like the Resources screen's for a mapped property: opens it there. */
 function ResourceChip(props: { resource: string; host: Host }) {
   if (!props.resource) return null;
@@ -295,7 +308,7 @@ function OneTab(props: { tab: Tab; nested: boolean; parentName?: string; host: H
           </Row>
         )}
         <Row label="Caption" id="mn-caption" hint={kind === "custom_page" ? "The tab's name." : "The tab's name. Saturn stores it as HTML; that's kept."} problems={of("caption")}>
-          <input id="mn-caption" className="pe-input" placeholder={target.value || "Caption"} value={tabCaption(tab)} onChange={(e) => patch({ resource_label: captionFor(tab, e.target.value) })} />
+          <CaptionInput tab={tab} placeholder={target.value || "Caption"} onChange={(label) => patch({ resource_label: label })} />
         </Row>
       </Section>
       {kind === "resource" && resource && (

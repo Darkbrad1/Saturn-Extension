@@ -33,6 +33,8 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "resources.list", screen: "resources", label: "Hide or show the properties list", keys: ["T"] },
   { id: "resources.back", screen: "resources", label: "Back to where you came from", keys: ["Alt+ArrowLeft"] },
   { id: "menus.list", screen: "menus", label: "Hide or show the menus list", keys: ["T"] },
+  { id: "menus.undo", screen: "menus", label: "Undo the last unsaved change", keys: ["Mod+Z"] },
+  { id: "menus.redo", screen: "menus", label: "Redo", keys: ["Mod+Shift+Z", "Mod+Y"] },
 ];
 
 export type Bindings = Record<string, string[]>;

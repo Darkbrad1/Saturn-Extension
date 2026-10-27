@@ -72,9 +72,15 @@ await p.keyboard.press("Alt+ArrowUp");
 await p.waitForTimeout(100);
 ok((await tabNames()).join(",") === "Loans,Applications,Approved,Rejected,Overview", "Alt+↑ moves a tab up past a tab and its sub-tabs");
 await dragTo(tab("Overview"), tab("Loans"), "middle");
+// another parent: the Copy or Move box (0.3.62)
+await p.locator(".mn-tabs-to").getByRole("menuitem", { name: /^Move/ }).click();
+await p.waitForTimeout(150);
 ok((await tabNames()).join(",") === "Loans,Overview,Applications,Approved,Rejected", "dragging onto the middle of a tab makes it a sub-tab");
 ok((await tab("Overview").getAttribute("aria-level")) === "2", "it's now one level in");
 await dragTo(tab("Overview"), tab("Applications"), "top");
+// another parent: the Copy or Move box (0.3.62)
+await p.locator(".mn-tabs-to").getByRole("menuitem", { name: /^Move/ }).click();
+await p.waitForTimeout(150);
 ok((await tabNames()).join(",") === "Loans,Overview,Applications,Approved,Rejected" && (await tab("Overview").getAttribute("aria-level")) === "1", "dragging it above a tab brings it back out");
 await dragTo(tab("Applications"), tab("Loans"), "middle");
 ok((await tab("Applications").getAttribute("aria-level")) === "1" && (await tabNames()).join(",") === "Applications,Approved,Rejected,Loans,Overview", "a tab with sub-tabs can't become a sub-tab (two levels only): it lands beside it");

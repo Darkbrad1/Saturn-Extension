@@ -1,4 +1,4 @@
-# sonover-code (v0.3.45)
+# sonover-code (v0.3.62)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo: `./package.sh` → `dist/sonover-code-<version>.vsix`.
 
@@ -6,6 +6,13 @@ The Saturn / Sonover VS Code extension, built entirely from this repo: `./packag
 - `src/` — the node view (the Workflows screen's default view; the list view is kept, one click away). `src-logs/` — the System Logs screen.
 - `vsix/` — the rest of the package as shipped (manifest, `package.json`, the other webviews, the MCP server), with this project's edits.
 - Built by `build.mjs` into `out/vsix/`; see `CLAUDE.md` for the layout, how it talks to Saturn and how to test.
+
+## New in 0.3.62: Undo on the Menus screen
+- `src-menus/main.tsx`: one undo history for the screen (`history`, `travel`, `Snap`: the unsaved `works`, `order` and `deletedMenus`). An effect records each change (`changeBy`: `user` adds a step, `history` is undo / redo itself, `save` clears it); typing in one box within `UNDO_PAUSE` (1 s) is one step; up to `UNDO_LIMIT` (200). Undo / Redo in the top bar and the shortcuts `menus.undo` (Mod+Z) and `menus.redo` (Mod+Shift+Z, Mod+Y) in `src/keys.ts`; a search box keeps the browser's own undo. Undo shows the menu it changed.
+- `src-menus/tabsettings.tsx`: `CaptionInput` shows the caption as typed (spaces too) while the stored one is trimmed; before, a space at the end was dropped on each key press.
+- Tabs dropped under another parent in the same menu (`changesParent`): the Copy or Move box (`tabsHere`); `copyTo` puts copies (new ids, with their sub-tabs) there; reordering under the same parent just moves.
+- Node view: a double-click on a stage's row in the layers panel (`src/outliner.tsx`) or its header on the workflow map (`src/map.tsx`, `stage:<stage>` sent to `onOpen`) opens the stage's settings. Rename is in the right-click menu and the settings.
+- `test49.mjs` (35); `test17.mjs` picks Move in the new box.
 
 ## New in 0.3.61 — Picking several menus
 - `src-menus/main.tsx`: `pickedMenus` (Ctrl/Cmd and Shift+click, `clickMenu`; `manyMenus`, `menusFor`); `moveMenus` (drag or Alt+↑/↓ moves them as a block); `deletedMenus` (crossed out until Save, `toggleDeleted`; a new menu is just dropped), Save's queue deletes them after the saves (`delete {id, confirmed: true}`, `deletedOne`) and its confirm names them; `ManyMenus` (icon and who can see them, Mixed where they differ); tabs dropped on another menu's card → `.mn-tabs-to` Copy or Move (`tabsToMenu`: at the end, with their sub-tabs, new ids).

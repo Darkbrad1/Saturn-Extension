@@ -515,8 +515,11 @@ export function Outliner(props: {
                     setPicked([]);
                     props.onToggleCollapse(`stage:${st.stage}`);
                   }}
-                  title="Click to open or close · ⚙ for stage settings · double-click to rename · drag to reorder"
-                  onDoubleClick={() => setEditing({ mode: "rename", kind: "stage", path: spath, label: st.label })}
+                  title="Click to open or close · double-click or ⚙ for stage settings · right-click to rename · drag to reorder"
+                  onDoubleClick={(e) => {
+                    if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+                    props.onSelectStage(si);
+                  }}
                   onContextMenu={(e) => openMenu(e, "stage", spath, st.label)}
                 >
                   {chevron(`stage:${st.stage}`, st.label)}

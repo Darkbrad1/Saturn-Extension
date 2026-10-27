@@ -1,6 +1,16 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.62",
+    title: "Undo on the Menus screen",
+    items: [
+      "The Menus screen has Undo and Redo, in the top bar and on Ctrl+Z (Cmd+Z) and Ctrl+Shift+Z or Ctrl+Y. They go back through every change you haven't saved yet, in any menu, and show the menu that changed. Typing in one box is one step. Discard can be undone too. Saving clears the history; use Undo the last save for that.",
+      "Spaces can be typed in a tab's caption again. Before, a space at the end was taken off as you typed, so the next word ran into the last one.",
+      "Dragging tabs under another tab, or out of one to the top level, asks Copy or Move. Copy leaves them where they were. Reordering under the same tab never asks.",
+      "In the node view, a double-click on a stage opens its settings in the side panel: on its row in the layers panel, and on its header in the workflow map. Rename a stage from its right-click menu, or in its settings.",
+    ],
+  },
+  {
     version: "0.3.61",
     title: "Picking several menus",
     items: [

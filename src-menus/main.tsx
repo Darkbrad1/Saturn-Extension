@@ -28,6 +28,12 @@ interface Work { label: string; icon: string; access_control: Rule[]; nodes: Nod
 /** What's kept while the screen is hidden or reloaded. */
 interface Saved { works?: Record<string, Work>; order?: string[] | null; current?: string | null; picked?: string[]; folded?: string[]; listHidden?: boolean; deletedMenus?: string[] }
 type Drop = { parent: string | null; before: string | null } | { into: string };
+/** One step of the undo history: everything Save would write. */
+interface Snap { works: Record<string, Work>; order: string[] | null; deletedMenus: string[] }
+/** Typing in one box counts as one step until a pause this long (ms). */
+const UNDO_PAUSE = 1000;
+/** How many steps back undo can go. */
+const UNDO_LIMIT = 200;
 
 /** Settings copied from a tab, by group (the caption is never copied). */
 const COPY_GROUPS: { id: string; title: string; hint: string; keys: string[]; on: boolean }[] = [
@@ -69,6 +75,8 @@ function App() {
   const [deletedMenus, setDeletedMenus] = useState<string[]>(saved.deletedMenus ?? []);
   // tabs dropped on another menu: Copy or Move (0.3.61)
   const [tabsTo, setTabsTo] = useState<{ x: number; y: number; ids: string[]; to: string } | null>(null);
+  // tabs dropped under another tab (or out to the top level) in the same menu: Copy or Move
+  const [tabsHere, setTabsHere] = useState<{ x: number; y: number; ids: string[]; drop: Drop } | null>(null);
   const [tabOver, setTabOver] = useState<string | null>(null);
   const [tabDrag, setTabDrag] = useState<{ ids: string[]; drop: Drop | null } | null>(null);
   const [context, setContext] = useState<{ x: number; y: number; on: "menu" | "tab"; id: string } | null>(null);
@@ -100,6 +108,69 @@ function App() {
 
   useEffect(() => { vscode.setState({ works, order, current, picked, folded, listHidden, deletedMenus } satisfies Saved); }, [works, order, current, picked, folded, listHidden, deletedMenus]);
 
+  // ---- undo and redo (unsaved changes only) -----------------------------------------------------------
+  // One history for the whole screen: each change to the menus' unsaved work, their order or the menus
+  // crossed out is a step. Typing in one box is one step until you pause (UNDO_PAUSE) or move to another.
+  // Saving clears it: what's saved is undone with "Undo the last save" instead.
+  const history = useRef<{ past: Snap[]; future: Snap[]; box: Element | null; at: number }>({ past: [], future: [], box: null, at: 0 });
+  const lastSnap = useRef<Snap>({ works, order, deletedMenus });
+  // set by undo / redo (the change they make isn't a new step) and by saving (it clears the history)
+  const changeBy = useRef<"user" | "history" | "save">("user");
+  const [historySize, setHistorySize] = useState({ past: 0, future: 0 });
+  useEffect(() => {
+    const prev = lastSnap.current;
+    if (prev.works === works && prev.order === order && prev.deletedMenus === deletedMenus) return;
+    lastSnap.current = { works, order, deletedMenus };
+    const by = changeBy.current;
+    changeBy.current = "user";
+    const h = history.current;
+    if (by === "save") { h.past = []; h.future = []; h.box = null; }
+    else if (by === "user") {
+      const box = document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) ? document.activeElement : null;
+      const now = Date.now();
+      // more typing in the same box: the same step
+      if (!(box && box === h.box && now - h.at < UNDO_PAUSE && h.past.length)) h.past = [...h.past.slice(-(UNDO_LIMIT - 1)), prev];
+      h.future = [];
+      h.box = box;
+      h.at = now;
+    }
+    setHistorySize({ past: h.past.length, future: h.future.length });
+  }, [works, order, deletedMenus]);
+  /** Goes one step back (or forward) and shows the menu that step changed. */
+  const travel = (back: boolean) => {
+    const h = history.current;
+    const to = back ? h.past[h.past.length - 1] : h.future[h.future.length - 1];
+    if (!to || queue.current) return;
+    const now = lastSnap.current;
+    if (back) { h.past = h.past.slice(0, -1); h.future = [...h.future, now]; }
+    else { h.future = h.future.slice(0, -1); h.past = [...h.past, now]; }
+    h.box = null;
+    changeBy.current = "history";
+    setWorks(to.works);
+    setOrder(to.order);
+    setDeletedMenus(to.deletedMenus);
+    const changed = [...new Set([...Object.keys(now.works), ...Object.keys(to.works)])].find((id) => !same(now.works[id] ?? null, to.works[id] ?? null));
+    if (changed && changed !== currentRef.current && (to.works[changed] || byIdRef.current.has(changed))) { setCurrent(changed); setPicked([]); }
+    setNotice({ kind: "ok", text: back ? "Undone." : "Redone." });
+  };
+  const currentRef = useRef(current);
+  currentRef.current = current;
+  const travelRef = useRef(travel);
+  travelRef.current = travel;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      // a search box keeps the browser's own undo
+      if (el?.closest?.(".rs-search, [aria-label^='Search']")) return;
+      const back = pressed(e, "menus.undo", shortcuts);
+      if (!back && !pressed(e, "menus.redo", shortcuts)) return;
+      e.preventDefault();
+      travelRef.current(back);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shortcuts]);
+
   // ---- host messages ----------------------------------------------------------------------------
   useEffect(() => {
     const on = (ev: MessageEvent) => {
@@ -127,6 +198,7 @@ function App() {
         }
         case "saved": savedOne(m.id ?? null, Array.isArray(m.unsaved) ? m.unsaved : []); break;
         case "deleted":
+          changeBy.current = "save";
           setWorks((w) => { const n = { ...w }; delete n[m.id]; return n; });
           setOrder((o) => o && o.filter((x) => x !== m.id));
           setCurrent((c) => (c === m.id ? null : c));
@@ -167,6 +239,8 @@ function App() {
 
   // ---- menus, as saved and as edited ----------------------------------------------------------------
   const byId = useMemo(() => new Map((menus ?? []).map((m) => [m.id, m])), [menus]);
+  const byIdRef = useRef(byId);
+  byIdRef.current = byId;
   const newIds = Object.keys(works).filter((id) => works[id].isNew);
   const ids = useMemo(() => {
     const server = (menus ?? []).map((m) => m.id);
@@ -279,6 +353,7 @@ function App() {
       if (q.order) post({ type: "reorder", ids: q.order });
       queue.current = null;
       setSaving(null);
+      changeBy.current = "save";
       setOrder(null);
       setNotice({ kind: "ok", text: "Saved." });
       return;
@@ -299,6 +374,7 @@ function App() {
     const q = queue.current;
     if (!q || !q.now) return;
     const was = q.now;
+    changeBy.current = "save";
     setWorks((w) => { const n = { ...w }; delete n[was]; return n; });
     if (id && id !== was) {
       q.order = q.order && q.order.map((x) => (x === was ? id : x));
@@ -399,6 +475,42 @@ function App() {
       return insert(without, drop.before, top);
     });
     if ("into" in drop) setFolded((f) => f.filter((x) => x !== drop.into));
+  };
+  /** The tabs that move or are copied: a sub-tab whose own tab goes too goes with it, so it isn't counted. */
+  const topOf = (ns: Node[], moving: string[]) => flat(ns).filter((m) => moving.includes(m.id) && !ns.some((p) => moving.includes(p.id) && p.subs.includes(m)));
+  /** Whether a drop puts any of these tabs under another parent (another tab, or the top level). */
+  const changesParent = (moving: string[], drop: Drop) => {
+    const to = "into" in drop ? drop.into : drop.parent;
+    return topOf(nodes, moving).some((m) => (find(nodes, m.id)?.parent?.id ?? null) !== to);
+  };
+  /** Copies of tabs (new ids, with their sub-tabs) put at a place in the tree; the tabs stay where they are.
+   *  Crossed-out tabs aren't copied. */
+  const copyTo = (copying: string[], drop: Drop) => {
+    const top = topOf(nodes, copying).filter((n) => !n.removed);
+    if (!top.length) return;
+    if (("into" in drop || drop.parent !== null) && top.some((m) => m.subs.length)) return; // Saturn has two levels only
+    const copyOf = (n: Node): Node => ({ ...n, id: freshId("tab"), tab: clone(n.tab), removed: false, subs: n.subs.filter((x) => !x.removed).map(copyOf) });
+    const copies = top.map(copyOf);
+    setNodes((ns) => {
+      const insert = (list: Node[], before: string | null) => {
+        const i = before ? list.findIndex((x) => x.id === before) : -1;
+        const at = i < 0 ? list.length : i;
+        return [...list.slice(0, at), ...copies, ...list.slice(at)];
+      };
+      if ("into" in drop || drop.parent !== null) {
+        const parent = "into" in drop ? drop.into : drop.parent!;
+        return ns.map((p) => (p.id === parent ? { ...p, subs: insert(p.subs, "into" in drop ? null : drop.before) } : p));
+      }
+      return insert(ns, drop.before);
+    });
+    if ("into" in drop) setFolded((f) => f.filter((x) => x !== drop.into));
+    setPicked(copies.map((c) => c.id));
+  };
+  /** Where a drop puts the tabs, in words: "into Loans" or "to the top level". */
+  const dropPlace = (drop: Drop) => {
+    const parent = "into" in drop ? drop.into : drop.parent;
+    const p = parent ? find(nodes, parent)?.node : null;
+    return p ? `into ${tabName(p.tab)}` : "to the top level";
   };
   /** Alt+↑/↓: the picked tabs (under one parent) one place up or down. */
   const nudge = (up: boolean) => {
@@ -584,6 +696,8 @@ function App() {
         <div className="rs-title"><span className="rs-title-main">Menus</span><span className="rs-title-sub">{instanceName}</span></div>
         <button className="rs-btn" disabled={loading || !!saving} title="Read the menus again (unsaved changes are kept)" onClick={() => { setLoading(true); asked.current.clear(); setFields(new Map()); post({ type: "refresh" }); }}>Reload</button>
         <button className="rs-btn" title="Open Saturn's menus page in your browser" onClick={() => post({ type: "openInSaturn" })}>Open in Saturn ↗</button>
+        <button className="rs-btn" disabled={!historySize.past || !!saving} title={`Undo the last unsaved change${hint("menus.undo", shortcuts)}`} onClick={() => travel(true)}>Undo</button>
+        <button className="rs-btn" disabled={!historySize.future || !!saving} title={`Redo${hint("menus.redo", shortcuts)}`} onClick={() => travel(false)}>Redo</button>
         <span className="rs-push" />
         {dirty && <span className="rs-unsaved">{saving ? "Saving…" : !dirtyIds.length && !orderChanged ? `Unsaved: ${plural(deleting.length, "menu")} to delete` : `Unsaved in ${plural(dirtyIds.length + (orderChanged && !dirtyIds.length ? 1 : 0), dirtyIds.length ? "menu" : "change")}${orderChanged && dirtyIds.length ? " and the order" : ""}${deleting.length ? `, ${deleting.length} to delete` : ""}`}</span>}
         {errorsIn.length > 0 && <span className="mn-top-errors" title="Fix the errors (red) before saving"><Mark level="error" /> {plural(errorsIn.length, "menu")} with errors</span>}
@@ -702,7 +816,15 @@ function App() {
           <div className="rs-side-info"><span>{menuWork ? plural(nodes.filter((n) => !n.removed).length, "tab") : ""}{picked.length > 1 ? ` · ${picked.length} picked` : ""}</span></div>
           <div className="rs-list mn-tree" role="tree" aria-label="Tabs" aria-multiselectable="true" onKeyDown={onTabKey}
             onDragOver={(e) => { if (tabDrag) e.preventDefault(); }}
-            onDrop={(e) => { e.preventDefault(); if (tabDrag?.drop) moveTo(tabDrag.ids, tabDrag.drop); setTabDrag(null); }}>
+            onDrop={(e) => {
+              e.preventDefault();
+              // under another parent: ask Copy or Move; reordering under the same one just moves
+              if (tabDrag?.drop) {
+                if (changesParent(tabDrag.ids, tabDrag.drop)) setTabsHere({ x: e.clientX, y: e.clientY, ids: tabDrag.ids, drop: tabDrag.drop });
+                else moveTo(tabDrag.ids, tabDrag.drop);
+              }
+              setTabDrag(null);
+            }}>
             {manyMenus.length > 0 && <p className="rs-empty">{manyMenus.length} menus picked. Click one (without Ctrl or Shift) to see its tabs.</p>}
             {!manyMenus.length && menuWork && !nodes.length && <p className="rs-empty">No tabs yet. The menu shows nothing until it has one. Add one with +.</p>}
             {!manyMenus.length && nodes.map((n) => {
@@ -874,6 +996,16 @@ function App() {
             <button role="menuitem" autoFocus onClick={() => { tabsToMenu(tabsTo.ids, tabsTo.to, false); setTabsTo(null); }}>Copy <small>they stay here too</small></button>
             <button role="menuitem" onClick={() => { tabsToMenu(tabsTo.ids, tabsTo.to, true); setTabsTo(null); }}>Move <small>they leave this menu</small></button>
             <button role="menuitem" onClick={() => setTabsTo(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {tabsHere && (
+        <div className="rs-modal-back" onClick={() => setTabsHere(null)}>
+          <div className="rs-menu mn-tabs-to" role="dialog" aria-label="Copy or move" style={{ left: Math.min(tabsHere.x, window.innerWidth - 260), top: Math.min(tabsHere.y, window.innerHeight - 160) }} onClick={(e) => e.stopPropagation()}>
+            <div className="mn-tabs-to-title">{plural(topOf(nodes, tabsHere.ids).length, "tab")} {dropPlace(tabsHere.drop)}</div>
+            <button role="menuitem" autoFocus onClick={() => { copyTo(tabsHere.ids, tabsHere.drop); setTabsHere(null); }}>Copy <small>they stay where they are too</small></button>
+            <button role="menuitem" onClick={() => { moveTo(tabsHere.ids, tabsHere.drop); setTabsHere(null); }}>Move <small>they leave where they are</small></button>
+            <button role="menuitem" onClick={() => setTabsHere(null)}>Cancel</button>
           </div>
         </div>
       )}

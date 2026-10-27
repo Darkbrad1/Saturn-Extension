@@ -121,9 +121,10 @@ function RowsNode({ data: node }: NodeProps<Node<RowsData>>) {
       {data.stage && <Handle type="target" position={Position.Top} id="in" className="mp-in" isConnectableStart={false} />}
       <div
         className="mp-head"
+        title={head ? "Click: show its lines. Double-click: stage settings." : undefined}
         onClick={(e) => {
           e.stopPropagation();
-          if (head) data.onPick(head);
+          if (head) clicked(head, data.onPick, data.onOpen);
         }}
       >
         <span className="mp-dot" style={{ background: data.color ?? "#888" }} />
@@ -169,7 +170,7 @@ const HEAD = 34;
 
 export function WorkflowMap(props: {
   wf: WorkflowView;
-  /** open an action or command (its tree key) */
+  /** open an action or command (its tree key), or a stage's settings (`stage:<stage>`) */
   onOpen: (key: string) => void;
   /** an arrow dragged to another stage */
   onMove: (t: Transition, to: string) => void;
