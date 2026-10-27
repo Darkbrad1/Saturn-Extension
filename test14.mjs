@@ -136,7 +136,7 @@ await p.screenshot({ path: out + "/m3-wide.png" });
 
 // ===== the resource picker: the instance's own resources first, then the core ones =====
 const groups = await p.evaluate(() => [...document.querySelectorAll(".rs-select optgroup")].map((g) => g.label + ": " + [...g.querySelectorAll("option")].map((o) => o.value).join(",")));
-ok(groups.join(" | ") === "Resources: Application,Deal,Loan,LoanApplication,LoanCategory | Core resources: User", "the resource picker lists the non-core resources first, then the core ones: " + groups.join(" | "));
+ok(groups.join(" | ") === "Resources: Application,ApplicationNote,Deal,Loan,LoanApplication,LoanCategory | Core resources: User", "the resource picker lists the non-core resources first, then the core ones: " + groups.join(" | "));
 
 // ===== Show in: Saturn's hide… settings, shown the other way round (0.3.25) =====
 await p.selectOption(".rs-select select", "Loan");
