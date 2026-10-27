@@ -14090,6 +14090,12 @@ var MenusPanel = class SelfMenusPanel {
       case "openResourceScreen":
         ResourcePropertiesHost.open(this.extensionUri, this.manager, this.instance, nonEmptyString(message.resource));
         return;
+      // JSON in an untitled tab beside (0.3.63): a menu as the screen would save it.
+      case "viewRaw": {
+        let doc = await vscode16.workspace.openTextDocument({ content: String(message.text ?? ""), language: "json" });
+        await vscode16.window.showTextDocument(doc, { preview: true, viewColumn: vscode16.ViewColumn.Beside });
+        return;
+      }
       // Saturn's menus page in the browser: <instance url>/menus (a single menu has no address of its own).
       case "openInSaturn":
         await vscode16.env.openExternal(vscode16.Uri.parse(`${String(this.instance.url).replace(/\/+$/, "")}/menus`));

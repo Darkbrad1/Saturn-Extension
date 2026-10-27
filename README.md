@@ -1,4 +1,4 @@
-# sonover-code (v0.3.62)
+# sonover-code (v0.3.63)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo. It lets you work on a Saturn instance's workflows, resources, menus and logs from inside VS Code (or VSCodium).
 
@@ -27,7 +27,7 @@ The Saturn sidebar opens every screen: Workflows, Resources, Menus, System Logs,
 
 ### Workflows: the node view
 The Workflows screen opens as a node editor, like Blender's: each action or command is a flow of step cards joined by wires. The old list view is one click away (List view).
-- **Top bar:** workflow switcher, Undo, + Add, direction (vertical or horizontal), Reload, Open in Saturn ↗, Layers, Panel, List view. Under it, a breadcrumb row; each step in it takes you back there.
+- **Top bar:** workflow switcher, Undo, + Add, direction (vertical or horizontal), Reload, Open in Saturn ↗, Workflow JSON (the whole workflow with your unsaved changes), Layers, Panel, List view. Under it, a breadcrumb row; each step in it takes you back there.
 - **Editing steps:** pick a step to edit it in the side panel; a change applies when you're done with it (Enter, clicking away). Nothing goes to Saturn until you Save the workflow; Undo and Discard work on these unsaved changes. Steps can be added (Shift+A, or + on a wire), duplicated, disabled, copied and pasted, deleted, and dragged onto a wire to move them. Code and emails open in their own editor tab.
 - **Cards:** every value is colour-highlighted; a property map (like a Property Updater's) shows one row per property.
 - **Picking several steps:** Shift or Ctrl/Cmd+click, a box drawn on the empty canvas, or Ctrl/Cmd+A. Then: one right-click menu or key for all of them, drag them together onto a wire, and (when they're the same kind of step) edit the settings they share, with Mixed where they differ. Middle-drag or Space+drag moves around the canvas.
@@ -38,7 +38,7 @@ The Workflows screen opens as a node editor, like Blender's: each action or comm
 ### Resources
 Pick a resource; its properties are listed down the left in the schema's order, and the picked one's settings are on the right (a settings menu beside one long page).
 - **Properties:** add (+), drag or Alt+↑/↓ to reorder, pick several (a change goes to all; Mixed where they differ), right-click for Duplicate, Copy / Paste settings, Copy key, Delete (crossed out until Save) and Restore. A mapped property has a chip that opens its resource. T folds the list away.
-- **Settings:** six groups (General, Visibility, Input, Data, Display, Access) plus JSON; a setting only shows when it does something, Find a setting searches them all. Favourites at the top hold the settings you use most (one list everywhere). Visibility starts with Everywhere, one switch for all six places. Code settings can be opened in their own file. Covered: labels, keys, types, rules, inputs, maps, lookups (including Countries), dynamic sources, defaults, renderers (currency, inline component, file manager), table and record view settings, custom dropdown style, access rules.
+- **Settings:** six groups (General, Visibility, Input, Data, Display, Access) plus JSON; a setting only shows when it does something, Find a setting searches them all. Favourites at the top hold the settings you use most (one list everywhere). Visibility starts with Everywhere, one switch for all six places. Code settings can be opened in their own file. Covered: labels, keys, types, rules, inputs (including the Rich text editor with its voice transcriber and AI actions), maps, lookups (including Countries), dynamic sources, defaults, renderers (currency, inline component, file manager), table and record view settings, custom dropdown style, access rules.
 - **Resource settings:** the resource's own settings (description, open records in a drawer, sections and which properties are in each).
 - **Saving:** nothing is saved until Save and its confirm. Each resource is read again and backed up first, saved the way Saturn's own app does, and read back to check. Backups can be restored. Schema JSON and Open in Saturn ↗ are in the top bar; green buttons open the workflows linked to the resource.
 
@@ -46,11 +46,12 @@ Pick a resource; its properties are listed down the left in the schema's order, 
 Three columns: the menus, the picked menu's tabs (with their sub-tabs), the settings.
 - **Menus:** add, drag or Alt+↑/↓ to reorder, pick several to move, delete or edit together (icon and who can see them). Deleting is crossed out until Save. T folds the list away.
 - **Tabs:** add, sub-tabs, drag to reorder or into another tab, pick several to edit together, Duplicate, Copy / Paste settings, delete (crossed out until Save). Dragging tabs under another tab, out of one, or onto another menu asks Copy or Move. A caption can have spaces. Problems show beside what they're about; errors stop Save.
+- **Menu JSON** (top bar): the picked menu as Save would write it.
 - **Undo:** Undo and Redo (top bar, Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y) go back through every unsaved change on the screen, in any menu.
 - **Saving:** each changed menu is saved in turn, then the deletes, then the order. Saving clears the undo history; Undo the last save is on a menu's right-click menu.
 
 ### System Logs
-A read-only screen with the newest 10 System Logs records, a search, Live (checks every 5 s), and each message formatted (the JSON inside it pretty-printed). The node view's Logs tab shows the same records for one workflow.
+A read-only screen with the newest 10 System Logs records, a search, Live (checks every 5 s), and each message formatted (the JSON inside it pretty-printed). Schema JSON shows the log resource's properties. The node view's Logs tab shows the same records for one workflow.
 
 ### Keyboard shortcuts
 A page to change every shortcut of the node view, Resources and Menus. A key another shortcut on the same screen uses is refused. Open screens pick changes up at once.
@@ -59,6 +60,12 @@ A page to change every shortcut of the node view, Resources and Menus. A key ano
 The release notes on their own page, newest first, with a search.
 
 ## Version history
+
+### New in 0.3.63: Rich text editor, and the JSON on every screen
+The Resources screen (and the Form tab) knows Saturn's Rich text editor input and its settings. Every screen has a button that shows its JSON.
+- `src-res/spec.ts`: `INPUT_TYPES` + `richtexteditor`; Rows for it too; `isRichText`; Voice transcriber (`input_properties.transcriber.enabled`, `alongside` `TRANSCRIBER_DEFAULTS` when switched on), its text settings (`TRANSCRIBER_TEXT`: provider, mode, profile, language), Tell speakers apart (`diarization`), AI actions (`input_properties.ai_actions`, JSON). Taken from a real note resource's schema (`harness/noteschema.js`, the mock's `ApplicationNote`).
+- Node view: Workflow JSON in the top bar (`viewRawWorkflow`, the host's existing message). Menus: Menu JSON (`viewRaw {text}`, new in `MenusPanel.handle`). System Logs: Schema JSON (`schema {resource}` in `host/syslogs.js`, a GET through `ResourcePropertiesHost.readResource`, now exported).
+- `test50.mjs` (22); `hosttest-menus.cjs` (viewRaw), `hosttest-logs.cjs` (schema).
 
 ### New in 0.3.62: Undo on the Menus screen
 The Menus screen has Undo and Redo for changes not saved yet. Spaces can be typed in a tab's caption again. Tabs dragged under another tab, or out of one, ask Copy or Move. In the node view, double-clicking a stage opens its settings.

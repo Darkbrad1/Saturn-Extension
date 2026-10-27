@@ -219,6 +219,9 @@ function App() {
           <button type="button" className="lg-btn" onClick={() => request()} disabled={!resource || loading} title="Refresh">
             {loading ? "Reading…" : "Refresh"}
           </button>
+          <button type="button" className="lg-btn" onClick={() => resource && send("schema", { resource })} disabled={!resource} title="The log resource's schema (its properties) as JSON, in a tab beside">
+            Schema JSON
+          </button>
         </div>
       </header>
 

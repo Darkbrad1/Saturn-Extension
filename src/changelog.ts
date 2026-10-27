@@ -1,6 +1,14 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.63",
+    title: "Rich text editor, and the JSON on every screen",
+    items: [
+      "On the Resources screen and the Form tab, Input type has Rich text editor. With it come Rows, the Voice transcriber (on or off, provider, mode, profile, language, and Tell speakers apart) and AI actions, stored where Saturn keeps them. Switching the transcriber on for the first time fills in the settings Saturn's own editor uses (deepgram, flux, general, en).",
+      "Every screen has a way to see its JSON: Workflow JSON in the node view's top bar (the whole workflow, with your unsaved changes), Menu JSON on the Menus screen (the picked menu as Save would write it), Schema JSON on System Logs (the log resource's properties), and Schema JSON on Resources as before. Each opens in a tab beside, read-only.",
+    ],
+  },
+  {
     version: "0.3.62",
     title: "Undo on the Menus screen",
     items: [

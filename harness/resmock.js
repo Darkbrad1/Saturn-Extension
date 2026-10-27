@@ -32,6 +32,8 @@
     ],
     // a real Application schema's properties, one of each kind (harness/appschema.js)
     ...(window.__appSchema ? { LoanApplication: JSON.parse(JSON.stringify(window.__appSchema)) } : {}),
+    // a real note resource with a Rich text editor property (harness/noteschema.js)
+    ...(window.__noteSchema ? { ApplicationNote: JSON.parse(JSON.stringify(window.__noteSchema)) } : {}),
     LoanCategory: [prop("id", "ID", "string"), prop("label", "Label", "string"), prop("code", "Code", "string")],
   };
   const view = (list) => list.map((p) => ({ key: p.key, label: p.label, type: p.type, required: p.required === true, editable: true, definition: p }));

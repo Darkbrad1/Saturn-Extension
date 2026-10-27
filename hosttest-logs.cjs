@@ -1,4 +1,5 @@
 // v0.3.4: the System Logs panel host code, driven end to end against a fake instance API.
+// v0.3.63: Schema JSON (the log resource's definition, read with a GET).
 const fs = require("fs"), Module = require("module");
 const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={SysLogs$:SystemLogsHost};";
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
@@ -88,6 +89,13 @@ const last = (type) => [...posted].reverse().find((x) => x.type === type)?.paylo
   ok(last("init").resource === "AuditLog", "the saturn.systemLogResource setting overrides it");
   await handler({ type: "openJson", payload: { record: logs[0] } });
   ok(calls.some((c) => c[0] === "openTextDocument" && c[1].language === "json"), "Open as JSON opens an untitled editor (nothing is saved anywhere)");
+  // v0.3.63: Schema JSON reads the log resource's definition (a GET) and shows it as JSON
+  calls.length = 0;
+  const before = seen.length;
+  await handler({ type: "schema", payload: { resource: "SystemLog" } });
+  const doc = calls.find((c) => c[0] === "openTextDocument");
+  ok(doc && doc[1].language === "json" && JSON.parse(doc[1].content).level.label === "Level", "Schema JSON shows the log resource's schema as JSON");
+  ok(seen.slice(before).every((r) => r.startsWith("GET ")) && seen.slice(before).some((r) => r === "GET /api/Resources/SystemLog"), "read with a GET only: " + seen.slice(before).join(", "));
   ok(SysLogs$.pickLogResource(["Menu"], "Menu") === "AuditLog", "with the setting on, the setting wins");
   setting = "";
   ok(SysLogs$.pickLogResource(["Menu", "System_Logs"], null) === "System_Logs" && SysLogs$.pickLogResource(["Menu", "SystemLogs", "AuditLog"], null) === "SystemLogs", "System Logs found by name");

@@ -696,6 +696,8 @@ function App() {
         <div className="rs-title"><span className="rs-title-main">Menus</span><span className="rs-title-sub">{instanceName}</span></div>
         <button className="rs-btn" disabled={loading || !!saving} title="Read the menus again (unsaved changes are kept)" onClick={() => { setLoading(true); asked.current.clear(); setFields(new Map()); post({ type: "refresh" }); }}>Reload</button>
         <button className="rs-btn" title="Open Saturn's menus page in your browser" onClick={() => post({ type: "openInSaturn" })}>Open in Saturn ↗</button>
+        <button className="rs-btn" disabled={!current || !bodyFor(current)} title="The picked menu as JSON, as Save would write it (with the unsaved changes), in a tab beside"
+          onClick={() => { const b = current && bodyFor(current); if (b) post({ type: "viewRaw", text: JSON.stringify({ id: works[current!]?.isNew ? null : current, ...b }, null, 2) }); }}>Menu JSON</button>
         <button className="rs-btn" disabled={!historySize.past || !!saving} title={`Undo the last unsaved change${hint("menus.undo", shortcuts)}`} onClick={() => travel(true)}>Undo</button>
         <button className="rs-btn" disabled={!historySize.future || !!saving} title={`Redo${hint("menus.redo", shortcuts)}`} onClick={() => travel(false)}>Redo</button>
         <span className="rs-push" />

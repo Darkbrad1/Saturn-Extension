@@ -66,6 +66,16 @@ export const get = (o: unknown, path: Path): unknown =>
   path.reduce<unknown>((at, part) => (at && typeof at === "object" ? (at as Prop)[part] : undefined), o);
 
 const inputType = (p: Prop) => String(get(p, ["input_properties", "type"]) ?? "input");
+const isRichText = (p: Prop) => inputType(p) === "richtexteditor";
+/** A Rich text editor's transcriber as a real definition has it, written when it's first switched on. */
+const TRANSCRIBER_DEFAULTS: [string, unknown][] = [["provider", "deepgram"], ["mode", "flux"], ["profile", "general"], ["language", "en"], ["diarization", false]];
+/** The transcriber's text settings: key, name, hint (only the values seen so far are known, so they're typed). */
+const TRANSCRIBER_TEXT: [string, string, string][] = [
+  ["provider", "Provider", "The speech service, for example deepgram."],
+  ["mode", "Mode", "For example flux."],
+  ["profile", "Profile", "For example general."],
+  ["language", "Language", "A language code, for example en."],
+];
 const hasMap = (p: Prop) => !!p.map && typeof p.map === "object";
 const lookupType = (p: Prop) => String(p.lookup_type ?? "");
 const isDynamic = (p: Prop) => p.source === "dynamic";
@@ -123,6 +133,7 @@ export default {
 export const INPUT_TYPES: [string, string][] = [
   ["input", "Input"],
   ["textarea", "Textarea"],
+  ["richtexteditor", "Rich text editor"],
   ["select", "Select"],
   ["switch", "Switch"],
   ["date", "Date"],
@@ -264,7 +275,7 @@ export const GROUPS: Group[] = [
       {
         settings: [
           { path: ["input_properties", "type"], label: "Input type", edit: { kind: "select", options: INPUT_TYPES } },
-          { path: ["input_properties", "rows"], label: "Rows", when: (p) => inputType(p) === "textarea", edit: { kind: "number", min: 1, max: 50 } },
+          { path: ["input_properties", "rows"], label: "Rows", when: (p) => inputType(p) === "textarea" || inputType(p) === "richtexteditor", edit: { kind: "number", min: 1, max: 50 } },
           {
             path: ["input_properties", "attachment_group"],
             label: "Attachment group",
@@ -283,6 +294,37 @@ export const GROUPS: Group[] = [
             label: "Sort",
             when: (p) => inputType(p) === "typed_file_upload",
             edit: { kind: "select", options: [["", "Not set"], ["ascending", "Ascending"], ["descending", "Descending"]] },
+          },
+          // the Rich text editor's voice transcriber and AI actions, as a real definition stores them (0.3.63)
+          {
+            path: ["input_properties", "transcriber", "enabled"],
+            label: "Voice transcriber",
+            hint: "A microphone button that types what people say.",
+            when: isRichText,
+            // switched on for the first time: the settings a real definition has with it
+            alongside: TRANSCRIBER_DEFAULTS.map(([key, value]) => ({ path: ["input_properties", "transcriber", key], value, if: true })),
+            edit: { kind: "bool" },
+          },
+          ...TRANSCRIBER_TEXT.map(([key, label, hint]): Setting => ({
+            path: ["input_properties", "transcriber", key],
+            label,
+            hint,
+            when: (p) => isRichText(p) && get(p, ["input_properties", "transcriber", "enabled"]) === true,
+            edit: { kind: "text", mono: true },
+          })),
+          {
+            path: ["input_properties", "transcriber", "diarization"],
+            label: "Tell speakers apart",
+            hint: "Marks who said what when several people speak (Saturn calls it diarization).",
+            when: (p) => isRichText(p) && get(p, ["input_properties", "transcriber", "enabled"]) === true,
+            edit: { kind: "bool" },
+          },
+          {
+            path: ["input_properties", "ai_actions"],
+            label: "AI actions",
+            hint: "As Saturn stores them (a list).",
+            when: (p) => isRichText(p) || get(p, ["input_properties", "ai_actions"]) !== undefined,
+            edit: { kind: "json" },
           },
           {
             path: ["input_properties", "options", "code"],

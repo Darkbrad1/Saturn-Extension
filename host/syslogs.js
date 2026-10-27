@@ -136,6 +136,13 @@ var SystemLogsHost = (() => {
             await vs.window.showTextDocument(doc, { preview: true, viewColumn: vs.ViewColumn.Beside });
             break;
           }
+          // the log resource's schema (0.3.63): read with a GET, shown as JSON in a tab beside
+          case "schema": {
+            const { data } = await ResourcePropertiesHost.readResource(manager, instance, String(p.resource));
+            const doc = await vs.workspace.openTextDocument({ content: JSON.stringify(data, null, 2), language: "json" });
+            await vs.window.showTextDocument(doc, { preview: true, viewColumn: vs.ViewColumn.Beside });
+            break;
+          }
           case "copy": {
             await vs.env.clipboard.writeText(String(p.text ?? ""));
             break;

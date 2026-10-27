@@ -733,5 +733,5 @@ var ResourcePropertiesHost = (() => {
     storageUri = options.globalStorageUri ?? null;
   }
 
-  return { open, attach, handle, openCode, codeFiles, settingsProblem, settingsBody, propertiesOf, applyChanges, applyRequired, applyAdds, applyOrder, applyRemoves, applyRenames, newProperty, differences, entriesOf };
+  return { open, attach, handle, readResource, openCode, codeFiles, settingsProblem, settingsBody, propertiesOf, applyChanges, applyRequired, applyAdds, applyOrder, applyRemoves, applyRenames, newProperty, differences, entriesOf };
 })();
