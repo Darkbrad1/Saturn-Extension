@@ -11,7 +11,7 @@ const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 
 await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
-await p.selectOption(".rs-select select", "Loan");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Loan")}]`).click();
 await p.waitForTimeout(300);
 await p.locator(".rs-item", { hasText: "Category" }).first().click();
 await p.waitForTimeout(200);
@@ -25,11 +25,11 @@ await p.waitForTimeout(300);
 ok((await bar.innerText()).replace(/\s+/g, " ").includes("Loan › category › LoanCategory"), "after a chip: where you came from, then here: " + (await bar.innerText()).replace(/\s+/g, " "));
 await bar.locator(".rs-crumb-btn", { hasText: "Loan" }).click();
 await p.waitForTimeout(300);
-ok((await p.locator(".rs-select select").inputValue()) === "Loan" && (await p.locator(".rs-item.is-selected").innerText()).includes("Category"), "clicking it goes back, to the property you were on");
+ok((await p.locator(".rs-picker-btn").getAttribute("data-value")) === "Loan" && (await p.locator(".rs-item.is-selected").innerText()).includes("Category"), "clicking it goes back, to the property you were on");
 await p.screenshot({ path: out + "/r1-crumbs.png", clip: { x: 0, y: 0, width: 1440, height: 120 } });
 
 // ===== raw JSON =====
-await p.selectOption(".rs-select select", "Application");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Application")}]`).click();
 await p.waitForTimeout(300);
 await p.locator(".rs-top").getByRole("button", { name: "Resource settings" }).click();
 await p.waitForTimeout(300);

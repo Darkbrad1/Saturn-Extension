@@ -12,7 +12,7 @@ await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
 const resBtn = p.getByRole("button", { name: "Open in Saturn ↗" });
 ok((await resBtn.count()) === 0, "no button before a resource is picked");
-await p.selectOption(".rs-select select", "Application");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Application")}]`).click();
 await p.waitForTimeout(300);
 await resBtn.click();
 await p.waitForTimeout(100);

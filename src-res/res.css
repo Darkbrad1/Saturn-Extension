@@ -52,3 +52,44 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .pe-menu > :not(.pe-find) { display: none; }
   .pe-menu .pe-find { margin: 0; }
 }
+
+/* The resource picker (0.3.70): a button and a searchable list, like the node view's workflow picker */
+.rs-picker { position: relative; }
+.rs-picker-btn { display: inline-flex; align-items: center; gap: 8px; min-width: 200px; max-width: 320px; height: 26px; padding: 0 8px; border-radius: 5px;
+  background: var(--rs-input); border: 1px solid transparent; color: var(--rs-fg); font: inherit; cursor: pointer; }
+.rs-picker-btn:hover:not(:disabled) { background: var(--rs-input-hover); }
+.rs-picker-btn[aria-expanded="true"] { border-color: var(--rs-accent); }
+.rs-picker-btn:disabled { opacity: .6; cursor: default; }
+.rs-picker-value { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.rs-picker-value.is-empty { font-weight: 400; color: var(--rs-muted); }
+.rs-picker-caret { color: var(--rs-muted); font-size: 10px; }
+.rs-picker-pop { position: absolute; z-index: 50; top: calc(100% + 4px); left: 0; width: 320px; display: flex; flex-direction: column; gap: 6px; padding: 8px;
+  background: var(--rs-panel); border: 1px solid var(--rs-line); border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, .45); }
+.rs-picker-search { width: 100%; box-sizing: border-box; height: 28px; padding: 0 8px; border-radius: 5px; background: var(--rs-input); border: 1px solid var(--rs-line); color: var(--rs-fg); font: inherit; }
+.rs-picker-search:focus { outline: none; border-color: var(--rs-accent); }
+.rs-picker-list { max-height: 360px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.rs-picker-heading { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--rs-muted); padding: 4px 8px 2px; }
+.rs-picker-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: 5px; border: 0; background: none; color: var(--rs-fg); font: inherit; text-align: left; cursor: pointer; }
+.rs-picker-item.is-active { background: var(--rs-hover); }
+.rs-picker-item.is-current .rs-picker-name { color: var(--rs-accent); font-weight: 600; }
+.rs-picker-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-picker-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--rs-changed); flex: none; }
+.rs-picker-none { color: var(--rs-muted); padding: 8px; }
+
+/* The page before a resource is picked (0.3.70): cards */
+.rs-cards-page { flex: 1; overflow: auto; padding: 28px 32px 40px; }
+.rs-cards-head, .rs-cards-group { max-width: 1200px; margin: 0 auto; }
+.rs-cards-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.rs-cards-head h1 { font-size: 18px; font-weight: 600; margin: 0; }
+.rs-cards-head .rs-picker-search { margin-left: auto; width: 320px; max-width: 50%; }
+.rs-cards-count { color: var(--rs-muted); font-size: 12px; font-weight: 400; }
+.rs-cards-group h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--rs-muted); font-weight: 600; margin: 18px 0 8px; }
+.rs-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.rs-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 9px; background: var(--rs-panel); border: 1px solid var(--rs-line);
+  color: var(--rs-fg); font: inherit; text-align: left; cursor: pointer; transition: border-color .12s, transform .12s; }
+.rs-card:hover { border-color: var(--rs-accent); transform: translateY(-1px); }
+.rs-card:focus-visible { outline: 2px solid var(--rs-accent); outline-offset: 2px; }
+.rs-card-mark { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 7px; font-size: 11px; font-weight: 700;
+  background: color-mix(in srgb, var(--rs-accent) 22%, transparent); color: var(--rs-accent); }
+.rs-cards-group[data-label="Core resources"] .rs-card-mark { background: color-mix(in srgb, var(--rs-muted) 22%, transparent); color: var(--rs-fg-2); }
+.rs-card-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

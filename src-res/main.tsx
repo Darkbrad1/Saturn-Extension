@@ -7,6 +7,7 @@
 // The host side is host/resources.js (it reads a resource and saves it the way Saturn's own app
 // does, with a backup and a read-back check). Changes stay here until Save, kept for each resource
 // separately (and in the webview's state); Save saves every resource with changes, one by one.
+import { ResourceCards, ResourcePicker } from "./picker";
 import type { Subjects } from "../src-menus/model";
 import { createRoot } from "react-dom/client";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -585,7 +586,8 @@ function App() {
     },
   };
 
-  const option = (r: string) => <option key={r} value={r}>{r}{(works[r] && !isEmpty(works[r])) || settingsWorks[r] ? " •" : ""}</option>;
+  const unsavedIn = (r: string) => !!((works[r] && !isEmpty(works[r])) || settingsWorks[r]);
+  const pickResource = (r: string) => { setResource(r); setSelected([]); setTrail([]); setNotice(null); };
   const unsavedText = plans.length > 1 ? `Unsaved in ${plans.length} resources` : plans.length ? `Unsaved: ${plans[0].summary.join(", ")}${plans[0].resource !== resource ? ` (${plans[0].resource})` : ""}` : "";
   const pickedLive = picked.filter((p) => !deleted.has(p.key));
   const pickedDeleted = picked.filter((p) => deleted.has(p.key));
@@ -598,20 +600,7 @@ function App() {
           <span className="rs-title-main">Resources</span>
           <span className="rs-title-sub">{instanceName}</span>
         </div>
-        <label className="rs-select">
-          Resource
-          <select value={resource ?? ""} disabled={!resources || saving} onChange={(e) => { setResource(e.target.value || null); setSelected([]); setTrail([]); setNotice(null); }}>
-            <option value="">{resources ? "Pick one" : "Loading…"}</option>
-            {core ? (
-              <>
-                <optgroup label="Resources">{(resources ?? []).filter((r) => !core.includes(r)).map(option)}</optgroup>
-                <optgroup label="Core resources">{(resources ?? []).filter((r) => core.includes(r)).map(option)}</optgroup>
-              </>
-            ) : (
-              (resources ?? []).map(option)
-            )}
-          </select>
-        </label>
+        <ResourcePicker value={resource} disabled={saving} resources={resources} core={core} unsaved={unsavedIn} onPick={pickResource} />
         {resource && (
           <button className="rs-btn" disabled={loading || saving || !!works[resource] || !!settingsWorks[resource]} title={works[resource] || settingsWorks[resource] ? "Save or discard this resource's changes first" : "Read the resource again"} onClick={() => { setLoading(true); setFields({}); asked.current.clear(); setDetails((before) => { const out = { ...before }; delete out[resource]; return out; }); send("load", { resource }); }}>
             Reload
@@ -711,7 +700,7 @@ function App() {
       )}
 
       {!resource ? (
-        <p className="rs-empty">Pick a resource to see its properties.</p>
+        <ResourceCards resources={resources} core={core} unsaved={unsavedIn} onPick={pickResource} instanceName={instanceName} />
       ) : !properties ? (
         <p className="rs-empty">Loading {resource}…</p>
       ) : (

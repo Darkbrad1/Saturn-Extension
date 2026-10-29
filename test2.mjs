@@ -58,7 +58,7 @@ ok(s2.data.to === "{{ record.alt_email }}" && typeof s2.data.message === "object
 // code field: Open in editor from the panel
 await p.locator('.react-flow__node', { hasText: "Run Script" }).click();
 await p.waitForTimeout(400);
-await p.locator(".fg-panel .nv-link").click();
+await p.locator(".fg-panel .nv-link", { hasText: "Open in editor" }).click();
 await p.waitForTimeout(200);
 o = JSON.parse(await opened());
 ok(o[2]?.type === "openParamEditor" && o[2].param === "code", "panel 'Open in editor' opens the code editor");

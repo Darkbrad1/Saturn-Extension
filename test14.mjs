@@ -23,7 +23,7 @@ const menu = async (label, entry) => {
 
 await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
-await p.selectOption(".rs-select select", "Application");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Application")}]`).click();
 await p.waitForTimeout(300);
 
 // ===== several picked =====
@@ -81,7 +81,7 @@ ok(JSON.stringify(sent.removes) === '["status"]' && sent.adds?.[0]?.key === "sta
 ok(await p.evaluate(() => !window.__data.Application.some((x) => x.key === "status") && window.__data.Application.some((x) => x.key === "status_copy")), "and after saving it's gone, the copy is there");
 
 // ===== mapped chips, jumping there and back =====
-await p.selectOption(".rs-select select", "Loan");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Loan")}]`).click();
 await p.waitForTimeout(300);
 ok((await item("Category").locator(".rs-chip.is-static").innerText()) === "LoanCategory" && (await item("Payments").locator(".rs-chip.is-dynamic").innerText()) === "Application", "a mapped property has a chip naming its resource: blue for a map, purple for a dynamic source");
 ok((await item("Category").locator(".rs-grip.is-static").count()) === 1 && (await item("Payments").locator(".rs-grip.is-dynamic").count()) === 1 && (await item("Amount").locator(".rs-req").count()) === 1, "the bar shows the kind of map, and Required is a star");
@@ -90,12 +90,12 @@ await sw("Unique").click();
 await item("Category").click();
 await item("Category").locator(".rs-chip").click();
 await p.waitForTimeout(300);
-ok((await p.locator(".rs-select select").inputValue()) === "LoanCategory" && (await p.locator(".rs-crumbbar").innerText()).includes("Loan"), "the chip opens that resource, with the way back shown");
+ok((await p.locator(".rs-picker-btn").getAttribute("data-value")) === "LoanCategory" && (await p.locator(".rs-crumbbar").innerText()).includes("Loan"), "the chip opens that resource, with the way back shown");
 ok((await p.locator(".rs-unsaved").innerText()).includes("Loan"), "Loan's unsaved change is kept while you're away");
 await p.screenshot({ path: out + "/m2-jumped.png" });
 await p.keyboard.press("Alt+ArrowLeft");
 await p.waitForTimeout(300);
-ok((await p.locator(".rs-select select").inputValue()) === "Loan" && (await p.locator(".rs-item.is-selected").innerText()).includes("Category") && (await p.locator(".rs-crumbbar .rs-crumb").count()) === 0, "Alt+← comes back to the property you came from");
+ok((await p.locator(".rs-picker-btn").getAttribute("data-value")) === "Loan" && (await p.locator(".rs-item.is-selected").innerText()).includes("Category") && (await p.locator(".rs-crumbbar .rs-crumb").count()) === 0, "Alt+← comes back to the property you came from");
 await item("Payments").click({ button: "right" });
 await p.locator(".rs-menu").getByRole("menuitem", { name: "Go to Application" }).click();
 await p.waitForTimeout(300);
@@ -110,7 +110,7 @@ const last = (await saves()).slice(-2).map((x) => x.resource).sort().join();
 ok(last === "Application,Loan" && (await p.locator(".rs-notice").innerText()).includes("Saved 2 resources") && (await p.locator(".rs-unsaved").count()) === 0, "Save saves both, one after the other");
 await p.getByRole("button", { name: "‹ Back" }).click();
 await p.waitForTimeout(300);
-ok((await p.locator(".rs-select select").inputValue()) === "Loan", "Back goes back too");
+ok((await p.locator(".rs-picker-btn").getAttribute("data-value")) === "Loan", "Back goes back too");
 
 // ===== one column, the full width, with the same gap under every card =====
 await item("Amount").click();
@@ -135,11 +135,13 @@ ok(lefts.length === 1 && g.length > 2 && g.every((x) => x === g[0]), `even on a 
 await p.screenshot({ path: out + "/m3-wide.png" });
 
 // ===== the resource picker: the instance's own resources first, then the core ones =====
-const groups = await p.evaluate(() => [...document.querySelectorAll(".rs-select optgroup")].map((g) => g.label + ": " + [...g.querySelectorAll("option")].map((o) => o.value).join(",")));
+await p.locator(".rs-picker-btn").click();
+const groups = await p.evaluate(() => [...document.querySelectorAll(".rs-picker-group")].map((g) => g.dataset.label + ": " + [...g.querySelectorAll(".rs-picker-item")].map((o) => o.dataset.resource).join(",")));
+await p.keyboard.press("Escape");
 ok(groups.join(" | ") === "Resources: Application,ApplicationNote,Deal,Loan,LoanApplication,LoanCategory | Core resources: User", "the resource picker lists the non-core resources first, then the core ones: " + groups.join(" | "));
 
 // ===== Show in: Saturn's hide… settings, shown the other way round (0.3.25) =====
-await p.selectOption(".rs-select select", "Loan");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Loan")}]`).click();
 await p.waitForTimeout(300);
 await item("Term").click();
 const formsSwitch = p.locator(".pe-block", { hasText: "Show in" }).getByRole("switch", { name: "Forms", exact: true });
@@ -152,7 +154,7 @@ ok((await p.evaluate(() => window.acquireVsCodeApi().getState().works.Loan?.draf
 await p.getByRole("button", { name: "Discard" }).click();
 
 // ===== the resource's workflows: a button opens each on the Workflows screen (0.3.26) =====
-await p.selectOption(".rs-select select", "Application");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Application")}]`).click();
 await p.waitForTimeout(300);
 const wfButtons = await p.locator(".rs-workflows .rs-wf").allInnerTexts();
 ok(wfButtons.length === 2 && wfButtons[0].includes("Workflow") && wfButtons[0].includes("Loan process") && wfButtons[1].includes("Hook") && (await p.locator(".rs-wf").nth(1).getAttribute("title")).includes("after create"), "the resource's workflow and its hooks' workflows each have a button");

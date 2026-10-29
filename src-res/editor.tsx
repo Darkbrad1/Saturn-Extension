@@ -5,6 +5,7 @@
 // has its name and hint on the left and its control on the right (switches for on/off, cards for
 // a few choices), a dot and "was …" when it differs from what the instance has, and Put back.
 // Everything is local until the screen's Save.
+import { FormatButton } from "../src/format";
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { HighlightInput } from "../src/controls";
 import { IconField } from "./icons";
@@ -421,6 +422,7 @@ function Control(props: { setting: Setting; id: string; value: unknown; mixed: b
       return (
         <div className="pe-code">
           <HighlightInput multiline mono rows={Math.min(16, Math.max(4, str.split("\n").length + 1))} lang={edit.lang} value={mixed ? str : str || edit.empty} placeholder={MIXED && "Mixed: what you type here goes to all of them"} disabled={disabled} ariaLabel={setting.label} onChange={(v) => set(path, v)} />
+          <FormatButton className="rs-btn pe-open-file" value={str} lang={edit.lang} disabled={disabled || mixed} onFormatted={(v) => set(path, v)} />
           {props.lookups.openCode && props.drafts.length === 1 && (
             <button type="button" className="rs-btn pe-open-file" disabled={disabled} title="Open it in its own editor tab; saving the file writes it back" onClick={() => props.lookups.openCode!(path, edit.lang, str || edit.empty)}>
               Open in a file

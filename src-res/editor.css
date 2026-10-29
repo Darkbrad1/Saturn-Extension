@@ -316,3 +316,6 @@ textarea.pe-input { height: auto; padding: 6px 8px; resize: vertical; }
 .pe-fav-all { max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
 .pe-fav-group { margin: 0; padding: 0; border: 0; }
 .pe-fav-group legend { font-size: 11px; font-weight: 600; color: var(--rs-fg-2); margin-bottom: 2px; }
+/* Format (0.3.70), beside Open in a file */
+.nv-format { display: inline-flex; align-items: center; gap: 6px; }
+.nv-format-problem { color: var(--rs-error); font-size: 11px; }

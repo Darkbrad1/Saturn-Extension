@@ -154,7 +154,7 @@ await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
 await p.evaluate(() => window.dispatchEvent(new MessageEvent("message", { data: { type: "show", payload: { resource: "Loan" } } })));
 await p.waitForTimeout(400);
-ok((await p.locator(".rs-select select").inputValue()) === "Loan" && (await p.locator(".rs-item").count()) > 0, "the Resources screen opens on the resource a chip names");
+ok((await p.locator(".rs-picker-btn").getAttribute("data-value")) === "Loan" && (await p.locator(".rs-item").count()) > 0, "the Resources screen opens on the resource a chip names");
 
 ok(errs.length === 0, "no page errors (" + errs.join(" | ") + ")");
 await b.close();

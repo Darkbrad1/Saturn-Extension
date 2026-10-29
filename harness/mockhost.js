@@ -48,6 +48,11 @@
     create: { name: "Create", category: "Records", description: "Create a record.", icon: null, form: "CreateResourceOperatorForm",
       output: { description: "The record that was created, including its new id.", type: "object", fields: [{ path: "id", type: "string", description: "The new record's id." }] },
       params: [P("resource_name", "Resource Name", { lookupKind: "resources" }), P("Properties", "Properties", { type: "object", defaultValue: "{}" }), P("id", "ID", { defaultValue: "{}" })] },
+    // Saturn's Read, with its params as the owner's operator list names them (0.3.70)
+    read: { name: "Read", category: "Records", description: "Read records of a resource.", icon: null,
+      params: [P("resource_name", "Resource Name", { lookupKind: "resources", required: true }), P("query", "Query", { description: "N1QL query filter to apply when retrieving records (WHERE clause)" }),
+        P("limit", "Limit", { type: "number" }), P("offset", "Offset", { type: "number" }), P("sort", "Sort", { description: "N1QL ORDER BY clause" }),
+        P("columns", "Columns", { description: "Comma-separated list of specific columns to return" })] },
     debug: { name: "Debug", category: "Developer", description: "Log the current context.", icon: null,
       params: [P("label", "Label"), P("level", "Level", { lookupValues: ["info", "warn", "error"] })] },
     schedule_followup: { name: "Schedule Follow-up", category: "Records", description: "Schedule a follow-up on the record.", icon: null,
@@ -174,7 +179,9 @@
           { type: "each", operator: "Each", reference: "{{ _flow }}", concurrency: 1, command: { type: "series", commands: [op("debug", { label: "item" }, { mock: true })] } }] } },
       ] },
       { stage: "done", label: "Done", color: "#22c55e", actions: [
-        { id: "close", action: "close", label: "Close", task: { type: "series", commands: [op("send_email", { to: "a@b.c", subject: "Closed" })] } },
+        { id: "close", action: "close", label: "Close", task: { type: "series", commands: [op("send_email", { to: "a@b.c", subject: "Closed" }),
+          // a Read step with a query, a sort and columns as Saturn writes them (0.3.70)
+          op("read", { resource_name: "orders", query: "`orders`.`status` = 'shipped' AND `orders`.`total` > 100", limit: "20", sort: "`orders`.`shipped_at` DESC", columns: "`orders`.`status`,`orders`.`total`" })] } },
       ] },
     ],
     actions: [{ id: "audit", action: "audit", label: "Audit", task: { type: "series", commands: [op("debug", { label: "audit start" }), op("debug", { label: "audit end", level: "warn" })] } }],

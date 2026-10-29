@@ -19,7 +19,7 @@ const save = async () => {
 
 await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
-await p.selectOption(".rs-select select", "Deal");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Deal")}]`).click();
 await p.waitForTimeout(300);
 await p.locator(".rs-item", { hasText: "Parties" }).first().click();
 await p.waitForTimeout(300);

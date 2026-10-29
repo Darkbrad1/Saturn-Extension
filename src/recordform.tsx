@@ -34,6 +34,8 @@ const BUILT_IN: ResourceField[] = [
   { key: "updated_at", label: "Updated at", type: "date" },
 ];
 
+const json = (obj: Record<string, unknown>) => JSON.stringify(obj);
+
 export function recordFormOf(operator: string | null | undefined, catalog: Catalog): RecordFormKind | null {
   if (!operator) return null;
   const form = catalog[operator]?.form;
@@ -145,9 +147,28 @@ export function RecordForm(props: {
     setFocusKey(null);
   }, [focusKey]);
 
+  // a resource just picked, waiting for its properties (switch, below)
+  const [switching, setSwitching] = useState<string | null>(null);
+  const nextFields = switching && !/\{\{/.test(switching) ? env.fields?.(switching) : undefined;
+  useEffect(() => {
+    if (switching === null) return;
+    // a template, or none: nothing to compare with, so the properties stay
+    const known = switching && !/\{\{/.test(switching) ? nextFields : [];
+    if (known === null || known === undefined) return;
+    const keep = new Set([...known.map((f) => f.key), ...(known.length ? BUILT_IN.map((b) => b.key) : [])]);
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(parsed ?? {})) if (!known.length || keep.has(k)) out[k] = v;
+    setRows((cur) => (known.length ? cur.filter((k) => keep.has(k)) : cur));
+    const change: Record<string, string> = { [resKey]: switching };
+    if (parsed && Object.keys(out).length !== Object.keys(parsed).length) change[propsKey] = json(out);
+    for (const [k, v] of Object.entries(change)) props.onChange(k, v);
+    props.onCommit(change);
+    setSwitching(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [switching, nextFields]);
+
   const fieldOf = (k: string) => fields?.find((f) => f.key === k) ?? BUILT_IN.find((f) => f.key === k);
   const isTemplate = (k: string) => templates.has(k) || (needsTemplateBox(fieldOf(k)) && typeof parsed?.[k] === "string" && /^\s*\{\{[\s\S]*\}\}\s*$/.test(parsed[k] as string));
-  const json = (obj: Record<string, unknown>) => JSON.stringify(obj);
   const withValue = (k: string, t: string) => {
     const next: Record<string, unknown> = {};
     for (const key of [...Object.keys(parsed ?? {}), ...(parsed && k in parsed ? [] : [k])]) {
@@ -195,7 +216,13 @@ export function RecordForm(props: {
         error={errFor(resKey)}
         canOpenFiles={false}
         onChange={(v) => props.onChange(resKey, v)}
-        onCommit={(v) => props.onCommit(v === undefined ? undefined : { [resKey]: v })}
+        onCommit={(v) => {
+          // another resource (0.3.70): its properties are read first, so the switch and taking out the properties it
+          // doesn't have are one change (one Undo brings them back)
+          const next = (v ?? values[resKey] ?? "").trim();
+          if (v === undefined || next === picked) return props.onCommit(v === undefined ? undefined : { [resKey]: v });
+          setSwitching(next);
+        }}
       />
       {kind === "updater" && (
         <FieldControl

@@ -16,7 +16,7 @@ const stored = () => p.evaluate(() => JSON.parse(localStorage.getItem("__favouri
 
 await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
-await p.selectOption(".rs-select select", "Application");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Application")}]`).click();
 await p.waitForTimeout(300);
 await p.locator(".rs-item", { hasText: "Status" }).first().click();
 await p.waitForTimeout(300);
@@ -53,7 +53,7 @@ await p.waitForTimeout(150);
 ok((await favLabels()).join() === "Input type,Required,Column width" && (await stored()).join() === "input_properties.type,required,tableColumnWidth", "dragging a favourite moves it: " + (await favLabels()).join());
 
 // another property and another resource show the same list
-await p.selectOption(".rs-select select", "Loan");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Loan")}]`).click();
 await p.waitForTimeout(300);
 await p.locator(".rs-item").first().click();
 await p.waitForTimeout(300);

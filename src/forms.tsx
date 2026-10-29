@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import type { Catalog, CatalogParam, CommandView } from "./types";
 import { shownWhen } from "./showwhen";
 import { RecordForm, recordFormOf, type ResourceField } from "./recordform";
+import { FormatButton } from "./format";
+import { ColumnsEditor, QueryEditor, SortEditor } from "./query";
 import {
   ColorChip,
   DateButtons,
@@ -59,6 +61,8 @@ export interface FieldSpec {
   color?: boolean;
   /** syntax for the highlighter (default: {{ templates }}) */
   lang?: HlLang;
+  /** a Read step's query, sort or columns (0.3.70): built from the step's resource's properties */
+  query?: { part: "where" | "sort" | "columns"; resource: string };
 }
 
 /** Add the special controls a field gets from its type or name. */
@@ -193,9 +197,16 @@ export function fieldsFor(
       if (!entry) return Object.keys(values).map((k) => extraField(k, values[k]));
       // and the settings the step has that the catalog doesn't list (like a Create step's properties)
       const listed = new Set(entry.params.map((p) => p.param));
+      // a step that reads records of a resource (Read): its query, sort and columns are built from that resource
+      const queryOf = (key: string): FieldSpec["query"] => {
+        if (!listed.has("resource_name") || !listed.has("query")) return undefined;
+        const part = ({ query: "where", sort: "sort", columns: "columns" } as const)[key as "query" | "sort" | "columns"];
+        return part ? { part, resource: values.resource_name ?? "" } : undefined;
+      };
+      const withQuery = (f: FieldSpec): FieldSpec => (queryOf(f.key) ? { ...f, query: queryOf(f.key) } : f);
       return [
         // a setting with a "Show only when" rule shows while it's true; its value is kept either way
-        ...entry.params.filter((p) => !p.mergedInto && shownWhen(p.showWhen, values)).map((p) => enrich(paramField(p), p.type, p.inputType)),
+        ...entry.params.filter((p) => !p.mergedInto && shownWhen(p.showWhen, values)).map((p) => withQuery(enrich(paramField(p), p.type, p.inputType))),
         ...Object.keys(values).filter((k) => !listed.has(k)).map((k) => extraField(k, values[k])),
       ];
     }
@@ -354,10 +365,12 @@ export function FieldControl(props: {
     props.onChange(v);
     props.onCommit?.(v);
   };
-  const wide = ["textarea", "code", "object", "lookup"].includes(f.kind);
+  const wide = ["textarea", "code", "object", "lookup"].includes(f.kind) || !!f.query;
 
   let control: React.ReactNode;
-  switch (f.kind) {
+  const Query = f.query ? { where: QueryEditor, sort: SortEditor, columns: ColumnsEditor }[f.query.part] : null;
+  if (Query) control = <Query resource={f.query!.resource} value={props.value} onChange={props.onChange} onCommit={(v) => props.onCommit?.(v)} />;
+  else switch (f.kind) {
     case "select":
     case "resource": {
       const opts =
@@ -494,6 +507,16 @@ export function FieldControl(props: {
             Open in editor ↗
           </button>
         )}
+        {f.kind === "code" && props.onCommit && (
+          <FormatButton
+            value={props.value}
+            lang={f.language}
+            onFormatted={(v) => {
+              props.onChange(v);
+              props.onCommit?.(v);
+            }}
+          />
+        )}
         {props.extra}
       </span>
       {control}
@@ -518,77 +541,114 @@ function Wrap(props: { className: string; children: React.ReactNode }) {
 }
 
 /** Records of a resource, as radio buttons (one) or checkboxes (many) — the list view's lookup picker. */
-/** One record of a resource (0.3.66, a map lookup like Create Task's Person): type to search its records and click one
- *  to use its id, or type any value or {{ }} template. The box shows the picked record's name beside it. */
-function RecordPicker(props: { f: FieldSpec; value: string; onPick: (v: string) => void }) {
+/** One record of a resource (0.3.66; like Saturn's dropdown since 0.3.70): the box shows the picked record's name
+ *  (its label field, e.g. an application number); clicking it lists every record by name, typing narrows the list,
+ *  × clears it. A typed {{ template }} or id is kept as typed. */
+export function RecordPicker(props: { f: FieldSpec; value: string; onPick: (v: string) => void }) {
   const env = useContext(FormEnvContext);
   const lk = props.f.lookup!;
   const options = env.lookupOptions[lk.resource];
-  const [text, setText] = useState(props.value);
+  const picked = (options ?? []).find((o) => o.value === props.value.trim());
+  const shown = picked ? picked.label : props.value;
+  const [text, setText] = useState(shown);
+  // what's typed since the box was opened: until then the list shows every record
+  const [typed, setTyped] = useState(false);
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const box = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   // the last value sent, so a pick followed by the box losing focus isn't sent twice
   const sent = useRef(props.value);
   useEffect(() => {
-    setText(props.value);
+    setText(shown);
     sent.current = props.value;
-  }, [props.value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.value, shown]);
   useEffect(() => {
     if (options === undefined) env.needLookup(lk.resource, lk.valueField, lk.labelField);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lk.resource, options === undefined]);
-  const commit = (v: string) => {
+  const send = (v: string) => {
     setOpen(false);
-    if (v === sent.current) return;
+    setTyped(false);
+    if (v === sent.current) {
+      setText(shown);
+      return;
+    }
     sent.current = v;
     props.onPick(v);
   };
-  const q = text.trim().toLowerCase();
+  // what typed text means: a record's name picks it, anything else (an id, a template) is kept as typed
+  const resolve = (t: string) => (options ?? []).find((o) => o.label === t.trim())?.value ?? t.trim();
+  const q = typed ? text.trim().toLowerCase() : "";
   const isTemplate = /\{\{/.test(text);
-  const matches = (options ?? []).filter((o) => !q || isTemplate || o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q)).slice(0, 8);
-  const picked = (options ?? []).find((o) => o.value === props.value.trim());
+  const matches = (options ?? []).filter((o) => !q || o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q));
   return (
-    <div className="nv-record">
+    <div
+      className="nv-record"
+      onMouseDown={(e) => {
+        // a click in the box opens the list again, also when it already has focus (after a pick)
+        if (!open && e.target === box.current) {
+          setOpen(true);
+          setTyped(false);
+        }
+      }}
+    >
       <HighlightInput
         value={text}
-        placeholder={`Search ${lk.resource}, or type a value or {{ template }}`}
+        placeholder={`Pick ${lk.resource}, or type {{ template }}`}
         onChange={(v) => {
           setText(v);
+          setTyped(true);
           setOpen(true);
+          setActive(0);
         }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => commit(text), 150)}
+        inputRef={box}
+        onFocus={() => {
+          setOpen(true);
+          setTyped(false);
+          setTimeout(() => box.current?.select(), 0);
+        }}
+        onBlur={() => setTimeout(() => (typed ? send(resolve(text)) : (setOpen(false), setText(shown))), 150)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
             e.preventDefault();
-            commit(text);
+            setOpen(true);
+            setActive((n) => Math.max(0, Math.min(matches.length - 1, n + (e.key === "ArrowDown" ? 1 : -1))));
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (!isTemplate && open && matches[active] && (typed || !text)) send(matches[active].value);
+            else send(typed ? resolve(text) : props.value);
           } else if (e.key === "Escape") {
-            setText(props.value);
+            setText(shown);
+            setTyped(false);
             setOpen(false);
           }
         }}
       />
-      {picked && <span className="nv-record-name" title={picked.value}>{picked.label}</span>}
+      {props.value && (
+        <button type="button" className="nv-record-clear" title="Clear" aria-label={`Clear ${props.f.label}`} onMouseDown={(e) => e.preventDefault()} onClick={() => send("")}>
+          ×
+        </button>
+      )}
       {open && !isTemplate && (
         <div className="nv-record-list" role="listbox" aria-label={`${lk.resource} records`}>
           {options === undefined && <span className="nv-lookup-note">Loading {lk.resource}…</span>}
           {options === null && <span className="nv-lookup-note">{lk.resource} records couldn't be read; type the id.</span>}
           {options && !matches.length && <span className="nv-lookup-note">No {lk.resource} matches “{text}”.</span>}
-          {matches.map((o) => (
+          {matches.map((o, i) => (
             <button
               key={o.value}
               type="button"
               role="option"
               aria-selected={o.value === props.value}
-              className="nv-record-row"
+              className={`nv-record-row ${o.value === props.value ? "is-picked" : ""} ${i === active ? "is-active" : ""}`}
               title={o.value}
               onMouseDown={(e) => {
                 e.preventDefault();
-                setText(o.value);
-                commit(o.value);
+                send(o.value);
               }}
             >
-              <span>{o.label}</span>
-              <code>{o.value}</code>
+              {o.label}
             </button>
           ))}
         </div>

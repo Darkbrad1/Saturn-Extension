@@ -353,7 +353,12 @@ export function describeDate(v: string, mode: DateMode): string | null {
     : d.toLocaleString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export function DateButtons(props: { value: string; mode: DateMode; onPick: (v: string) => void }) {
+/** What a date picker's Now puts in the box (0.3.70): the time the step runs, as Saturn's workflows write it. */
+export const NOW_TEMPLATE = "{{ _util.moment().toISOString() }}";
+
+/** `actualNow`: Now puts in the time it is (a trigger's run time, which no template fills in). */
+export function DateButtons(props: { value: string; mode: DateMode; onPick: (v: string) => void; actualNow?: boolean }) {
+  const now = () => (props.mode === "time" || props.actualNow ? formatDate(new Date(), props.mode) : NOW_TEMPLATE);
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
   return (
@@ -361,10 +366,10 @@ export function DateButtons(props: { value: string; mode: DateMode; onPick: (v: 
       <button
         type="button"
         className="nv-mini-btn nv-now-btn"
-        title={props.mode === "date" ? "Today" : "Now"}
-        onClick={() => props.onPick(formatDate(new Date(), props.mode))}
+        title={props.mode === "time" || props.actualNow ? "Now" : `The time the step runs: ${NOW_TEMPLATE}`}
+        onClick={() => props.onPick(now())}
       >
-        {props.mode === "date" ? "Today" : "Now"}
+        Now
       </button>
       <button
         type="button"
@@ -385,6 +390,7 @@ export function DateButtons(props: { value: string; mode: DateMode; onPick: (v: 
           <Calendar
             value={props.value}
             mode={props.mode}
+            now={now}
             onPick={(v, close) => {
               props.onPick(v);
               if (close) setOpen(false);
@@ -397,7 +403,7 @@ export function DateButtons(props: { value: string; mode: DateMode; onPick: (v: 
 }
 
 const WEEK = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-function Calendar(props: { value: string; mode: DateMode; onPick: (v: string, close: boolean) => void }) {
+function Calendar(props: { value: string; mode: DateMode; onPick: (v: string, close: boolean) => void; now: () => string }) {
   const cur = parseDate(props.value, props.mode);
   const [view, setView] = useState(() => {
     const d = cur ?? new Date();
@@ -474,7 +480,7 @@ function Calendar(props: { value: string; mode: DateMode; onPick: (v: string, cl
           <button type="button" className="nv-mini-btn" onClick={() => pick(new Date(), true)}>Today</button>
         )}
         {props.mode !== "date" && (
-          <button type="button" className="nv-mini-btn is-primary" onClick={() => props.onPick(formatDate(new Date(), props.mode), true)}>Now</button>
+          <button type="button" className="nv-mini-btn is-primary" title={props.now() === NOW_TEMPLATE ? `The time the step runs: ${NOW_TEMPLATE}` : "Now"} onClick={() => props.onPick(props.now(), true)}>Now</button>
         )}
       </div>
     </div>

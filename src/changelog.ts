@@ -1,6 +1,20 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.70",
+    title: "A rich text editor that does everything, a query builder for Read, Format for code, cards to start from",
+    items: [
+      "The rich text editor was rebuilt. Its bar stays inside the panel, its block menu (Text, Heading 1 to 4, Quote, Code) works, and its tools are icons. A link can be changed or taken off (Unlink). Pictures show; click one to point it at another address or upload a file, or to remove it. Tables: + Row, + Column, − Row, − Column and Delete table; a new table is Saturn's Dark Header style. Line spacing from 1.0 to 3.0. Saturn's own HTML (tables, colours, spacing) is kept as it is.",
+      "A record setting (like a Note's Application) lists every record by its name, such as its application number, as soon as you click it, and the list comes back every time.",
+      "Every date's Now button now puts {{ _util.moment().toISOString() }} in the box, so the date is the moment the step runs. (A trigger's Run at still puts in the time it is now, since no template is filled in there.)",
+      "Switching a Create or Property Updater step to another resource takes out the properties the new one doesn't have, in one change, so Undo brings them all back.",
+      "A Read step's Query is built from rows, like a Menus tab's filter: a property, a comparison (is, is not, more or less than, contains, is empty, is set) and a value or {{ template }}, matching all or any. Sort is a property and a direction, and Columns is a list to tick. A query too involved for rows is kept as text.",
+      "Code settings have a Format button that lays the code out neatly, like Prettier: in the side panel, on the Resources screen and on the Form tab.",
+      "Before a workflow is open, the Workflows screen shows a card for each one, with its stages, a search and New workflow. The Resources screen starts the same way, with a card per resource.",
+      "The Resources screen's resource picker is a searchable list in two groups (Resources, then Core resources), like the workflow switcher.",
+    ],
+  },
+  {
     version: "0.3.69",
     title: "Create and Property Updater like Saturn's forms, a Notion-like rich text editor, cards you can move and resize",
     items: [

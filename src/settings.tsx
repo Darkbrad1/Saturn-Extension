@@ -877,7 +877,7 @@ function TriggerEditor(props: {
                 placeholder={p.description ?? undefined}
                 onChange={(v) => set(p.key, v)}
               />
-              {dm && <DateButtons value={values[p.key] ?? ""} mode={dm} onPick={(v) => set(p.key, v)} />}
+              {dm && <DateButtons value={values[p.key] ?? ""} mode={dm} actualNow onPick={(v) => set(p.key, v)} />}
             </span>
           )}
           {dm && describeDate(values[p.key] ?? "", dm) && <span className="nv-date-hint fg-date-hint">{describeDate(values[p.key] ?? "", dm)}</span>}

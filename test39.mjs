@@ -10,7 +10,7 @@ const opened = async () => { const o = await p.evaluate(() => (window.__opened |
 
 await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
-await p.selectOption(".rs-select select", "Application");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Application")}]`).click();
 await p.waitForTimeout(300);
 const btn = p.locator(".rs-top").getByRole("button", { name: "Schema JSON" });
 ok((await btn.count()) === 1, "a Schema JSON button in the top bar");

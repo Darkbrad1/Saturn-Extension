@@ -13,7 +13,7 @@ const pick = async (key) => { await p.locator(".rs-item", { has: p.locator(".rs-
 
 await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
-await p.selectOption(".rs-select select", "LoanApplication");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("LoanApplication")}]`).click();
 await p.waitForTimeout(300);
 await pick("student_institution_country");
 

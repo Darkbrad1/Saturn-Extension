@@ -13,7 +13,7 @@ const find = async (text) => { await p.fill(".pe-find", text); await p.waitForTi
 
 await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
-await p.selectOption(".rs-select select", "Application");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Application")}]`).click();
 await p.waitForTimeout(300);
 await p.locator(".rs-item", { hasText: "Status" }).first().click();
 await p.waitForTimeout(300);

@@ -35,7 +35,7 @@ ok((await panel.locator(".nv-recform select").first().inputValue()) === "Note", 
 const names = await panel.locator(".nv-recform .nv-prop .nv-field-name").allInnerTexts();
 ok(names.join(",") === "Creator,Creator Role,Application Stage,Description,Application,Created at", "each property by its name from the Note resource: " + names.join(","));
 ok((await prop("description").locator(".ql-editor li").count()) === 4 && (await prop("description").locator(".nv-rich-bar").count()) === 0, "the rich text description is an editor showing its list, with no toolbar until text is picked");
-ok((await prop("application").locator(".nv-record-name").innerText()) === "APP-000123-QK7Z2D", "the Application is a record picker showing the picked record's name");
+ok((await prop("application").locator(".nv-record input").inputValue()) === "APP-000123-QK7Z2D", "the Application is a record picker showing the picked record's name");
 ok((await prop("created_at").locator("input").inputValue()) === "" && (await prop("created_at").getByRole("button", { name: "Now" }).count()) === 1, "an unpicked date ({}) shows empty, with a date picker");
 const w = (await panel.boundingBox()).width;
 ok(Math.abs(w - 1500 * 0.66) < 6, "the panel is wide for it: " + Math.round(w));

@@ -1105,14 +1105,7 @@ export function App() {
             Back to list view
           </button>
         </div>
-        <div className="nv-picker-page">
-          <WorkflowPicker
-            list={workflowList}
-            currentId={null}
-            onPick={switchWorkflow}
-            onNew={() => setNewWf({ name: "", stage: "", error: null, busy: false })}
-          />
-        </div>
+        <WorkflowCards list={workflowList} onPick={switchWorkflow} onNew={() => setNewWf({ name: "", stage: "", error: null, busy: false })} />
         {newWf && <NewWorkflowDialog state={newWf} setState={setNewWf} />}
       </div>
     );
@@ -1623,6 +1616,51 @@ function WorkflowPicker(props: {
         ))}
         {shown.length === 0 && <div className="nv-menu-empty">{props.list.length ? "No matches" : "No workflows yet."}</div>}
       </div>
+    </div>
+  );
+}
+
+/** The page before a workflow is open (0.3.70): a card per workflow with its stages, a search and New workflow. */
+function WorkflowCards(props: { list: WorkflowSummary[]; onPick: (w: WorkflowSummary) => void; onNew: () => void }) {
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => ref.current?.focus(), []);
+  const shown = props.list.filter((w) => !q.trim() || `${w.name} ${w.id} ${w.stages.map((s) => s.label).join(" ")}`.toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <div className="nv-cards-page">
+      <div className="nv-cards-head">
+        <h1>Workflows</h1>
+        <span className="nv-muted">{props.list.length}</span>
+        <input ref={ref} className="nv-menu-search" placeholder="Search workflows and stages..." value={q} onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter" && shown[0]) props.onPick(shown[0]); }} />
+      </div>
+      <div className="nv-cards">
+        <button className="nv-card is-new" onClick={props.onNew}>
+          <span className="nv-card-plus">＋</span>
+          <span className="nv-card-name">New workflow</span>
+        </button>
+        {shown.map((w) => (
+          <button key={w.id} className="nv-card nv-picker-item" onClick={() => props.onPick(w)}>
+            <span className="nv-card-top">
+              <span className="nv-card-name nv-picker-name">{w.name}</span>
+              {w.status && w.status !== "active" && <span className="nv-card-badge">{w.status}</span>}
+            </span>
+            <span className="nv-card-stages">
+              {w.stages.slice(0, 5).map((st) => (
+                <span key={st.stage} className="nv-card-stage" style={{ ["--c" as string]: st.color || "#666" }}>
+                  {st.label}
+                </span>
+              ))}
+              {w.stages.length > 5 && <span className="nv-card-stage is-more">+{w.stages.length - 5}</span>}
+              {!w.stages.length && <span className="nv-muted">No stages</span>}
+            </span>
+            <span className="nv-card-meta">
+              {w.stageCount} stage{w.stageCount === 1 ? "" : "s"} · {w.globalActionCount} global action{w.globalActionCount === 1 ? "" : "s"}
+            </span>
+          </button>
+        ))}
+      </div>
+      {shown.length === 0 && <div className="nv-menu-empty">{props.list.length ? "No workflows match." : "No workflows yet."}</div>}
     </div>
   );
 }

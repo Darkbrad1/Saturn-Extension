@@ -8440,7 +8440,7 @@ var draftHistoryLimit = 20,
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; script-src 'nonce-${scriptNonce}'; style-src ${cspSource} 'unsafe-inline';">
+        content="default-src 'none'; script-src 'nonce-${scriptNonce}'; style-src ${cspSource} 'unsafe-inline'; img-src ${cspSource} https: data:;">
     <link rel="stylesheet" href="${styleUri}">
 </head>
 <body>

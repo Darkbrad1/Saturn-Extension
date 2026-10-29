@@ -17,7 +17,7 @@ const draftOf = (key) => p.evaluate((k) => window.acquireVsCodeApi().getState().
 // ===== Rich text editor =====
 await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
-await p.selectOption(".rs-select select", "ApplicationNote");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("ApplicationNote")}]`).click();
 await p.waitForTimeout(300);
 await pick("description");
 const inputType = row("Input type").locator("select");

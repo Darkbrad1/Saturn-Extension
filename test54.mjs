@@ -41,7 +41,7 @@ ok(rows.length === 1 && rows[0].includes("Grace Hopper"), "typing searches the r
 await p.screenshot({ path: `${out}/v0366-picker.png` });
 await modal.locator(".nv-record-row", { hasText: "Grace Hopper" }).click();
 await p.waitForTimeout(150);
-ok((await person.inputValue()) === "u2" && (await modal.locator(".nv-record-name").innerText()) === "Grace Hopper", "picking one puts its id in the box and its name beside it");
+ok((await person.inputValue()) === "Grace Hopper", "picking one shows its name in the box (0.3.70; its id is what's saved)");
 await modal.getByRole("button", { name: "Add" }).click();
 await p.waitForTimeout(600);
 let task = (await steps()).find((s) => s.operator === "create_task");

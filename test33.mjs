@@ -20,7 +20,7 @@ const save = async () => {
 
 await p.goto("http://localhost:8765/resources.html");
 await p.waitForTimeout(400);
-await p.selectOption(".rs-select select", "Application");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Application")}]`).click();
 await p.waitForTimeout(300);
 ok((await settingsBtn().count()) === 1, "a Resource settings button in the top bar");
 await settingsBtn().click();
@@ -109,7 +109,7 @@ await p.evaluate(() => (window.__settingsMode = "ok"));
 await p.locator(".rs-top").getByRole("button", { name: "Discard" }).click();
 
 // ===== a resource with no record =====
-await p.selectOption(".rs-select select", "Loan");
+await p.locator(".rs-picker-btn").click(); await p.locator(`.rs-picker-item[data-resource=${JSON.stringify("Loan")}]`).click();
 await p.waitForTimeout(400);
 ok(/no ResourceDetail record/.test(await p.locator(".rs-detail").innerText()), "a resource with no settings record says so");
 await p.screenshot({ path: out + "/s3-none.png" });
