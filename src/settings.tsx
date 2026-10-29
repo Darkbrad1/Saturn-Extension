@@ -85,6 +85,8 @@ export interface SettingsOps {
   error: string | null;
   clearError: () => void;
   rename: (kind: "stage" | "action" | "command", path: Path, label: string, machineName?: string, color?: string) => void;
+  /** renames the workflow itself (an unsaved change, like any other) */
+  renameWorkflow: (name: string) => void;
   deleteNode: (kind: "stage" | "action" | "command", path: Path) => void;
   moveStage: (from: number, to: number) => void;
   moveAction: (stageIndex: number | null, from: number, to: number) => void;
@@ -682,6 +684,10 @@ export function WorkflowPanel(props: { wf: WorkflowView; ops: SettingsOps }) {
         </div>
       )}
       <Section title="Workflow" id="wf-info">
+        <div className="fg-row">
+          <span className="fg-label">Name</span>
+          <CommitInput value={wf.name} onCommit={(v) => v.trim() && v.trim() !== wf.name && ops.renameWorkflow(v.trim())} />
+        </div>
         <Row label="Status">{wf.status ?? "—"}</Row>
         <Row label="Stages">{wf.stages.length}</Row>
         <Row label="Actions">{actionCount}</Row>

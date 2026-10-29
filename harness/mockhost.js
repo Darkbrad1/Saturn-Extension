@@ -54,7 +54,7 @@
         P("limit", "Limit", { type: "number" }), P("offset", "Offset", { type: "number" }), P("sort", "Sort", { description: "N1QL ORDER BY clause" }),
         P("columns", "Columns", { description: "Comma-separated list of specific columns to return" })] },
     debug: { name: "Debug", category: "Developer", description: "Log the current context.", icon: null,
-      params: [P("label", "Label"), P("level", "Level", { lookupValues: ["info", "warn", "error"] })] },
+      params: [P("message", "Message", { description: "What to write to the System Logs" }), P("label", "Label"), P("level", "Level", { lookupValues: ["info", "warn", "error"] })] },
     schedule_followup: { name: "Schedule Follow-up", category: "Records", description: "Schedule a follow-up on the record.", icon: null,
       params: [P("due_at", "Due at", { type: "datetime", required: true }), P("remind_on", "Remind on", { type: "date" }), P("start_time", "Start time", { inputType: "time" }),
         P("color", "Label colour", { inputType: "color" }), P("retries", "Retries", { type: "number" }), P("timeout_ms", "Timeout (ms)", { type: "number" }),
@@ -548,6 +548,10 @@
         }
         break;
       }
+      // like the host's renameWorkflow: the name, one edit
+      case "renameWorkflow":
+        apply(id, `Renamed the workflow to "${p.name}"`, (d) => { if (!String(p.name || "").trim()) throw new Error("A workflow needs a name."); d.name = p.name.trim(); });
+        break;
       case "renameNode":
         apply(id, `Renamed ${p.kind} to "${p.label}"`, (d) => { const n = get(d, p.path); n.label = p.label;
           if (p.machineName !== undefined) { const k = p.kind === "stage" ? "stage" : p.kind === "action" ? "action" : "name"; n[k] = p.machineName; }

@@ -108,8 +108,8 @@ ok(names.includes("belongs_to") && names.includes("status"), "one row per proper
 await p.screenshot({ path: out + "/v3-create-panel.png" });
 // change one value: the step keeps its resource and every property (it used to lose properties on save)
 const statusRow = panel.locator('.nv-recform [data-prop="status"]');
-await statusRow.locator("input").first().fill("waiting");
-await statusRow.locator("input").first().press("Enter");
+await statusRow.locator("input").last().fill("waiting");
+await statusRow.locator("input").last().press("Enter");
 await p.waitForTimeout(600);
 const step = await p.evaluate(() => {
   const d = window.__getDef();

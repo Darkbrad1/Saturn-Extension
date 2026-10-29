@@ -454,6 +454,23 @@ export function App() {
   );
 
   // ---- edits -------------------------------------------------------------
+  // the workflows by the names they have here: a rename waiting to be saved shows at once
+  const listShown = useMemo(
+    () => workflowList.map((w) => (workflows[w.id]?.name && workflows[w.id].name !== w.name ? { ...w, name: workflows[w.id].name } : w)),
+    [workflowList, workflows],
+  );
+  // renames any workflow (a card's Rename too, while none is open): one edit in its unsaved changes
+  const renameWorkflow = useCallback((workflowId: string, name: string) => {
+    const t = name.trim();
+    if (!t) return;
+    mine.current++;
+    sourceRef.current = "other";
+    setBusy(true);
+    send("renameWorkflow", { workflowId, name: t });
+  }, []);
+  const [renamingTop, setRenamingTop] = useState(false);
+  const clickTimer = useRef<number | null>(null);
+
   const edit = useCallback(
     (type: string, payload: Record<string, unknown>) => {
       if (!wf) return;
@@ -718,6 +735,7 @@ export function App() {
       busy: busy && sourceRef.current === "settings",
       error: settingsError,
       clearError: () => setSettingsError(null),
+      renameWorkflow: (name) => settingsEdit("renameWorkflow", { name }),
       rename: (kind, path, label, machine, color) =>
         settingsEdit("renameNode", {
           kind,
@@ -1105,7 +1123,7 @@ export function App() {
             Back to list view
           </button>
         </div>
-        <WorkflowCards list={workflowList} onPick={switchWorkflow} onNew={() => setNewWf({ name: "", stage: "", error: null, busy: false })} />
+        <WorkflowCards list={listShown} onPick={switchWorkflow} onRename={renameWorkflow} onNew={() => setNewWf({ name: "", stage: "", error: null, busy: false })} />
         {newWf && <NewWorkflowDialog state={newWf} setState={setNewWf} />}
       </div>
     );
@@ -1122,9 +1140,38 @@ export function App() {
   return (
     <div className="nv-root">
       <div className="nv-topbar">
-        <button className="nv-wf-switch" onClick={() => setWfMenu((v) => !v)} title="Switch workflow">
-          {wf.name} <span className="nv-caret">▾</span>
-        </button>
+        {renamingTop ? (
+          <RenameBox
+            value={wf.name}
+            className="nv-wf-rename"
+            onDone={(v) => {
+              setRenamingTop(false);
+              if (v !== null && v.trim() && v.trim() !== wf.name) renameWorkflow(wf.id, v);
+            }}
+          />
+        ) : (
+          <button
+            className="nv-wf-switch"
+            onClick={(e) => {
+              // a short wait, so a double-click renames instead of opening the list
+              if (clickTimer.current) window.clearTimeout(clickTimer.current);
+              if (e.detail > 1) return;
+              clickTimer.current = window.setTimeout(() => {
+                clickTimer.current = null;
+                setWfMenu((v) => !v);
+              }, 220);
+            }}
+            onDoubleClick={() => {
+              if (clickTimer.current) window.clearTimeout(clickTimer.current);
+              clickTimer.current = null;
+              setWfMenu(false);
+              setRenamingTop(true);
+            }}
+            title="Switch workflow (double-click to rename it)"
+          >
+            {wf.name} <span className="nv-caret">▾</span>
+          </button>
+        )}
         <span className="nv-spacer" />
         {connection?.offline && (
           <button className="nv-offline" onClick={() => setScope({ kind: "workflow" })} title="The instance is unreachable — edits are kept offline">
@@ -1231,7 +1278,7 @@ export function App() {
         <div className="nv-menu-back" onMouseDown={() => setWfMenu(false)}>
           <div className="nv-wf-menu" onMouseDown={(e) => e.stopPropagation()}>
             <WorkflowPicker
-              list={workflowList}
+              list={listShown}
               currentId={wf.id}
               onPick={switchWorkflow}
               onNew={() => {
@@ -1621,8 +1668,38 @@ function WorkflowPicker(props: {
 }
 
 /** The page before a workflow is open (0.3.70): a card per workflow with its stages, a search and New workflow. */
-function WorkflowCards(props: { list: WorkflowSummary[]; onPick: (w: WorkflowSummary) => void; onNew: () => void }) {
+/** A name typed in place: Enter or leaving the box keeps it, Esc puts it back (null). */
+function RenameBox(props: { value: string; className?: string; onDone: (name: string | null) => void }) {
+  const [v, setV] = useState(props.value);
+  const done = useRef(false);
+  const finish = (x: string | null) => {
+    if (done.current) return;
+    done.current = true;
+    props.onDone(x);
+  };
+  return (
+    <input
+      autoFocus
+      aria-label="Workflow name"
+      className={`nv-rename-box ${props.className ?? ""}`}
+      value={v}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => setV(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") finish(v);
+        else if (e.key === "Escape") finish(null);
+      }}
+      onBlur={() => finish(v)}
+    />
+  );
+}
+
+function WorkflowCards(props: { list: WorkflowSummary[]; onPick: (w: WorkflowSummary) => void; onNew: () => void; onRename: (id: string, name: string) => void }) {
   const [q, setQ] = useState("");
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => ref.current?.focus(), []);
   const shown = props.list.filter((w) => !q.trim() || `${w.name} ${w.id} ${w.stages.map((s) => s.label).join(" ")}`.toLowerCase().includes(q.trim().toLowerCase()));
@@ -1640,9 +1717,27 @@ function WorkflowCards(props: { list: WorkflowSummary[]; onPick: (w: WorkflowSum
           <span className="nv-card-name">New workflow</span>
         </button>
         {shown.map((w) => (
-          <button key={w.id} className="nv-card nv-picker-item" onClick={() => props.onPick(w)}>
+          <button
+            key={w.id}
+            className="nv-card nv-picker-item"
+            onClick={() => renaming !== w.id && props.onPick(w)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenu({ id: w.id, x: e.clientX, y: e.clientY });
+            }}
+          >
             <span className="nv-card-top">
-              <span className="nv-card-name nv-picker-name">{w.name}</span>
+              {renaming === w.id ? (
+                <RenameBox
+                  value={w.name}
+                  onDone={(v) => {
+                    setRenaming(null);
+                    if (v !== null && v.trim() && v.trim() !== w.name) props.onRename(w.id, v);
+                  }}
+                />
+              ) : (
+                <span className="nv-card-name nv-picker-name">{w.name}</span>
+              )}
               {w.status && w.status !== "active" && <span className="nv-card-badge">{w.status}</span>}
             </span>
             <span className="nv-card-stages">
@@ -1661,6 +1756,35 @@ function WorkflowCards(props: { list: WorkflowSummary[]; onPick: (w: WorkflowSum
         ))}
       </div>
       {shown.length === 0 && <div className="nv-menu-empty">{props.list.length ? "No workflows match." : "No workflows yet."}</div>}
+      {menu && (
+        <div className="nv-menu-back" onMouseDown={() => setMenu(null)} onContextMenu={(e) => (e.preventDefault(), setMenu(null))}>
+          <div className="nv-ctx nv-card-menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()} role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              className="nv-ctx-item"
+              onClick={() => {
+                setRenaming(menu.id);
+                setMenu(null);
+              }}
+            >
+              Rename
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="nv-ctx-item"
+              onClick={() => {
+                const w = props.list.find((x) => x.id === menu.id);
+                setMenu(null);
+                if (w) props.onPick(w);
+              }}
+            >
+              Open
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

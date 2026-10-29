@@ -12,6 +12,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Catalog } from "./types";
 import { FieldControl, FormEnvContext, enrich, type FieldSpec, type FormError } from "./forms";
 import { RichText } from "./richtext";
+import { HighlightInput } from "./controls";
 
 export type RecordFormKind = "create" | "updater";
 
@@ -82,7 +83,7 @@ function specFor(key: string, field: ResourceField | undefined, template: boolea
     label: field?.label ?? key,
     kind: "text",
     required: field?.required,
-    caption: known && !field ? `${key} · not one of ${resource}'s properties` : `${key}${field?.type ? ` · ${field.type}` : ""}`,
+    caption: !field ? (known ? `a key of its own · not one of ${resource}'s properties` : "a key of its own") : `${key}${field.type ? ` · ${field.type}` : ""}`,
   };
   if (template) return { ...base, kind: "textarea", placeholder: "{{ template }} or a value", caption: `${base.caption} · typed` };
   if (!field) return base;
@@ -139,11 +140,12 @@ export function RecordForm(props: {
   }, [parsed]);
   const [templates, setTemplates] = useState<Set<string>>(() => new Set());
   const [focusKey, setFocusKey] = useState<string | null>(null);
-  const [other, setOther] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!focusKey) return;
-    box.current?.querySelector<HTMLElement>(`[data-prop="${CSS.escape(focusKey)}"] input, [data-prop="${CSS.escape(focusKey)}"] textarea, [data-prop="${CSS.escape(focusKey)}"] select, [data-prop="${CSS.escape(focusKey)}"] .ql-editor`)?.focus();
+    // the value's box (not a key of its own's name box)
+    const row = box.current?.querySelector(`[data-prop="${CSS.escape(focusKey)}"]`);
+    [...(row?.querySelectorAll<HTMLElement>("input, textarea, select, .ql-editor") ?? [])].find((el) => !el.closest(".nv-prop-key"))?.focus();
     setFocusKey(null);
   }, [focusKey]);
 
@@ -187,10 +189,33 @@ export function RecordForm(props: {
       props.onCommit({ [propsKey]: v });
     }
   };
-  const add = (k: string) => {
-    if (!k) return;
-    setRows((cur) => (cur.includes(k) ? cur : [...cur, k]));
-    setFocusKey(k);
+  const add = (keys: string[]) => {
+    const fresh = keys.map((k) => k.trim()).filter(Boolean);
+    if (!fresh.length) return;
+    setRows((cur) => [...cur, ...fresh.filter((k, i) => !cur.includes(k) && fresh.indexOf(k) === i)]);
+    setFocusKey(fresh[0]);
+  };
+  // a key of its own renamed in place (its value and place kept); null when that's fine, else why not
+  const renameKey = (from: string, to: string): string | null => {
+    const t = to.trim();
+    if (t === from) return null;
+    if (!t) return "A property needs a key.";
+    if (rows.includes(t)) return `"${t}" is already in this step.`;
+    setRows((cur) => cur.map((x) => (x === from ? t : x)));
+    setTemplates((cur) => {
+      if (!cur.has(from)) return cur;
+      const next = new Set(cur);
+      next.delete(from);
+      next.add(t);
+      return next;
+    });
+    if (parsed && from in parsed) {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(parsed)) out[k === from ? t : k] = v;
+      props.onChange(propsKey, json(out));
+      props.onCommit({ [propsKey]: json(out) });
+    }
+    return null;
   };
 
   const unused = [...(fields ?? []).slice().sort((a, b) => (a.index ?? 0) - (b.index ?? 0)), ...BUILT_IN.filter((b) => !fields?.some((f) => f.key === b.key))].filter((f) => !rows.includes(f.key));
@@ -259,6 +284,7 @@ export function RecordForm(props: {
         <span>Properties</span>
         {resource && fields === null && <span className="nv-muted">Reading {resource}'s properties…</span>}
         {templated && <span className="nv-muted">The resource is a template, so its properties aren't known here.</span>}
+        {parsed && <AddProperties unused={unused} taken={rows} onAdd={add} />}
       </div>
       {errFor(propsKey) && <span className="nv-field-err">{errFor(propsKey)}</span>}
       {parsed === null ? (
@@ -271,7 +297,7 @@ export function RecordForm(props: {
         />
       ) : (
         <>
-          {rows.length === 0 && <p className="nv-muted nv-recform-none">No properties set yet. Add one below.</p>}
+          {rows.length === 0 && <p className="nv-muted nv-recform-none">No properties set yet. Add some with + Add.</p>}
           {rows.map((k) => {
             const field = fieldOf(k);
             const template = isTemplate(k);
@@ -314,60 +340,155 @@ export function RecordForm(props: {
                 </div>
               );
             return (
-              <div key={k} className="nv-prop" data-prop={k}>
+              <div key={k} className={`nv-prop ${field ? "" : "is-own"}`} data-prop={k}>
                 <FieldControl
                   f={specFor(k, field, template, fields != null, resource)}
                   value={value}
                   canOpenFiles={props.canOpenFiles}
                   extra={tools}
+                  nameSlot={field ? undefined : <KeyBox value={k} onRename={(to) => renameKey(k, to)} />}
                   onChange={(t) => change(k, t)}
                   onCommit={(t) => commit(k, t)}
                 />
               </div>
             );
           })}
-          <div className="nv-recform-add">
-            {other === null ? (
-              <select
-                aria-label="Add a property"
-                value=""
-                onChange={(e) => {
-                  if (e.target.value === "\u0000other") setOther("");
-                  else add(e.target.value);
-                }}
-              >
-                <option value="">+ Add a property…</option>
-                {unused.map((f) => (
-                  <option key={f.key} value={f.key}>
-                    {f.label ?? f.key} ({f.key})
-                  </option>
-                ))}
-                <option value={"\u0000other"}>Another key (type it)…</option>
-              </select>
-            ) : (
-              <span className="nv-input-row">
-                <input
-                  autoFocus
-                  value={other}
-                  placeholder="A property's key, or a {{ template }}"
-                  aria-label="Property key"
-                  onChange={(e) => setOther(e.target.value)}
-                  onKeyDown={(e) => {
-                    e.stopPropagation();
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      add(other.trim());
-                      setOther(null);
-                    } else if (e.key === "Escape") setOther(null);
-                  }}
-                />
-                <button type="button" className="nv-mini-btn" onClick={() => { add(other.trim()); setOther(null); }}>
-                  Add
-                </button>
-              </span>
-            )}
-          </div>
         </>
+      )}
+    </div>
+  );
+}
+
+/** A key of its own (not one of the resource's properties), typed in a highlighted box; applied on Enter or when
+ *  the box is left, refused (and put back) when it's empty or already used. */
+function KeyBox(props: { value: string; onRename: (to: string) => string | null }) {
+  const [v, setV] = useState(props.value);
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => setV(props.value), [props.value]);
+  const done = () => {
+    const why = props.onRename(v);
+    setProblem(why);
+    if (why) setV(props.value);
+  };
+  return (
+    <span className="nv-prop-key" title={problem ?? "This step's own key: click to change it"}>
+      <HighlightInput
+        value={v}
+        placeholder="key or {{ template }}"
+        onChange={(t) => {
+          setV(t);
+          setProblem(null);
+        }}
+        onBlur={done}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") {
+            e.preventDefault();
+            done();
+          } else if (e.key === "Escape") {
+            setV(props.value);
+            setProblem(null);
+          }
+        }}
+      />
+      {problem && <span className="nv-field-caption is-warn">{problem}</span>}
+    </span>
+  );
+}
+
+/** + Add, at the right of the Properties title: a menu of the resource's other properties to tick (several at
+ *  once), with a search; text that isn't one of them can be added as a key of its own. */
+function AddProperties(props: { unused: ResourceField[]; taken: string[]; onAdd: (keys: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [ticked, setTicked] = useState<string[]>([]);
+  const wrap = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+  const close = () => {
+    setOpen(false);
+    setQ("");
+    setTicked([]);
+  };
+  const t = q.trim();
+  const shown = props.unused.filter((f) => !t || `${f.label ?? ""} ${f.key}`.toLowerCase().includes(t.toLowerCase()));
+  // what's typed, offered as a key of its own when it isn't a property already listed or used
+  const own = t && !props.unused.some((f) => f.key === t) && !props.taken.includes(t) ? t : null;
+  const ownKeys = ticked.filter((k) => !props.unused.some((f) => f.key === k));
+  const toggle = (k: string) => setTicked((cur) => (cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]));
+  const addAll = () => {
+    props.onAdd(ticked);
+    close();
+  };
+  return (
+    <div className="nv-addprops" ref={wrap}>
+      <button type="button" className="nv-mini-btn nv-addprops-btn" title="Add properties" aria-haspopup="dialog" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
+        + Add
+      </button>
+      {open && (
+        <div className="nv-addprops-pop" role="dialog" aria-label="Add properties">
+          <input
+            autoFocus
+            className="nv-menu-search"
+            placeholder="Search, or type a key of its own…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Escape") close();
+              else if (e.key === "Enter") {
+                e.preventDefault();
+                if (ticked.length) addAll();
+                else if (shown.length === 1) toggle(shown[0].key);
+                else if (own) toggle(own);
+              }
+            }}
+          />
+          <div className="nv-addprops-list">
+            {own && (
+              <label className="nv-addprops-row is-own">
+                <input type="checkbox" checked={ticked.includes(own)} onChange={() => toggle(own)} />
+                <span>
+                  Add <code>{own}</code> as a key of its own
+                </span>
+              </label>
+            )}
+            {ownKeys
+              .filter((k) => k !== own)
+              .map((k) => (
+                <label key={k} className="nv-addprops-row is-own">
+                  <input type="checkbox" checked onChange={() => toggle(k)} />
+                  <span>
+                    <code>{k}</code> (a key of its own)
+                  </span>
+                </label>
+              ))}
+            {shown.map((f) => (
+              <label key={f.key} className="nv-addprops-row">
+                <input type="checkbox" checked={ticked.includes(f.key)} onChange={() => toggle(f.key)} />
+                <span className="nv-addprops-name">{f.label ?? f.key}</span>
+                <code>{f.key}</code>
+              </label>
+            ))}
+            {!shown.length && !own && <span className="nv-muted nv-addprops-none">{props.unused.length ? "No properties match." : "Every property is already here."}</span>}
+          </div>
+          <div className="nv-addprops-foot">
+            <span className="nv-muted">{ticked.length ? `${ticked.length} picked` : "Tick the ones to add"}</span>
+            <span className="nv-spacer" />
+            <button type="button" className="nv-mini-btn" onClick={close}>
+              Cancel
+            </button>
+            <button type="button" className="nv-mini-btn is-primary" disabled={!ticked.length} onClick={addAll}>
+              {ticked.length > 1 ? `Add ${ticked.length} properties` : "Add"}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

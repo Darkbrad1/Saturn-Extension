@@ -3876,3 +3876,44 @@ body.nv-scrubbing * {
 #sonover-node-view .nv-card-stage.is-more::before { display: none; }
 #sonover-node-view .nv-card-stage.is-more { --c: #666; }
 #sonover-node-view .nv-card-meta { margin-top: auto; font-size: 11px; color: #8b93a1; }
+
+/* Renaming a workflow in place (0.3.71): the top bar and a card */
+#sonover-node-view .nv-rename-box { height: 26px; min-width: 220px; padding: 0 8px; border-radius: 5px; border: 1px solid #0d99ff; background: #1e1e1e; color: #fff; font: inherit; font-weight: 600; }
+#sonover-node-view .nv-card .nv-rename-box { width: 100%; min-width: 0; font-size: 14px; }
+
+/* Create / Property Updater properties (0.3.71): one tight line each, name left, box right; the grey key · type line
+   only while typing in that box; + Add at the right of the title, a menu to tick several */
+#sonover-node-view .nv-recform { gap: 4px; }
+#sonover-node-view .nv-recform-head { align-items: center; margin-bottom: 2px; }
+#sonover-node-view .fg-panel .nv-recform .nv-prop .nv-field { display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; column-gap: 8px; row-gap: 2px; }
+#sonover-node-view .fg-panel .nv-recform .nv-prop .nv-field > :not(.nv-field-label) { grid-column: 2; }
+#sonover-node-view .fg-panel .nv-recform .nv-prop .nv-field.is-wide { align-items: start; }
+#sonover-node-view .fg-panel .nv-recform .nv-prop .nv-field.is-wide > .nv-field-label { padding-top: 6px; }
+#sonover-node-view .fg-panel .nv-recform .nv-prop .nv-field-caption,
+#sonover-node-view .fg-panel .nv-recform .nv-prop .nv-field-help { display: none; }
+#sonover-node-view .fg-panel .nv-recform .nv-prop:focus-within .nv-field-caption,
+#sonover-node-view .fg-panel .nv-recform .nv-prop:focus-within .nv-field-help,
+#sonover-node-view .fg-panel .nv-recform .nv-prop .nv-field-caption.is-warn { display: block; }
+#sonover-node-view .nv-prop-key { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+#sonover-node-view .nv-prop-key input { width: 100%; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; }
+#sonover-node-view .nv-addprops { position: relative; margin-left: auto; }
+#sonover-node-view .nv-addprops-btn { font-weight: 600; }
+#sonover-node-view .nv-addprops-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; width: 320px; display: flex; flex-direction: column; gap: 6px; padding: 8px;
+  background: #2d2d2d; border: 1px solid #141414; border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55); font-weight: 400; }
+#sonover-node-view .nv-addprops-pop .nv-menu-search { width: 100%; box-sizing: border-box; }
+#sonover-node-view .nv-addprops-list { max-height: 260px; overflow: auto; display: flex; flex-direction: column; }
+#sonover-node-view .nv-addprops-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+#sonover-node-view .nv-addprops-row:hover { background: #383838; }
+#sonover-node-view .nv-addprops-row input { width: 14px; height: 14px; margin: 0; flex: none; }
+#sonover-node-view .nv-addprops-row code { margin-left: auto; opacity: 0.55; font-size: 11px; }
+#sonover-node-view .nv-addprops-row.is-own code { margin-left: 0; opacity: 1; color: #9cdcfe; }
+#sonover-node-view .nv-addprops-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sonover-node-view .nv-addprops-none { padding: 6px; font-size: 12px; }
+#sonover-node-view .nv-addprops-foot { display: flex; align-items: center; gap: 6px; font-size: 11px; border-top: 1px solid #3a3a3a; padding-top: 6px; }
+/* the key · type line floats under the box while typing, so nothing moves */
+#sonover-node-view .fg-panel .nv-recform .nv-prop .nv-field { position: relative; }
+#sonover-node-view .fg-panel .nv-recform .nv-prop:focus-within .nv-field-caption,
+#sonover-node-view .fg-panel .nv-recform .nv-prop:focus-within .nv-field-help { position: absolute; top: calc(100% + 1px); left: 178px; right: 0; z-index: 6;
+  padding: 2px 6px; border-radius: 4px; background: #1b1b1b; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45); pointer-events: none; }
+#sonover-node-view .fg-panel .nv-recform .nv-prop:focus-within .nv-field-caption + .nv-field-help,
+#sonover-node-view .fg-panel .nv-recform .nv-prop:focus-within .nv-field-help + .nv-field-caption { display: none; }

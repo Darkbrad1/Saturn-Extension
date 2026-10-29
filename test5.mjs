@@ -24,7 +24,7 @@ await p.waitForTimeout(500);
 
 // ---- workflow switcher (goes through the list view)
 await p.locator(".nv-wf-switch").click();
-await p.waitForTimeout(200);
+await p.waitForTimeout(500);
 ok(await p.locator(".nv-picker-item").count() === 3, "switcher lists the instance's workflows");
 await p.locator(".nv-picker-item", { hasText: "Support tickets" }).click();
 await p.waitForTimeout(800);
@@ -42,12 +42,14 @@ await p.waitForTimeout(500);
 // (since 0.3.69 Property Updater has a form like Saturn's: a row per property, test57.mjs)
 ok(await p.locator(".fg-panel .nv-recform [data-prop]").count() === 2, "property map shows its rows");
 ok(await p.locator(".fg-panel .nv-field-name", { hasText: "Properties (legacy)" }).count() === 0, "merged param hidden, like the list view");
-await p.locator(".fg-panel").getByRole("combobox", { name: "Add a property" }).selectOption("\u0000other");
-await p.locator(".fg-panel").getByRole("textbox", { name: "Property key" }).fill("sla");
-await p.locator(".fg-panel").getByRole("textbox", { name: "Property key" }).press("Enter");
+// (0.3.71: + Add opens a menu; a typed key that isn't a property is added as a key of its own)
+await p.locator(".fg-panel .nv-addprops-btn").click();
+await p.keyboard.type("sla");
+await p.keyboard.press("Enter");
+await p.keyboard.press("Enter");
 await p.waitForTimeout(200);
-await p.locator('.fg-panel [data-prop="sla"] input').first().fill("4h");
-await p.locator('.fg-panel [data-prop="sla"] input').first().press("Enter");
+await p.locator('.fg-panel [data-prop="sla"] input').last().fill("4h");
+await p.locator('.fg-panel [data-prop="sla"] input').last().press("Enter");
 await p.waitForTimeout(500);
 let t = (await def("wf_tickets")).stages[0].actions[0].task.commands;
 ok(t[0].data.properties.sla === "4h" && t[0].data.properties.priority === "high", "adding a row writes the property map");

@@ -1,6 +1,17 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.71",
+    title: "Tighter property rows, an Add menu for several at once, renaming workflows",
+    items: [
+      "A Create or Property Updater step's properties are one tight line each again: the name on the left, the box on the right, record pickers included. The grey key and type line only shows while you type in that box, and it floats under the box so nothing moves.",
+      "+ Add is now a button at the right of the Properties title. It opens a menu with a search: tick as many properties as you like, then press Add.",
+      "Typing something in that search that isn't one of the resource's properties (like {{ _params.role }}) offers it as a key of its own. Such a key is a box with its {{ template }} highlighted, and you can change it there; a key already in the step is refused.",
+      "A workflow can be renamed: in Workflow settings (Name), by double-clicking its name in the top bar, or with Rename on a workflow card's right-click menu. It's an unsaved change like any other, so Undo and Discard work.",
+      "A new Debug step's message starts as const form = {{JSON.stringify(_form)}}; const flow = …; const store = …; const resource = …; const parameters = …; so it logs everything the step can see.",
+    ],
+  },
+  {
     version: "0.3.70",
     title: "A rich text editor that does everything, a query builder for Read, Format for code, cards to start from",
     items: [

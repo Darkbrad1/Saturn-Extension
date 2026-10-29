@@ -273,8 +273,14 @@ export function defaultsFor(operator: string, catalog: Catalog, commands: Comman
   const entry = catalog[operator];
   const v: Record<string, string> = {};
   for (const p of entry?.params ?? []) if (p.defaultValue) v[p.param] = p.defaultValue;
+  // a new Debug step logs everything a step can see (0.3.71), unless Saturn gives its message a default of its own
+  if (operator === "debug" && !v.message && (!entry || entry.params.some((p) => p.param === "message"))) v.message = DEBUG_MESSAGE;
   return v;
 }
+
+/** What a new Debug step's message starts as: every value a step can see, each as JSON. */
+export const DEBUG_MESSAGE =
+  "const form = {{JSON.stringify(_form)}}; const flow = {{JSON.stringify(_flow)}}; const store = {{JSON.stringify(_store)}}; const resource = {{JSON.stringify(_resource)}}; const parameters = {{JSON.stringify(_params)}};";
 
 export function needsForm(operator: string, catalog: Catalog) {
   if (["each", "if", "switch", "reference"].includes(operator)) return true;
@@ -299,6 +305,8 @@ export function FieldControl(props: {
   onRevert?: () => void;
   /** buttons beside the name (a record form's ⇋ and ×) */
   extra?: React.ReactNode;
+  /** in place of the name (a record form's own key, typed in a box) */
+  nameSlot?: React.ReactNode;
 }) {
   const env = useContext(FormEnvContext);
   const { f } = props;
@@ -483,7 +491,9 @@ export function FieldControl(props: {
   return (
     <Wrap className={`nv-field ${props.error ? "has-error" : ""} ${wide ? "is-wide" : ""} ${f.stale ? "is-stale" : ""}`}>
       <span className="nv-field-label">
-        {f.scrub ? (
+        {props.nameSlot ? (
+          props.nameSlot
+        ) : f.scrub ? (
           <Scrub value={props.value} spec={f.scrub} onChange={props.onChange} onCommit={(v) => props.onCommit?.(v)} className="nv-field-name">
             {f.label}
             {f.required && <span className="nv-req">*</span>}

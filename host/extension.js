@@ -9592,7 +9592,14 @@ var draftHistoryLimit = 20,
               let response = await listWorkflows(this.manager, this.instance);
               this.disconnected && (this.disconnected = !1, this.postConnection(), this.reconcilePending());
               let rows = asArray(Array.isArray(response) ? response : response?.data),
-                summaries = rows.filter(item => nonEmptyString(item?.id)).map(workflowSummary).sort((item, other) => item.name.localeCompare(other.name));
+                // a workflow renamed in a draft is listed by its new name
+                summaries = rows.filter(item => nonEmptyString(item?.id)).map(item => {
+                  let draftName = nonEmptyString(this.drafts.get(item.id)?.definition?.name);
+                  return workflowSummary(draftName ? {
+                    ...item,
+                    name: draftName
+                  } : item);
+                }).sort((item, other) => item.name.localeCompare(other.name));
               this.rememberAll(rows), webview.postMessage({
                 type: "workflows",
                 payload: {
@@ -11238,6 +11245,23 @@ var draftHistoryLimit = 20,
                 color: color
               } : {})
             }));
+            break;
+          }
+        // Renames the workflow itself (0.3.71): its name, as one draft edit; the id never changes.
+        case "renameWorkflow":
+          {
+            let {
+                workflowId: workflowId,
+                name: name
+              } = message.payload ?? {},
+              trimmed = String(name ?? "").trim();
+            await this.applyEdit(workflowId, definition => `Renamed the workflow from "${nonEmptyString(definition?.name) ?? ""}" to "${trimmed}"`, draft => {
+              if (!trimmed) throw new Error("A workflow needs a name.");
+              return {
+                ...draft,
+                name: trimmed
+              };
+            });
             break;
           }
         // Deletes a stage, action or command.
