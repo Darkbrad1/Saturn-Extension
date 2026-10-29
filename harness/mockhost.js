@@ -5,6 +5,14 @@
 (function () {
   const P = (param, label, extra = {}) => ({ param, label, type: "string", required: false, defaultValue: "", codeLanguage: null, mergedInto: null, lookupValues: null, ...extra });
   const catalog = {
+    // from the owner's real operator list (0.3.66): a map lookup (Person), an output with fields, a disabled operator
+    create_task: { name: "Create Task", category: "People & Tasks", icon: null,
+      description: "Creates a durable platform task for a person or an agent. A task assigned to a person appears in their task inbox and notifies them.",
+      output: { description: "The task that was created.", type: "object", fields: [{ path: "id", type: "string", description: "The new task's id." }, { path: "status", type: "string", description: "The task status." }] },
+      params: [P("title", "Title", { required: true }),
+        P("assignee_user", "Person", { description: "The user to assign the task to.", lookupKind: "map", lookupResource: { resource: "users", valueField: "id", labelField: "first_name", typed: true } })] },
+    save_locally: { name: "Save Locally", category: "Files & Storage", description: "Save file to a local directory on server", icon: null, disabled: true,
+      output: { description: "Nothing new: the step's input passes through unchanged.", type: "passthrough", fields: [] }, params: [] },
     update_record: { name: "Update Record", category: "Records", description: "Update fields on the current record.", icon: null,
       params: [P("resource", "Resource", { required: true }), P("fields", "Fields", { type: "object" })] },
     send_email: { name: "Send Email", category: "Communication", description: "Send an email to one or more recipients.", icon: null,

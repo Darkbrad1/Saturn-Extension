@@ -1,6 +1,16 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.66",
+    title: "What Saturn says about each operator",
+    items: [
+      "Pick a step and the side panel shows Saturn's description of its operator, under its name. The same description is the tooltip on each item in the Add menu (Shift+A).",
+      "A new Output section in the side panel says what the step hands to the next one (its _flow), with each field Saturn lists, for example a created task's id and status.",
+      "Operators Saturn has switched off (like Save Locally) are no longer offered in the Add menu. A step that already uses one still shows and works.",
+      "Settings that point at a record, like Create Task's Person or Invoke Agent's Agent, are a record picker: type to search the records and click one, or type a value or {{ template }}. The picked record's name shows under the box. This works in the Add form too.",
+    ],
+  },
+  {
     version: "0.3.65",
     title: "Saturn's operator list",
     items: [

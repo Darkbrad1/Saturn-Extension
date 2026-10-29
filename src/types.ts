@@ -180,7 +180,8 @@ export interface CatalogParam {
   description: string | null;
   lookupValues: { value: string; label: string }[] | string[] | null;
   lookupKind?: string | null;
-  lookupResource?: { resource: string; valueField: string; labelField: string } | null;
+  /** `typed` (a map lookup, 0.3.66): a record is picked by searching, or a value / {{ }} template is typed */
+  lookupResource?: { resource: string; valueField: string; labelField: string; typed?: boolean } | null;
   lookupHint?: string | null;
   inputType?: string | null;
   defaultValue: string;
@@ -193,6 +194,10 @@ export interface CatalogEntry {
   description: string | null;
   category: string | null;
   icon: unknown;
+  /** Saturn marks it disabled (0.3.66): not offered in the Add menu */
+  disabled?: boolean;
+  /** what the step hands to the next one, as Saturn describes it (0.3.66) */
+  output?: { description: string | null; type: string | null; fields: { path: string; type: string | null; description: string | null }[] } | null;
   params: CatalogParam[];
 }
 export type Catalog = Record<string, CatalogEntry>;

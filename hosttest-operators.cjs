@@ -1,8 +1,10 @@
 // v0.3.65: the node view's Operators JSON button. viewOperatorsJson reads Saturn's operator list (GET /api/Operators,
 // a read only) and opens it as JSON in a tab beside; offline, the copy kept for offline use is shown, with a message;
 // with neither, an error message.
+// v0.3.66: the catalog keeps what Saturn says about each operator: disabled, its output, and a map lookup's resource
+// (Create Task's Person), from the owner's real operator list.
 const fs = require("fs"), Module = require("module");
-const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={WorkflowsPanel};";
+const src = fs.readFileSync(process.argv[2], "utf8") + "\n;module.exports.__t={WorkflowsPanel,operatorCatalog,catalogToObject};";
 const stub = new Proxy(function () {}, { get: (t, k) => (k === Symbol.toPrimitive ? () => "" : stub), apply: () => stub, construct: () => stub });
 const docs = [], shown = [], infos = [], errors = [];
 const own = {
@@ -20,7 +22,7 @@ const vs = new Proxy({}, { get: (t, k) => part(k), ownKeys: () => parts, getOwnP
 const m = new Module("ext"); m.filename = "/x/extension.js";
 const orig = Module._load; Module._load = (r, p, i) => (r === "vscode" ? vs : orig(r, p, i));
 m._compile(src, m.filename);
-const { WorkflowsPanel } = m.exports.__t;
+const { WorkflowsPanel, operatorCatalog, catalogToObject } = m.exports.__t;
 const ok = (c, msg) => console.log((c ? "PASS " : "FAIL ") + msg);
 
 const list = [{ name: "debug", label: "Debug", category: "Workflow Tools", params: [{ param: "message" }] }, { name: "switch", label: "Switch" }];
@@ -60,4 +62,22 @@ const reset = () => { docs.length = 0; shown.length = 0; infos.length = 0; error
   savedCopy = null;
   await panel.handleMessage({ type: "viewOperatorsJson", payload: {} });
   ok(docs.length === 0 && errors.length === 1 && /operator list/.test(errors[0]), "with neither, an error message: " + errors[0]);
+
+  // ---- the catalog (0.3.66), from real entries
+  const real = { status: "SUCCESS", type: "collection", count: 3, data: [
+    { operator: "create_task", name: "Create Task", category: "People & Tasks", description: "Creates a durable platform task.",
+      output: { description: "The task that was created.", type: "object", fields: [{ path: "id", type: "string", description: "The new task's id." }, { type: "x" }] },
+      params: [{ param: "assignee_user", type: "string", label: "Person", map: { type: "model", reference: "User", value_field: "id", label_field: "first_name" }, lookup_type: "map", lookup_value_field: "id", lookup_search_field: "first_name" },
+        { param: "title", type: "string", label: "Title", required: true }] },
+    { operator: "save_locally", name: "Save Locally", category: "Files & Storage", output: { description: "Nothing new.", type: "passthrough" }, params: [], status: "disabled" },
+    { operator: "debug", name: "Debug", params: [{ param: "message", type: "string", label: "Message" }] },
+  ] };
+  const cat = catalogToObject(operatorCatalog(real));
+  ok(Object.keys(cat).join() === "create_task,save_locally,debug", "the list is read from Saturn's {data: [...]} reply");
+  ok(cat.save_locally.disabled === true && cat.create_task.disabled === false, "status disabled is kept as disabled");
+  ok(cat.create_task.output.description === "The task that was created." && cat.create_task.output.type === "object" && cat.create_task.output.fields.length === 1 && cat.create_task.output.fields[0].path === "id", "the output: its description, type and fields (one without a path is left out)");
+  ok(cat.save_locally.output.type === "passthrough" && cat.save_locally.output.fields.length === 0 && cat.debug.output === null, "an output with no fields, and none at all");
+  const person = cat.create_task.params.find((x) => x.param === "assignee_user");
+  ok(person.lookupResource && person.lookupResource.resource === "User" && person.lookupResource.valueField === "id" && person.lookupResource.labelField === "first_name" && person.lookupResource.typed === true, "a map lookup becomes a record picker on its resource: " + JSON.stringify(person.lookupResource));
+  ok(person.lookupHint === null, "with no \"enter a value directly\" hint");
 })().catch((e) => { console.log("FAIL threw: " + e.stack); });

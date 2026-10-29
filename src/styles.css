@@ -3704,3 +3704,82 @@ body.nv-scrubbing * {
 #sonover-node-view .fg-hint.is-warn {
   color: #e8b45a;
 }
+/* ---- an operator's description and output in the side panel (0.3.66) */
+#sonover-node-view .fg-op-desc {
+  margin: 0;
+  padding: 8px 14px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--nv-dim, #b4b4b4);
+  white-space: pre-line;
+  max-height: 9.5em;
+  overflow: auto;
+}
+#sonover-node-view .fg-op-out {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+#sonover-node-view .fg-op-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+#sonover-node-view .fg-op-field {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 2px 8px;
+  align-items: baseline;
+  font-size: 12px;
+}
+#sonover-node-view .fg-op-field code {
+  color: #9cdcfe;
+}
+#sonover-node-view .fg-op-type {
+  font-size: 11px;
+  color: var(--nv-dim, #9a9a9a);
+}
+#sonover-node-view .fg-op-fdesc {
+  grid-column: 1 / -1;
+  color: var(--nv-dim, #b4b4b4);
+}
+/* ---- a record picker (0.3.66): search a resource's records or type a value */
+#sonover-node-view .nv-record {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+#sonover-node-view .nv-record-name {
+  font-size: 11px;
+  color: #8fd18f;
+}
+#sonover-node-view .nv-record-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: #1f1f1f;
+}
+#sonover-node-view .nv-record-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+}
+#sonover-node-view .nv-record-row:hover,
+#sonover-node-view .nv-record-row[aria-selected="true"] {
+  background: rgba(255, 255, 255, 0.07);
+}
+#sonover-node-view .nv-record-row code {
+  font-size: 11px;
+  color: var(--nv-dim, #9a9a9a);
+}

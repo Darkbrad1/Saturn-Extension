@@ -42,7 +42,7 @@ export interface FieldSpec {
   options?: { value: string; label: string }[];
   language?: string;
   /** lookup: which resource, and whether many can be picked */
-  lookup?: { resource: string; valueField: string; labelField: string; multiple: boolean };
+  lookup?: { resource: string; valueField: string; labelField: string; multiple: boolean; typed?: boolean };
   /** caption under the field, like the list view's "param · type" */
   caption?: string;
   /** reference params the command no longer declares */
@@ -380,7 +380,7 @@ export function FieldControl(props: {
       break;
     }
     case "lookup":
-      control = <LookupPicker f={f} value={props.value} onPick={pick} />;
+      control = f.lookup?.typed && !f.lookup.multiple ? <RecordPicker f={f} value={props.value} onPick={pick} /> : <LookupPicker f={f} value={props.value} onPick={pick} />;
       break;
     case "object":
       control = <KeyValueEditor value={props.value} onChange={pick} />;
@@ -506,6 +506,85 @@ function Wrap(props: { className: string; children: React.ReactNode }) {
 }
 
 /** Records of a resource, as radio buttons (one) or checkboxes (many) — the list view's lookup picker. */
+/** One record of a resource (0.3.66, a map lookup like Create Task's Person): type to search its records and click one
+ *  to use its id, or type any value or {{ }} template. The box shows the picked record's name beside it. */
+function RecordPicker(props: { f: FieldSpec; value: string; onPick: (v: string) => void }) {
+  const env = useContext(FormEnvContext);
+  const lk = props.f.lookup!;
+  const options = env.lookupOptions[lk.resource];
+  const [text, setText] = useState(props.value);
+  const [open, setOpen] = useState(false);
+  // the last value sent, so a pick followed by the box losing focus isn't sent twice
+  const sent = useRef(props.value);
+  useEffect(() => {
+    setText(props.value);
+    sent.current = props.value;
+  }, [props.value]);
+  useEffect(() => {
+    if (options === undefined) env.needLookup(lk.resource, lk.valueField, lk.labelField);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lk.resource, options === undefined]);
+  const commit = (v: string) => {
+    setOpen(false);
+    if (v === sent.current) return;
+    sent.current = v;
+    props.onPick(v);
+  };
+  const q = text.trim().toLowerCase();
+  const isTemplate = /\{\{/.test(text);
+  const matches = (options ?? []).filter((o) => !q || isTemplate || o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q)).slice(0, 8);
+  const picked = (options ?? []).find((o) => o.value === props.value.trim());
+  return (
+    <div className="nv-record">
+      <HighlightInput
+        value={text}
+        placeholder={`Search ${lk.resource}, or type a value or {{ template }}`}
+        onChange={(v) => {
+          setText(v);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => commit(text), 150)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit(text);
+          } else if (e.key === "Escape") {
+            setText(props.value);
+            setOpen(false);
+          }
+        }}
+      />
+      {picked && <span className="nv-record-name" title={picked.value}>{picked.label}</span>}
+      {open && !isTemplate && (
+        <div className="nv-record-list" role="listbox" aria-label={`${lk.resource} records`}>
+          {options === undefined && <span className="nv-lookup-note">Loading {lk.resource}…</span>}
+          {options === null && <span className="nv-lookup-note">{lk.resource} records couldn't be read; type the id.</span>}
+          {options && !matches.length && <span className="nv-lookup-note">No {lk.resource} matches “{text}”.</span>}
+          {matches.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              role="option"
+              aria-selected={o.value === props.value}
+              className="nv-record-row"
+              title={o.value}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setText(o.value);
+                commit(o.value);
+              }}
+            >
+              <span>{o.label}</span>
+              <code>{o.value}</code>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LookupPicker(props: { f: FieldSpec; value: string; onPick: (v: string) => void }) {
   const env = useContext(FormEnvContext);
   const lk = props.f.lookup!;

@@ -401,6 +401,10 @@ function DesignTab(props: Parameters<typeof SidePanel>[0] & { f: Flow }) {
         </div>
       </div>
 
+      {entry?.description && (
+        <p className="fg-op-desc" title={entry.description}>{entry.description}</p>
+      )}
+
       {f.mock && (
         <div className="fg-banner">
           <EyeOffIcon />
@@ -469,6 +473,27 @@ function DesignTab(props: Parameters<typeof SidePanel>[0] & { f: Flow }) {
       {f.kind === "switch" && (
         <Section title="Cases" id="switch-cases" actions={props.busy ? <span className="fg-saving">Saving…</span> : null}>
           <SwitchCases key={pathKey(f.path)} f={f} busy={props.busy} onChange={(rows) => props.onSwitchCases(f, rows)} />
+        </Section>
+      )}
+
+      {entry?.output && (
+        <Section title="Output" id="op-output">
+          <p className="fg-hint">
+            What the next step gets as <code>_flow</code>
+            {entry.output.type ? <> (<code>{entry.output.type === "passthrough" ? "passes its input through" : entry.output.type}</code>)</> : null}.
+          </p>
+          {entry.output.description && <p className="fg-op-out">{entry.output.description}</p>}
+          {entry.output.fields.length > 0 && (
+            <div className="fg-op-fields">
+              {entry.output.fields.map((fl) => (
+                <div key={fl.path} className="fg-op-field">
+                  <code>{fl.path}</code>
+                  {fl.type && <span className="fg-op-type">{fl.type}</span>}
+                  {fl.description && <span className="fg-op-fdesc">{fl.description}</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </Section>
       )}
 

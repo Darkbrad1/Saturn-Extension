@@ -1,4 +1,4 @@
-# sonover-code (v0.3.65)
+# sonover-code (v0.3.66)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo. It lets you work on a Saturn instance's workflows, resources, menus and logs from inside VS Code (or VSCodium).
 
@@ -28,7 +28,7 @@ The Saturn sidebar opens every screen: Workflows, Resources, Menus, System Logs,
 ### Workflows: the node view
 The Workflows screen opens as a node editor, like Blender's: each action or command is a flow of step cards joined by wires. The old list view is one click away (List view).
 - **Top bar:** workflow switcher, Undo, + Add, direction (vertical or horizontal), Reload, Open in Saturn ↗, Workflow JSON (the whole workflow with your unsaved changes), Operators JSON (every operator the instance offers, as Saturn lists them), Layers, Panel, List view. Under it, a breadcrumb row; each step in it takes you back there.
-- **Editing steps:** pick a step to edit it in the side panel; a change applies when you're done with it (Enter, clicking away). Nothing goes to Saturn until you Save the workflow; Undo and Discard work on these unsaved changes. Steps can be added (Shift+A, or + on a wire), duplicated, disabled, copied and pasted, deleted, and dragged onto a wire to move them. Code and emails open in their own editor tab.
+- **Editing steps:** pick a step to edit it in the side panel, which starts with Saturn's description of its operator and ends with its Output (what the next step gets); a setting that points at a record (a Person, an Agent) is a searchable record picker that also takes a typed {{ template }}; a change applies when you're done with it (Enter, clicking away). Nothing goes to Saturn until you Save the workflow; Undo and Discard work on these unsaved changes. Steps can be added (Shift+A, or + on a wire), duplicated, disabled, copied and pasted, deleted, and dragged onto a wire to move them. Code and emails open in their own editor tab.
 - **Cards:** every value is colour-highlighted; a property map (like a Property Updater's) shows one row per property.
 - **Branches:** an If shows its True and False side by side; a switch shows one column per case and Otherwise last. Pick a switch to change the value it checks and its cases (rename, add, reorder, remove); the Add menu has Switch (cases).
 - **Picking several steps:** Shift or Ctrl/Cmd+click, a box drawn on the empty canvas, or Ctrl/Cmd+A. Then: one right-click menu or key for all of them, drag them together onto a wire, and (when they're the same kind of step) edit the settings they share, with Mixed where they differ. Middle-drag or Space+drag moves around the canvas.
@@ -61,6 +61,12 @@ A page to change every shortcut of the node view, Resources and Menus. A key ano
 The release notes on their own page, newest first, with a search.
 
 ## Version history
+
+### New in 0.3.66: What Saturn says about each operator
+The side panel shows each operator's description and its Output; disabled operators leave the Add menu; settings that point at a record are a searchable record picker.
+- Host (`operatorCatalog`): each entry keeps `disabled` (Saturn's `status: "disabled"`) and `output` (`operatorOutput`: `{description, type, fields: [{path, type, description}]}`); a param with `lookup_type: "map"` and `map.reference` gets `lookupResource {resource, valueField, labelField, typed: true}` (from `lookup_value_field` / `map.value_field`, `lookup_label_field` / `map.label_field` / `lookup_search_field`) and no "enter a value directly" hint. `catalogToObject` passes both on.
+- Node view: `CatalogEntry.disabled` / `.output` (`src/types.ts`); the Add menu leaves disabled operators out and shows each one's description as its tooltip (`src/App.tsx`); the Add form now gets the same `FormEnvContext` as the side panel (before, its record lists never loaded); `src/panel.tsx`: the description (`.fg-op-desc`) under the step's name and an Output section (`#op-output`); `src/forms.tsx`: `RecordPicker` for a `typed` lookup (search the records, click one for its id, or type any value or template; the picked record's name under the box; Enter or leaving the box applies it, once).
+- Mock: Create Task (Person, an output) and a disabled Save Locally, from the owner's list. `hosttest-operators.cjs` (+6), `test54.mjs` (15).
 
 ### New in 0.3.65: Saturn's operator list
 The node view's top bar has Operators JSON: the instance's whole operator list (each operator with its settings), read-only, in a tab beside the canvas.

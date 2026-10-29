@@ -20,7 +20,7 @@ import {
 } from "./bridge";
 import { STAGE_FIELD, WorkflowMap } from "./map";
 import { hint, keysOf, listenForShortcuts, pressed, shown as shownKey, type Bindings } from "./keys";
-import { StepForm, defaultsFor, needsForm, type FormEnv, type FormError, type LoadedParams } from "./forms";
+import { FormEnvContext, StepForm, defaultsFor, needsForm, type FormEnv, type FormError, type LoadedParams } from "./forms";
 import type { AccessSubjects, Binding, SettingsOps, TriggersState } from "./settings";
 import {
   KIND_COLORS,
@@ -1508,6 +1508,8 @@ export function App() {
       )}
 
       {form && (
+        // the same lookups as the side panel (records for pickers, resource names), 0.3.66
+        <FormEnvContext.Provider value={formEnv}>
         <StepForm
           key={form.mode + (form.path ? pathKey(form.path) : "") + form.operator + JSON.stringify(form.values).length}
           title={form.title}
@@ -1525,6 +1527,7 @@ export function App() {
             setForm(null);
           }}
         />
+        </FormEnvContext.Provider>
       )}
 
       {ctxMenu && (
@@ -2139,10 +2142,12 @@ function AddMenu(props: {
       color: KIND_COLORS.reference,
       extra: c.name,
     }));
+    // operators Saturn marks disabled aren't offered (a step that already uses one still shows)
     const ops = Object.entries(props.catalog)
-      .map(([op, e]) => ({ op, name: e.name || op, cat: e.category || "Operators", color: categoryColor(e.category ?? op) }))
+      .filter(([, e]) => !e.disabled)
+      .map(([op, e]) => ({ op, name: e.name || op, cat: e.category || "Operators", color: categoryColor(e.category ?? op), desc: e.description ?? undefined }))
       .sort((a, b) => a.cat.localeCompare(b.cat) || a.name.localeCompare(b.name));
-    const all: { op: string; name: string; cat: string; color: string; extra?: string }[] = [...flow, ...cmds, ...ops];
+    const all: { op: string; name: string; cat: string; color: string; extra?: string; desc?: string }[] = [...flow, ...cmds, ...ops];
     const phrase = q.trim().toLowerCase();
     const words = phrase.split(/\s+/).filter(Boolean);
     if (!words.length) return all;
@@ -2197,6 +2202,7 @@ function AddMenu(props: {
                 {head && <div className="nv-menu-cat">{head}</div>}
                 <button
                   className={`nv-menu-item ${i === idx ? "is-active" : ""}`}
+                  title={it.desc}
                   onMouseEnter={() => setIdx(i)}
                   onClick={() => props.onPick(it.op)}
                 >

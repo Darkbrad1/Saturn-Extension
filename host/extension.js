@@ -868,6 +868,10 @@ function operatorCatalog(operators) {
       description: nonEmptyString(entry?.description),
       category: nonEmptyString(entry?.category),
       icon: sanitizeSvgIcon(entry?.icon),
+      // Saturn marks some operators disabled (status "disabled", 0.3.66): kept for steps that use them, left out of the Add menu
+      disabled: entry?.status === "disabled",
+      // what the step hands to the next one (0.3.66): Saturn's description, its type and the fields it has
+      output: operatorOutput(entry?.output),
       params: asArray(entry?.params).map(param => {
         let key = nonEmptyString(param?.param);
         if (!key) return null;
@@ -886,7 +890,14 @@ function operatorCatalog(operators) {
           lookupValues: lookupValues && lookupValues.length > 0 ? lookupValues : null,
           lookupKind: lookupKind,
           // A function lookup that only lists one resource becomes a resource lookup (value / label fields).
-          lookupResource: lookupKind === "function" ? (() => {
+          // A map lookup naming a resource (0.3.66, like Create Task's Person) is one too, picked by searching
+          // its records or typed (a {{ }} template), so `typed` is set.
+          lookupResource: lookupKind === "map" && nonEmptyString(param?.map?.reference) ? {
+            resource: nonEmptyString(param.map.reference),
+            valueField: nonEmptyString(param?.lookup_value_field) ?? nonEmptyString(param?.map?.value_field) ?? "id",
+            labelField: nonEmptyString(param?.lookup_label_field) ?? nonEmptyString(param?.map?.label_field) ?? nonEmptyString(param?.lookup_search_field) ?? "name",
+            typed: !0
+          } : lookupKind === "function" ? (() => {
             let lookup = simpleResourceLookup(typeof param?.lookup_reference == "string" ? param.lookup_reference : null);
             return lookup ? {
               resource: lookup.resource,
@@ -894,7 +905,7 @@ function operatorCatalog(operators) {
               labelField: nonEmptyString(param?.lookup_label_field) ?? "name"
             } : null;
           })() : null,
-          lookupHint: lookupKind && lookupKind !== "values" && lookupKind !== "resources" && !simpleResourceLookup(typeof param?.lookup_reference == "string" ? param.lookup_reference : null) ? `${lookupKind} lookup \u2014 the web app resolves this at runtime; enter a value directly` : null,
+          lookupHint: lookupKind && lookupKind !== "values" && lookupKind !== "resources" && !(lookupKind === "map" && nonEmptyString(param?.map?.reference)) && !simpleResourceLookup(typeof param?.lookup_reference == "string" ? param.lookup_reference : null) ? `${lookupKind} lookup \u2014 the web app resolves this at runtime; enter a value directly` : null,
           inputType: nonEmptyString(param?.input_properties?.type),
           sensitive: param?.sensitive === !0,
           // An empty default for an email message or html param gets a starter template.
@@ -907,6 +918,23 @@ function operatorCatalog(operators) {
   }
   return catalog;
 }
+// operatorOutput — An operator's output as Saturn describes it (0.3.66): {description, type, fields: [{path, type,
+// description}]}, or null when it has none.
+function operatorOutput(output) {
+  if (!output || typeof output != "object" || Array.isArray(output)) return null;
+  let description = nonEmptyString(output.description),
+    type = nonEmptyString(output.type),
+    fields = asArray(output.fields).map(field => nonEmptyString(field?.path) ? {
+      path: nonEmptyString(field.path),
+      type: nonEmptyString(field?.type),
+      description: nonEmptyString(field?.description)
+    } : null).filter(field => field !== null);
+  return description || type || fields.length ? {
+    description: description,
+    type: type,
+    fields: fields
+  } : null;
+}
 // catalogToObject (minified: Sa) — The operator catalog Map as a plain object, for posting to a webview.
 function catalogToObject(catalog) {
   let result = {};
@@ -916,6 +944,8 @@ function catalogToObject(catalog) {
     description: entry.description,
     category: entry.category,
     icon: entry.icon,
+    disabled: entry.disabled,
+    output: entry.output,
     params: entry.params
   };
   return result;
