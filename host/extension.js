@@ -10076,6 +10076,34 @@ var draftHistoryLimit = 20,
             }
             break;
           }
+        // Saturn's operator list as JSON (0.3.65): GET /Operators, as the instance gives it, in an untitled tab beside.
+        // Offline, the copy kept for offline use is shown instead, and a message says so.
+        case "viewOperatorsJson":
+          {
+            try {
+              let operators,
+                saved = !1;
+              try {
+                operators = await listOperators(this.manager, this.instance);
+              } catch (error) {
+                operators = await this.offlineStore().operators().catch(() => null);
+                if (!operators) throw error;
+                saved = !0;
+              }
+              let textDocument = await vscode12.workspace.openTextDocument({
+                content: JSON.stringify(operators, null, 2),
+                language: "json"
+              });
+              await vscode12.window.showTextDocument(textDocument, {
+                preview: !0,
+                viewColumn: vscode12.ViewColumn.Beside
+              });
+              saved && vscode12.window.showInformationMessage("Saturn: the instance couldn't be reached, so this is the operator list saved for offline use.");
+            } catch (error) {
+              vscode12.window.showErrorMessage(`Saturn: failed to open the operator list \u2014 ${errorMessage(error, "unknown error")}`);
+            }
+            break;
+          }
         // Adds a step: a container (loop, condition, group, parallel block), a reference to a reusable command, or an operator from the catalog.
         case "addOperator":
           {

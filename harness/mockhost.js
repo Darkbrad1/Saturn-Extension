@@ -642,7 +642,7 @@
         break;
       }
       case "deleteWorkflow": delete defs[p.workflowId]; post("workflowDeleted", { workflowId: p.workflowId, name: "" }); break;
-      case "openParamEditor": case "openHtmlParam": case "openAccessFunction": case "openWorkflow": case "viewRawWorkflow": case "revealOfflineFiles":
+      case "openParamEditor": case "openHtmlParam": case "openAccessFunction": case "openWorkflow": case "viewRawWorkflow": case "viewOperatorsJson": case "revealOfflineFiles":
         (window.__opened = window.__opened || []).push({ type: msg.type, ...p });
         break;
       case "fetchWorkflowLogs": {

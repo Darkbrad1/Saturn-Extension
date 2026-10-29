@@ -1160,6 +1160,9 @@ export function App() {
         <button className="nv-btn" disabled={!wf} onClick={() => wf && send("viewRawWorkflow", { workflowId: wf.id })} title="The workflow's whole definition as JSON, with the unsaved changes in it, in a tab beside">
           Workflow JSON
         </button>
+        <button className="nv-btn" disabled={!wf} onClick={() => send("viewOperatorsJson", {})} title="Every operator this instance offers, with its settings, as Saturn lists them, in a tab beside">
+          Operators JSON
+        </button>
         <button className={`nv-btn ${layers ? "is-on" : ""}`} onClick={() => setLayers((v) => !v)} title={`The layers panel on the left: stages, actions and commands${hint("node.layers", shortcuts)}`}>
           Layers
         </button>

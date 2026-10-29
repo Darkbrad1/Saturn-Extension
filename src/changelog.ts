@@ -1,6 +1,14 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.65",
+    title: "Saturn's operator list",
+    items: [
+      "The node view's top bar has Operators JSON, right after Workflow JSON: every operator your instance offers, with its settings, exactly as Saturn lists them, in a read-only tab beside the canvas.",
+      "When the instance can't be reached, it shows the copy the extension keeps for working offline, and says so.",
+    ],
+  },
+  {
     version: "0.3.64",
     title: "The switch step",
     items: [
