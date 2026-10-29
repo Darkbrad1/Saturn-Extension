@@ -12,6 +12,8 @@ const labels = () => p.evaluate(() => window.__defs.wf_tickets.actions.map((a) =
 
 await p.goto("http://localhost:8765/csp.html");
 await p.waitForTimeout(900);
+// Property Updater has a form like Saturn's since 0.3.69 (test57.mjs); the property map editor is checked on an Update Record
+await p.evaluate(() => { const c = window.__defs.wf_tickets.stages[0].actions[0].task.commands[0]; c.operator = "update_record"; c.data = { resource: "tickets", fields: c.data.properties }; });
 await p.locator(".nv-picker-item", { hasText: "Support tickets" }).click();
 await p.waitForTimeout(900);
 const dup = async () => {
@@ -31,13 +33,13 @@ await p.waitForTimeout(400);
 ok((await labels()) === "Escalate" && (await applying()) === 0, "Ctrl+Z undoes the other; still not stuck");
 await dup();
 ok((await labels()) === "Escalate,Escalate (copy)" && (await applying()) === 0, "a new edit after undoing works");
-// ===== a property map's names can be changed (Property Updater) =====
+// ===== a property map's names can be changed (an Update Record's fields) =====
 const panel = p.locator(".fg-panel");
 await p.locator(".nv-ol-item", { hasText: "Triage" }).first().click();
 await p.waitForTimeout(600);
-await p.locator(".react-flow__node", { hasText: "Property Updater" }).first().click();
+await p.locator(".react-flow__node", { hasText: "Update Record" }).first().click();
 await p.waitForTimeout(500);
-const props = () => p.evaluate(() => JSON.stringify(window.__defs.wf_tickets.stages[0].actions[0].task.commands[0].data.properties));
+const props = () => p.evaluate(() => JSON.stringify(window.__defs.wf_tickets.stages[0].actions[0].task.commands[0].data.fields));
 const keyBox = (name) => panel.locator(".nv-kv-item input.nv-kv-k").filter({ has: p.locator(`xpath=self::*[@value="${name}"]`) });
 const keys = () => panel.locator(".nv-kv-item input.nv-kv-k").evaluateAll((es) => es.map((e) => e.value));
 ok((await keys()).join() === "priority,queue", "each property's name is a box you can type in " + (await keys()).join());

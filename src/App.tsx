@@ -2,6 +2,7 @@ import {
   Background,
   BackgroundVariant,
   MiniMap,
+  Panel as FlowPanel,
   ReactFlow,
   ReactFlowProvider,
   SelectionMode,
@@ -22,6 +23,7 @@ import { STAGE_FIELD, WorkflowMap } from "./map";
 import { hint, keysOf, listenForShortcuts, pressed, shown as shownKey, type Bindings } from "./keys";
 import { FormEnvContext, StepForm, defaultsFor, needsForm, type FormEnv, type FormError, type LoadedParams } from "./forms";
 import type { AccessSubjects, Binding, SettingsOps, TriggersState } from "./settings";
+import type { ResourceField } from "./recordform";
 import {
   KIND_COLORS,
   categoryColor,
@@ -194,6 +196,8 @@ export function App() {
   const [lookupOptions, setLookupOptions] = useState<Record<string, { value: string; label: string }[] | null>>({});
   const [resourceNames, setResourceNames] = useState<string[]>([]);
   const [bindings, setBindings] = useState<Binding[] | null>(null);
+  // a resource's properties, asked for by a Create or Property Updater step's form (0.3.69)
+  const [resourceFields, setResourceFields] = useState<Record<string, ResourceField[]>>({});
   const [bindingSaved, setBindingSaved] = useState("");
   const [hookBusy, setHookBusy] = useState(false);
   const [connection, setConnection] = useState<SettingsOps["connection"]>(null);
@@ -302,6 +306,9 @@ export function App() {
           break;
         case "resourceNames":
           setResourceNames(Array.isArray(p) ? p : []);
+          break;
+        case "resourceFields":
+          if (typeof p?.resource === "string") setResourceFields((cur) => ({ ...cur, [p.resource]: Array.isArray(p.fields) ? p.fields : [] }));
           break;
         case "bindings":
           setBindings(Array.isArray(p?.bindings) ? p.bindings : null);
@@ -797,6 +804,15 @@ export function App() {
       },
       openDesigner: () => wf && send("openWorkflow", { workflowId: wf.id }),
       openResource: (resource) => send("openResourceScreen", { resource }),
+      // a resource's properties, for a Create or Property Updater step (0.3.69)
+      fields: (resource) => {
+        if (!(resource in resourceFields) && !requestedLookups.current.has("\u0000fields:" + resource)) {
+          requestedLookups.current.add("\u0000fields:" + resource);
+          send("fetchResourceFields", { resource });
+        }
+        return resourceFields[resource] ?? null;
+      },
+      workflowResource: wf && bindings ? bindings.find((b) => b.workflowId === wf.id)?.resource ?? null : null,
       // the access editor's shape ({id, name, detail}) from the Workflows panel's lists
       subjects: () => {
         if (!subjects && !requestedLookups.current.has("\u0000subjects")) {
@@ -811,7 +827,7 @@ export function App() {
         };
       },
     }),
-    [resourceNames, lookupOptions, wf, subjects],
+    [resourceNames, lookupOptions, wf, subjects, resourceFields, bindings],
   );
 
   /** Switch workflows through the list view, so both views always show the same one. */
@@ -994,7 +1010,7 @@ export function App() {
     if (!open || !wf) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
       if (formRef.current) return;
       // a picker pop-over (date, colour) is open: it handles its own keys
       if (document.querySelector("#sonover-node-view .nv-pop")) return;
@@ -1363,6 +1379,7 @@ export function App() {
             <ReactFlowProvider>
               <Canvas
                 key={wf.id + "|" + tree.key + "|" + dir}
+                layoutKey={`${wf.id}::${tree.key}::${dir}`}
                 tree={tree}
                 catalog={catalog}
                 dir={dir}
@@ -1742,7 +1759,19 @@ function addTitle(op: string, catalog: Catalog) {
 }
 
 // ---------------------------------------------------------------------------
+/** Where a card was moved and how wide it was made by hand (0.3.69), against where the layout puts it: kept by the
+ *  extension per workflow, tree and direction (map-layouts.json, beside the workflow map's), on this computer only. */
+type CardPlace = { x: number; y: number; w?: number };
+/** A card's name in the kept layout: an operator step by its id (so it keeps its place when steps around it change),
+ *  anything else by its node id. */
+function placeKey(n: NvNode) {
+  const f = n.data.flow;
+  return n.data.role === "step" && f?.kind === "operator" && f.stepId ? "s:" + f.stepId : n.id;
+}
+
 function Canvas(props: {
+  /** where this tree's card places are kept (workflow, tree and direction) */
+  layoutKey: string;
   tree: Tree;
   catalog: Catalog;
   dir: LayoutDir;
@@ -1771,8 +1800,33 @@ function Canvas(props: {
   const { tree, catalog } = props;
   const onAddAtRef = useRef(props.onAddAt);
   onAddAtRef.current = props.onAddAt;
+  // cards moved or resized by hand (0.3.69): read when the tree opens; `placesRef` holds every change since
+  const [places, setPlaces] = useState<Record<string, CardPlace> | null>(null);
+  const placesRef = useRef<Record<string, CardPlace>>({});
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const { type, payload } = e.data ?? {};
+      if (type === "mapLayout" && payload?.workflowId === props.layoutKey) {
+        placesRef.current = { ...(payload.positions ?? {}) };
+        setPlaces(placesRef.current);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    send("fetchMapLayout", { workflowId: props.layoutKey });
+    return () => window.removeEventListener("message", onMessage);
+  }, [props.layoutKey]);
+  const keepPlaces = (next: Record<string, CardPlace>) => {
+    placesRef.current = next;
+    setPlaces(next);
+    send("saveMapLayout", { workflowId: props.layoutKey, positions: Object.keys(next).length ? next : null });
+  };
+  const resizedRef = useRef<(id: string, width: number) => void>(() => {});
   const rowActions = useMemo(
-    () => ({ open: props.onRow, add: (at: InsertPoint, x: number, y: number) => onAddAtRef.current(at, x, y) }),
+    () => ({
+      open: props.onRow,
+      add: (at: InsertPoint, x: number, y: number) => onAddAtRef.current(at, x, y),
+      resized: (id: string, width: number) => resizedRef.current(id, width),
+    }),
     [props.onRow],
   );
   const [hoverEdge, setHoverEdge] = useState<string | null>(null);
@@ -1800,8 +1854,27 @@ function Canvas(props: {
   const boxAdd = useRef(false);
   const first = useRef(true);
 
+  // the layout's cards, moved and resized as kept
+  const placed = useMemo(
+    () =>
+      layout.nodes.map((n) => {
+        const at = places?.[placeKey(n)];
+        if (!at) return n;
+        const w = at.w && n.data.role === "step" ? at.w : undefined;
+        return { ...n, position: { x: n.position.x + at.x, y: n.position.y + at.y }, ...(w ? { width: w, style: { ...n.style, width: w } } : {}) };
+      }),
+    [layout, places],
+  );
+  resizedRef.current = (id, width) => {
+    const n = layout.nodes.find((x) => x.id === id);
+    if (!n) return;
+    const k = placeKey(n);
+    const at = placesRef.current[k];
+    keepPlaces({ ...placesRef.current, [k]: { x: at?.x ?? 0, y: at?.y ?? 0, w: Math.round(width) } });
+  };
+
   useEffect(() => {
-    setNodes(layout.nodes.map((n) => ({ ...n, selected: selIds.has(n.id) })));
+    setNodes(placed.map((n) => ({ ...n, selected: selIds.has(n.id) })));
     props.onRefresh(layout.nodes);
     if (first.current) {
       first.current = false;
@@ -1812,7 +1885,7 @@ function Canvas(props: {
     // a step that disappeared (deleted / moved) can't stay selected, one that
     // is still there should show its fresh settings — and a multi-selection stays
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout]);
+  }, [placed]);
 
   props.fitRef.current = () => rf.fitView({ padding: 0.15, duration: 250, maxZoom: 1.1 });
 
@@ -2015,12 +2088,23 @@ function Canvas(props: {
         const pt = pointer(ev);
         setHotEdge(slotAt(pt) ?? nearestEdge(pt));
       }}
-      onNodeDragStop={(ev) => {
+      onNodeDragStop={(ev, _node, moved) => {
         const d = dragging.current;
         const pt = pointer(ev);
         const target = d ? slotAt(pt) ?? nearestEdge(pt) : null;
         dragging.current = null;
         setHotEdge(null);
+        // let go away from a wire: the cards stay where they were put (0.3.69); onto a wire, they move there and
+        // the layout places them again
+        const next = { ...placesRef.current };
+        for (const m of moved as NvNode[]) {
+          const auto = layout.nodes.find((x) => x.id === m.id);
+          if (!auto) continue;
+          const k = placeKey(auto);
+          if (target) delete next[k];
+          else next[k] = { ...next[k], x: Math.round(m.position.x - auto.position.x), y: Math.round(m.position.y - auto.position.y) };
+        }
+        keepPlaces(next);
         if (!d || !target) return;
         const ins = target.startsWith("s:")
           ? layout.nodes.find((x) => x.id === target)?.data.insert
@@ -2039,6 +2123,13 @@ function Canvas(props: {
       }}
     >
       <Background variant={BackgroundVariant.Lines} gap={40} color="var(--nv-grid)" />
+      {places && Object.keys(places).length > 0 && (
+        <FlowPanel position="top-right">
+          <button type="button" className="nv-btn is-small nv-reset-layout" title="Put every card back where the layout places it, at its normal width" onClick={() => keepPlaces({})}>
+            Reset layout
+          </button>
+        </FlowPanel>
+      )}
       <MiniMap
         pannable
         zoomable

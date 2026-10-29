@@ -1,3 +1,4 @@
+import { recordFormOf } from "./recordform";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FormEnvContext, MultiEditor, PanelEditor, type FormEnv, type FormError, type LoadedParams } from "./forms";
 import { ActionPanel, CommandPanel, MultiActionPanel, StagePanel, WorkflowPanel, type SettingsOps } from "./settings";
@@ -115,12 +116,14 @@ export function SidePanel(props: {
   // no form here (a stage or the workflow settings are open): back to Design
   const shown = tab === "form" && !owner ? "design" : tab;
   const tabs = (["design", "inspect", ...(owner ? ["form" as const] : []), "logs", "changes"] as const);
-  // the form tab has its own width, two thirds of the window until it's dragged
-  const width = shown === "form" ? Math.min(formMax(), props.formWidth ?? formDefault()) : props.width;
+  // the form tab has its own width, two thirds of the window until it's dragged; a Create or Property Updater
+  // step's properties (0.3.69) get the same wide panel
+  const wide = shown === "form" || (shown === "design" && (props.multi?.length ?? 0) < 2 && f?.kind === "operator" && !!recordFormOf(f.operator, props.catalog));
+  const width = wide ? Math.min(formMax(), props.formWidth ?? formDefault()) : props.width;
 
   return (
-    <aside className={`fg-panel${shown === "form" ? " is-form" : ""}`} style={{ width }}>
-      {shown === "form" ? (
+    <aside className={`fg-panel${shown === "form" ? " is-form" : ""}${wide ? " is-wide" : ""}`} style={{ width }}>
+      {wide ? (
         <ResizeHandle width={width} onResize={props.onFormResize} min={FORM_MIN} max={formMax} reset={() => props.onFormResize(null)} />
       ) : (
         <ResizeHandle width={props.width} onResize={props.onResize} min={PANEL_MIN} max={panelMax} reset={() => props.onResize(PANEL_DEFAULT)} />

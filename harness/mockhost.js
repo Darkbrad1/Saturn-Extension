@@ -36,15 +36,18 @@
     run_script: { name: "Run Script", category: "Data", description: "Run JavaScript against the record.", icon: null,
       params: [P("code", "Code", { required: true, defaultValue: "return record;", codeLanguage: "javascript" })] },
     // the list view's special editors
-    property_updater: { name: "Property Updater", category: "Records", description: "Set properties on the record.", icon: null,
-      params: [P("properties", "Properties", { type: "object" }), P("_properties", "Properties (legacy)", { type: "array", mergedInto: "properties" }), P("resource_id", "Record id")] },
+    // Saturn draws these two with forms of their own (0.3.69: form, from the owner's operator list)
+    property_updater: { name: "Property Updater", category: "Records", description: "Set properties on the record.", icon: null, form: "PropertyUpdaterForm",
+      params: [P("properties", "Properties", { type: "object" }), P("_properties", "Properties (legacy)", { type: "array", mergedInto: "properties" }), P("resource_id", "Record id"), P("resource_type", "Resource Type", { lookupKind: "resources" })] },
     assign_owner: { name: "Assign Owner", category: "Records", description: "Make a user the record's owner.", icon: null,
       params: [P("user", "User", { required: true, lookupKind: "function", lookupResource: { resource: "users", valueField: "id", labelField: "name" } })] },
     notify_groups: { name: "Notify Groups", category: "Communication", description: "Notify everyone in some groups.", icon: null,
       params: [P("groups", "Groups", { type: "array", lookupKind: "function", lookupResource: { resource: "user_groups", valueField: "id", labelField: "name" } }), P("message", "Message")] },
     // a Create step: the catalog lists only its resource, but real steps also store properties (a map)
-    create: { name: "Create", category: "Records", description: "Create a record.", icon: null,
-      params: [P("resource", "Resource", { required: true, lookupKind: "resources" })] },
+    // its params as Saturn's operator list names them; its form (and real steps) store resource and properties
+    create: { name: "Create", category: "Records", description: "Create a record.", icon: null, form: "CreateResourceOperatorForm",
+      output: { description: "The record that was created, including its new id.", type: "object", fields: [{ path: "id", type: "string", description: "The new record's id." }] },
+      params: [P("resource_name", "Resource Name", { lookupKind: "resources" }), P("Properties", "Properties", { type: "object", defaultValue: "{}" }), P("id", "ID", { defaultValue: "{}" })] },
     debug: { name: "Debug", category: "Developer", description: "Log the current context.", icon: null,
       params: [P("label", "Label"), P("level", "Level", { lookupValues: ["info", "warn", "error"] })] },
     schedule_followup: { name: "Schedule Follow-up", category: "Records", description: "Schedule a follow-up on the record.", icon: null,
@@ -57,8 +60,27 @@
   const lookupData = {
     users: [{ value: "u1", label: "Ada Lovelace" }, { value: "u2", label: "Grace Hopper" }, { value: "u3", label: "Alan Turing" }],
     user_groups: [{ value: "g1", label: "Support" }, { value: "g2", label: "Finance" }, { value: "g3", label: "Warehouse" }],
+    Application: [{ value: "application-demo-20261028-10", label: "APP-000123-QK7Z2D" }, { value: "application-demo-20261028-11", label: "APP-000124-M3P9TX" }],
   };
-  const resourceNames = ["customers", "inventory", "invoices", "orders"];
+  // a resource's properties as the host's fetchResourceFields gives them (0.3.69): Note is the owner's real note
+  // resource (a rich text description, an Application picked from a list); orders has choices and a number
+  const resourceFieldData = {
+    Note: [
+      { key: "creator", label: "Creator", type: "string", index: 0, inputType: "input", lookupType: null, choices: null, map: null, required: false },
+      { key: "creator_role", label: "Creator Role", type: "string", index: 1, inputType: "input", lookupType: null, choices: null, map: null, required: false },
+      { key: "application_stage", label: "Application Stage", type: "string", index: 2, inputType: "input", lookupType: null, choices: null, map: null, required: false },
+      { key: "description", label: "Description", type: "string", index: 3, inputType: "richtexteditor", lookupType: null, choices: null, map: null, required: false },
+      { key: "application", label: "Application", type: "string", index: 4, inputType: "input", lookupType: "map", choices: null, map: { resource: "Application", valueField: "id", labelField: "application_number" }, required: false },
+    ],
+    orders: [
+      { key: "status", label: "Status", type: "string", index: 0, inputType: "input", lookupType: "values", choices: ["new", "approved", "shipped", "cancelled"], map: null, required: true },
+      { key: "total", label: "Total", type: "number", index: 1, inputType: "input", lookupType: null, choices: null, map: null, required: false },
+      { key: "rush", label: "Rush", type: "boolean", index: 2, inputType: "input", lookupType: null, choices: null, map: null, required: false },
+      { key: "shipped_at", label: "Shipped at", type: "date", index: 3, inputType: "input", lookupType: null, choices: null, map: null, required: false },
+      { key: "notes", label: "Notes", type: "string", index: 4, inputType: "richtexteditor", lookupType: null, choices: null, map: null, required: false },
+    ],
+  };
+  const resourceNames = ["Note", "customers", "inventory", "invoices", "orders"];
   const subjects = {
     groups: [{ id: "g1", name: "Support", description: null }, { id: "g2", name: "Finance", description: null }, { id: "g3", name: "Warehouse", description: null }],
     users: [{ id: "u1", name: "Ada Lovelace", email: "ada@example.com" }, { id: "u2", name: "Grace Hopper", email: "grace@example.com" }],
@@ -78,7 +100,9 @@
   ];
 
   const STAFF_FIELD = {"key":"staff","type":"string","meta_tags":[],"defaults":{"read":"","write":""},"label":"Staff","required":false,"searchable":false,"unique":false,"hideInTable":false,"hideInForm":false,"hideInView":false,"hideInDrawer":false,"ipaddress":false,"hide":false,"email":false,"tableColumnWidth":0,"placeInOwnTab":false,"map_label_type":"property","source":"static","access_control":{},"number_of_columns":{"full_width":false,"default":1},"form_number_of_columns":{"full_width":false,"default":1},"required_columns":[],"rendering":{"component":"default","options":{"size":"small","shape":"circle","opacity":0.2},"_variances":{"list":{"component":"default","options":{"size":"small","shape":"circle","opacity":0.2}},"view":{"component":"default","span":2,"options":{"size":"small","shape":"circle","opacity":0.2}},"form":{}}},"default_view":"SLKJDSF","views":[{"id":"SLKJDSF","view":"data_table","details":{}}],"input_properties":{"type":"input","options":{"code":"<template></template> "}},"lookup_value_field":"id","lookup_label_type":"function","lookup_label":"(res,{_user,_,spice})=>{\n//your code comes here\nreturn `${res.first_name} ${res.last_name}`\n}","map":{"type":"model","value_field":"id","label_field":"label","reference":"User"},"lookup_type":"map","lookup_filter":"`user`.`group` = 'user_group-344907c9-ebb5-4afc-9dac-f5fb17614795'"};
-  const op = (operator, data, extra = {}) => ({ type: "command", operator, data, id: Math.random().toString(36).slice(2, 8), ...extra });
+  // the same ids on every load, like a saved workflow's (0.3.69: a card moved by hand is kept by its step's id)
+  let opCount = 0;
+  const op = (operator, data, extra = {}) => ({ type: "command", operator, data, id: "op" + String(++opCount).padStart(4, "0"), ...extra });
   const defs = {
     wf_orders: {
       id: "wf_orders", name: "Order fulfilment", status: "active",
@@ -424,7 +448,11 @@
           node = { type: "reference", operator: "reference", id: command, ...(Object.keys(params).length ? { parameters: params } : {}) };
           node.reference = command;
         }
-        else node = op(p.operator, Object.fromEntries(Object.entries(p.values || {}).filter(([, v]) => v !== "")));
+        // like the host's paramsToData: JSON for an object param, or for a setting the catalog doesn't list (a Create step's properties)
+        else node = op(p.operator, Object.fromEntries(Object.entries(p.values || {}).filter(([, v]) => v !== "").map(([k, v]) => {
+          const prm = catalog[p.operator]?.params.find((x) => x.param === k);
+          if ((prm && (prm.type === "object" || prm.type === "array")) || (!prm && /^\s*[[{]/.test(v))) { try { return [k, JSON.parse(v)]; } catch { return [k, v]; } }
+          return [k, v]; })));
         apply(id, `Add "${c?.name ?? p.operator}"`, (d) => { const arr = ensureArray(d, p.childrenPath); const i = p.index == null || p.index > arr.length ? arr.length : p.index; arr.splice(i, 0, node); });
         break;
       }
@@ -620,7 +648,7 @@
       }
       case "fetchSavedForm": { const d = JSON.parse(savedOf(id)); let fs = []; try { const o = get(d, p.ownerPath)?.[p.formKey]; fs = Array.isArray(o) ? o : Array.isArray(o?.fields) ? o.fields : []; } catch {}
         post("savedForm", { workflowId: id, ownerPath: p.ownerPath, formKey: p.formKey, fields: fs }); break; }
-      case "fetchResourceFields": post("resourceFields", { resource: p.resource, fields: [{ key: "id", label: "Id", type: "string" }, { key: "first_name", label: "First name", type: "string" }, { key: "email", label: "Email", type: "string" }] }); break;
+      case "fetchResourceFields": post("resourceFields", { resource: p.resource, fields: resourceFieldData[p.resource] ?? [{ key: "id", label: "Id", type: "string" }, { key: "first_name", label: "First name", type: "string" }, { key: "email", label: "Email", type: "string" }] }); break;
       // a field's code setting opened as a file: __saveFieldFile(code) stands in for saving that file
       case "openFieldCode": (window.__opened = window.__opened || []).push({ type: msg.type, ...p });
         window.__saveFieldFile = (code) => apply(id, `Saved ${p.path.join(".")} of field "${p.key}"`, (d) => { const f = fieldsAt(d, p.ownerPath, p.formKey).find((x) => x.key === p.key); if (!f) throw new Error(`The field "${p.key}" is no longer in this form.`);

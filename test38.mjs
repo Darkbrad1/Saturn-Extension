@@ -102,13 +102,14 @@ await p.locator(".react-flow__node", { hasText: "DocumentRequest" }).first().cli
 await p.waitForTimeout(600);
 const panel = p.locator(".fg-panel");
 ok((await panel.getByText("Properties", { exact: true }).count()) >= 1, "the side panel shows the Create step's Properties");
-const names = await panel.locator(".nv-kv-item input.nv-kv-k").evaluateAll((els) => els.map((e) => e.value));
-ok(names.includes("belongs_to") && names.includes("status"), "as names and values: " + names.join());
+// (since 0.3.69 a Create step's properties are rows of the record form, test57.mjs)
+const names = await panel.locator(".nv-recform [data-prop]").evaluateAll((els) => els.map((e) => e.getAttribute("data-prop")));
+ok(names.includes("belongs_to") && names.includes("status"), "one row per property: " + names.join());
 await p.screenshot({ path: out + "/v3-create-panel.png" });
 // change one value: the step keeps its resource and every property (it used to lose properties on save)
-const statusRow = panel.locator(".nv-kv-item", { has: p.locator('input.nv-kv-k[value="status"]') });
-await statusRow.locator("input.nv-kv-v").fill("waiting");
-await statusRow.locator("input.nv-kv-v").press("Enter");
+const statusRow = panel.locator('.nv-recform [data-prop="status"]');
+await statusRow.locator("input").first().fill("waiting");
+await statusRow.locator("input").first().press("Enter");
 await p.waitForTimeout(600);
 const step = await p.evaluate(() => {
   const d = window.__getDef();

@@ -1,6 +1,19 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.69",
+    title: "Create and Property Updater like Saturn's forms, a Notion-like rich text editor, cards you can move and resize",
+    items: [
+      "A Create or Property Updater step now shows one Resource setting and then the properties it sets, each with the control its input type calls for: a text box, a rich text editor, a record picker (showing the picked record's name), a list of choices, true / false, or a date.",
+      "Each property has ⇋ (type a value or a {{ template }} instead) and × (take it out). Only the properties with a value are listed; + Add a property offers the resource's other properties by name. A property left empty isn't saved.",
+      "Property Updater: leaving Resource empty means the record the workflow runs on, as in Saturn.",
+      "Rich text is edited like Notion: no toolbar until you pick some text, then a small bar above it (headings, bold, italic, underline, strike, link, colour and highlight, align, indent, clear). Type / for blocks (headings, lists, quote, code, table, image) or Markdown like \"# \" and \"- \". It saves the same HTML Saturn's editor does.",
+      "The side panel widens for these steps, like on the Form tab, and can be resized.",
+      "Cards on the canvas can be moved: let go away from a wire and a card stays where you put it. Pick a card and drag its right edge to make it wider or narrower. Both are kept on this computer, and Reset layout (top right of the canvas) puts every card back.",
+      "Fixed: keys typed in a rich text box no longer reach the canvas's shortcuts (X used to delete the step).",
+    ],
+  },
+  {
     version: "0.3.68",
     title: "Settings that show only when they matter",
     items: [

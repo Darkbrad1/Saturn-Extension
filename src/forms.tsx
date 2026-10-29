@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Catalog, CatalogParam, CommandView } from "./types";
 import { shownWhen } from "./showwhen";
+import { RecordForm, recordFormOf, type ResourceField } from "./recordform";
 import {
   ColorChip,
   DateButtons,
@@ -61,7 +62,7 @@ export interface FieldSpec {
 }
 
 /** Add the special controls a field gets from its type or name. */
-function enrich(f: FieldSpec, type?: string | null, inputType?: string | null): FieldSpec {
+export function enrich(f: FieldSpec, type?: string | null, inputType?: string | null): FieldSpec {
   if (!["text", "number", "textarea"].includes(f.kind)) return f;
   const out = { ...f };
   const date = dateModeOf(type, inputType, f.key, f.label);
@@ -94,6 +95,10 @@ export interface FormEnv {
   openResource?: (resource: string) => void;
   /** the user groups, users and permissions access rules can name (asks once): null while they load */
   subjects?: () => import("../src-menus/model").Subjects | null;
+  /** a resource's properties (asks once; 0.3.69): null while they load, [] when they can't be read */
+  fields?: (resource: string) => ResourceField[] | null;
+  /** the resource this workflow runs on, when it's linked to one (Property Updater's default) */
+  workflowResource?: string | null;
 }
 export const FormEnvContext = createContext<FormEnv>({
   resourceNames: [],
@@ -263,6 +268,8 @@ export function defaultsFor(operator: string, catalog: Catalog, commands: Comman
 export function needsForm(operator: string, catalog: Catalog) {
   if (["each", "if", "switch", "reference"].includes(operator)) return true;
   if (operator === "series" || operator === "parallel") return false;
+  // a new Create step needs its resource first, as in Saturn's form (0.3.69)
+  if (recordFormOf(operator, catalog) === "create") return true;
   return (catalog[operator]?.params ?? []).some((p) => p.required && !p.defaultValue && !p.mergedInto);
 }
 
@@ -279,6 +286,8 @@ export function FieldControl(props: {
   /** Blender-style commit points (panel only): Enter / blur / pick. */
   onCommit?: (v?: string) => void;
   onRevert?: () => void;
+  /** buttons beside the name (a record form's ⇋ and ×) */
+  extra?: React.ReactNode;
 }) {
   const env = useContext(FormEnvContext);
   const { f } = props;
@@ -485,6 +494,7 @@ export function FieldControl(props: {
             Open in editor ↗
           </button>
         )}
+        {props.extra}
       </span>
       {control}
       {f.date && describeDate(props.value, f.date) && <span className="nv-date-hint">{describeDate(props.value, f.date)}</span>}
@@ -832,8 +842,9 @@ export function StepForm(props: {
     first.current?.querySelector<HTMLElement>("input,textarea,select")?.focus();
   }, []);
   const fields = fieldsFor(props.operator, props.catalog, props.commands, values);
+  const record = recordFormOf(props.operator, props.catalog);
   const errFor = (k: string) => props.errors.find((e) => e.param === k)?.message;
-  const generalErrors = props.errors.filter((e) => !fields.some((f) => f.key === e.param));
+  const generalErrors = props.errors.filter((e) => !fields.some((f) => f.key === e.param) && !record);
 
   return (
     <div className="nv-modal-back" onMouseDown={props.onCancel}>
@@ -853,9 +864,19 @@ export function StepForm(props: {
           <div className="nv-modal-title">{props.title}</div>
           {props.subtitle && <div className="nv-modal-sub">{props.subtitle}</div>}
         </div>
-        <div className="nv-modal-body" ref={first}>
-          {fields.length === 0 && <div className="nv-note">This step has no settings.</div>}
-          {fields.map((f) => (
+        <div className={`nv-modal-body ${record ? "is-record" : ""}`} ref={first}>
+          {record && (
+            <RecordForm
+              kind={record}
+              values={values}
+              errors={props.errors}
+              canOpenFiles={false}
+              onChange={(k, v) => setValues((cur) => ({ ...cur, [k]: v }))}
+              onCommit={(o) => o && setValues((cur) => ({ ...cur, ...o }))}
+            />
+          )}
+          {!record && fields.length === 0 && <div className="nv-note">This step has no settings.</div>}
+          {!record && fields.map((f) => (
             <FieldControl
               key={f.key}
               f={f}
@@ -952,7 +973,9 @@ export function PanelEditor(props: {
 
   const fields = fieldsFor(props.operator, props.catalog, props.commands, values);
   const errFor = (k: string) => props.errors.find((e) => e.param === k)?.message;
-  const generalErrors = props.errors.filter((e) => !fields.some((f) => f.key === e.param));
+  // a record form shows its own settings' errors
+  const recordKeys = recordFormOf(props.operator, props.catalog) ? ["resource", "resource_name", "resource_type", "resource_id", "properties", "Properties", "id"] : [];
+  const generalErrors = props.errors.filter((e) => !fields.some((f) => f.key === e.param) && !recordKeys.includes(e.param));
 
   const commit = (override?: Record<string, string>) => {
     const vals = { ...valuesRef.current, ...(override ?? {}) };
@@ -969,11 +992,26 @@ export function PanelEditor(props: {
     props.onCommit(send, d);
   };
   commitRef.current = () => commit();
+  const record = recordFormOf(props.operator, props.catalog);
 
   return (
     <div className="nv-panel-form" ref={box}>
-      {fields.length === 0 && <p className="nv-muted">This step has no settings.</p>}
-      {fields.map((f) => (
+      {record && (
+        <RecordForm
+          kind={record}
+          values={values}
+          errors={props.errors}
+          canOpenFiles
+          onChange={(k, v) => {
+            dirty.current.add(k);
+            valuesRef.current = { ...valuesRef.current, [k]: v };
+            setValues(valuesRef.current);
+          }}
+          onCommit={(o) => commit(o)}
+        />
+      )}
+      {!record && fields.length === 0 && <p className="nv-muted">This step has no settings.</p>}
+      {!record && fields.map((f) => (
         <FieldControl
           key={f.key}
           f={f}

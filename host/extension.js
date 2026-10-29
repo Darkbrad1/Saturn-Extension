@@ -870,6 +870,8 @@ function operatorCatalog(operators) {
       icon: sanitizeSvgIcon(entry?.icon),
       // Saturn marks some operators disabled (status "disabled", 0.3.66): kept for steps that use them, left out of the Add menu
       disabled: entry?.status === "disabled",
+      // Saturn draws some operators with a form of its own (0.3.69): CreateResourceOperatorForm, PropertyUpdaterForm
+      form: nonEmptyString(entry?.params_form),
       // what the step hands to the next one (0.3.66): Saturn's description, its type and the fields it has
       output: operatorOutput(entry?.output),
       params: asArray(entry?.params).map(param => {
@@ -947,6 +949,7 @@ function catalogToObject(catalog) {
     category: entry.category,
     icon: entry.icon,
     disabled: entry.disabled,
+    form: entry.form,
     output: entry.output,
     params: entry.params
   };
@@ -3850,12 +3853,24 @@ async function getResourceFields(manager, instance, resource) {
   // Saturn sends the properties as a list, each with its key ({data: [{key, label, …}]}); older
   // answers were a {key: property} map. (The original read only the map, so a list's keys came out as 0, 1, 2, ….)
   let entries = Array.isArray(schema) ? schema.filter(field => typeof field?.key == "string" && field.key).map(field => [field.key, field]) : Object.entries(schema);
-  let fields = entries.map(([key, field]) => ({
+  let fields = entries.map(([key, field], index) => ({
     key: key,
     label: typeof field?.label == "string" && field.label ? field.label : null,
     type: typeof field?.type == "string" ? field.type : null,
     reference: typeof field?.map?.reference == "string" && field.map.reference ? field.map.reference : typeof field?.lookup_reference == "string" && field.lookup_reference ? field.lookup_reference : null,
-    source: typeof field?.source == "string" ? field.source : null
+    source: typeof field?.source == "string" ? field.source : null,
+    // what a record editor needs to draw it (0.3.69, a Create / Property Updater step's properties): its place in
+    // the schema, its input type, a values lookup's choices, and a map lookup's resource and fields
+    index: index,
+    inputType: nonEmptyString(field?.input_properties?.type),
+    lookupType: nonEmptyString(field?.lookup_type),
+    choices: field?.lookup_type === "values" && typeof field?.lookup_reference == "string" ? field.lookup_reference.split(",").map(choice => choice.trim()).filter(Boolean) : null,
+    map: field?.lookup_type === "map" && nonEmptyString(field?.map?.reference) ? {
+      resource: nonEmptyString(field.map.reference),
+      valueField: nonEmptyString(field?.lookup_value_field) ?? nonEmptyString(field.map.value_field) ?? "id",
+      labelField: nonEmptyString(field.map.label_field) ?? "name"
+    } : null,
+    required: field?.required === !0
   })).sort((left, right) => left.key.localeCompare(right.key));
   return {
     resource: resource,
@@ -9328,6 +9343,8 @@ var draftHistoryLimit = 20,
       }
     }
     // Box positions as sent by the map, kept only when they're {id: {x, y}} with finite numbers (at most 1000).
+    // The node view's cards use the same file (0.3.69), keyed "<workflow id>::<tree>::<direction>": x / y are how far
+    // a card was moved from where the layout puts it, and `w` the width it was given (120 to 2000), when it was.
     static cleanMapLayout(positions) {
       if (!positions || typeof positions != "object" || Array.isArray(positions)) return null;
       let clean = {};
@@ -9335,7 +9352,10 @@ var draftHistoryLimit = 20,
         if (["__proto__", "constructor", "prototype"].includes(id)) continue;
         if (at && typeof at == "object" && Number.isFinite(at.x) && Number.isFinite(at.y)) clean[id] = {
           x: Math.round(at.x),
-          y: Math.round(at.y)
+          y: Math.round(at.y),
+          ...(Number.isFinite(at.w) && at.w >= 120 && at.w <= 2e3 ? {
+            w: Math.round(at.w)
+          } : {})
         };
       }
       return Object.keys(clean).length ? clean : null;
@@ -11016,7 +11036,13 @@ var draftHistoryLimit = 20,
                   fields: result.fields.map(field => ({
                     key: field.key,
                     label: field.label,
-                    type: field.type
+                    type: field.type,
+                    index: field.index,
+                    inputType: field.inputType,
+                    lookupType: field.lookupType,
+                    choices: field.choices,
+                    map: field.map,
+                    required: field.required
                   }))
                 }
               });

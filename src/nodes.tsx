@@ -2,6 +2,7 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   Handle,
+  NodeResizeControl,
   Position,
   getBezierPath,
   type EdgeProps,
@@ -24,9 +25,12 @@ export const NodeActions = createContext<{
   open: (f: Flow, a: RowAction) => void;
   /** Open the Add menu for a specific insertion point (slots and wire + buttons). */
   add: (at: InsertPoint, x: number, y: number) => void;
+  /** a card made wider or narrower by hand (0.3.69) */
+  resized?: (id: string, width: number) => void;
 } | null>(null);
 
-export function NvNodeView({ data, selected }: NodeProps<NvNode>) {
+export function NvNodeView({ id, data, selected }: NodeProps<NvNode>) {
+  const actions = useContext(NodeActions);
   const { v, IN, OUT } = useIO();
   const cls = [
     "nv-node",
@@ -38,6 +42,17 @@ export function NvNodeView({ data, selected }: NodeProps<NvNode>) {
   const row = (r: NvRow, i: number) => <Row key={i} r={r} flow={data.flow} />;
   return (
     <div className={cls}>
+      {selected && data.role === "step" && actions?.resized && (
+        // a picked card's right edge can be dragged to make it wider or narrower
+        <NodeResizeControl
+          position="right"
+          resizeDirection="horizontal"
+          minWidth={180}
+          maxWidth={900}
+          className="nv-resize-edge"
+          onResizeEnd={(_, p) => actions.resized!(id, p.width)}
+        />
+      )}
       <div className="nv-node-header" style={{ background: data.color }}>
         <span className="nv-node-title" title={data.title}>
           {data.title}

@@ -198,6 +198,8 @@ export interface CatalogEntry {
   icon: unknown;
   /** Saturn marks it disabled (0.3.66): not offered in the Add menu */
   disabled?: boolean;
+  /** Saturn's own form for it, when it has one (0.3.69): CreateResourceOperatorForm, PropertyUpdaterForm */
+  form?: string | null;
   /** what the step hands to the next one, as Saturn describes it (0.3.66) */
   output?: { description: string | null; type: string | null; fields: { path: string; type: string | null; description: string | null }[] } | null;
   params: CatalogParam[];

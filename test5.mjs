@@ -39,16 +39,20 @@ await p.screenshot({ path: out + "/50-tickets.png" });
 // ---- key/value editor (property map)
 await node("Property Updater").click();
 await p.waitForTimeout(500);
-ok(await p.locator(".fg-panel .nv-kv-item").count() === 2, "property map shows its rows");
+// (since 0.3.69 Property Updater has a form like Saturn's: a row per property, test57.mjs)
+ok(await p.locator(".fg-panel .nv-recform [data-prop]").count() === 2, "property map shows its rows");
 ok(await p.locator(".fg-panel .nv-field-name", { hasText: "Properties (legacy)" }).count() === 0, "merged param hidden, like the list view");
-await p.locator(".fg-panel .nv-kv-add input").nth(0).fill("sla");
-await p.locator(".fg-panel .nv-kv-add input").nth(1).fill("4h");
-await p.locator(".fg-panel .nv-kv-add input").nth(1).press("Enter");
+await p.locator(".fg-panel").getByRole("combobox", { name: "Add a property" }).selectOption("\u0000other");
+await p.locator(".fg-panel").getByRole("textbox", { name: "Property key" }).fill("sla");
+await p.locator(".fg-panel").getByRole("textbox", { name: "Property key" }).press("Enter");
+await p.waitForTimeout(200);
+await p.locator('.fg-panel [data-prop="sla"] input').first().fill("4h");
+await p.locator('.fg-panel [data-prop="sla"] input').first().press("Enter");
 await p.waitForTimeout(500);
 let t = (await def("wf_tickets")).stages[0].actions[0].task.commands;
 ok(t[0].data.properties.sla === "4h" && t[0].data.properties.priority === "high", "adding a row writes the property map");
 ok(Array.isArray(t[0].data._properties) && t[0].data._properties.some((x) => x.key === "sla"), "legacy _properties kept in step by the host");
-await p.locator(".fg-panel .nv-kv-item", { hasText: "queue" }).locator(".nv-kv-x").click();
+await p.locator(".fg-panel").getByRole("button", { name: "Remove queue" }).click();
 await p.waitForTimeout(500);
 t = (await def("wf_tickets")).stages[0].actions[0].task.commands;
 ok(!("queue" in t[0].data.properties), "removing a row writes the property map");

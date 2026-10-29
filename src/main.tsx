@@ -3,12 +3,13 @@
 import "./bridge";
 import { createRoot } from "react-dom/client";
 import flowCss from "@xyflow/react/dist/style.css";
+import quillCss from "quill/dist/quill.core.css";
 import ownCss from "./styles.css";
 import { App } from "./App";
 
 function mount() {
   const style = document.createElement("style");
-  style.textContent = flowCss + "\n" + ownCss;
+  style.textContent = flowCss + "\n" + quillCss + "\n" + ownCss;
   document.head.appendChild(style);
   const host = document.createElement("div");
   host.id = "sonover-node-view";
