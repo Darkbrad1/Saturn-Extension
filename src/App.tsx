@@ -130,6 +130,7 @@ interface Saved {
   open: boolean;
   panel: boolean;
   panelWidth?: number;
+  formWidth?: number | null;
   trees: Record<string, string>;
   /** per workflow: collapsed stages/sections in the layers panel */
   collapsed?: Record<string, string[]>;
@@ -157,6 +158,7 @@ export function App() {
   const [shortcuts, setShortcuts] = useState<Bindings>({});
   useEffect(() => listenForShortcuts(send, setShortcuts), []);
   const [panelWidth, setPanelWidth] = useState(saved.panelWidth ?? PANEL_DEFAULT);
+  const [formWidth, setFormWidth] = useState<number | null>(saved.formWidth ?? null);
   /** Settings of the selected step, read from the host (readNode) for the panel editor. */
   const [loaded, setLoaded] = useState<{ key: string; params: LoadedParams } | null>(null);
   // the settings of several picked steps of one operator (for editing what they share), by request id
@@ -226,8 +228,8 @@ export function App() {
   formRef.current = form;
 
   useEffect(
-    () => saveNodeViewState({ open, panel, panelWidth, trees: treeByWf, collapsed: collapsedByWf, dir, layers }),
-    [open, panel, panelWidth, treeByWf, collapsedByWf, dir, layers],
+    () => saveNodeViewState({ open, panel, panelWidth, formWidth, trees: treeByWf, collapsed: collapsedByWf, dir, layers }),
+    [open, panel, panelWidth, formWidth, treeByWf, collapsedByWf, dir, layers],
   );
   useEffect(() => {
     const off = onSelectionChange(setCurrentId);
@@ -1457,6 +1459,8 @@ export function App() {
             onOpenTree={openTree}
             width={panelWidth}
             onResize={setPanelWidth}
+            formWidth={formWidth}
+            onFormResize={setFormWidth}
             loaded={selKey && loaded?.key === selKey ? loaded.params : null}
             panelErrors={panelErrors}
             busy={busy}

@@ -57,6 +57,10 @@ export function titleOf(f: Flow, catalog: Catalog) {
 const PANEL_MIN = 240;
 const PANEL_DEFAULT = 320;
 const panelMax = () => Math.max(PANEL_MIN, Math.round(window.innerWidth * 0.6));
+// the Form / Parameters tab: two thirds of the window at first, dragged between FORM_MIN and 90%
+const FORM_MIN = 420;
+const formDefault = () => Math.round(window.innerWidth * 0.66);
+const formMax = () => Math.max(FORM_MIN, Math.round(window.innerWidth * 0.9));
 
 /** What the panel shows when no node is selected. */
 export type PanelScope = { kind: "tree" } | { kind: "stage"; index: number } | { kind: "workflow" };
@@ -68,6 +72,9 @@ export function SidePanel(props: {
   onOpenTree: (key: string) => void;
   width: number;
   onResize: (w: number) => void;
+  /** the Form tab's own width (null: two thirds of the window) */
+  formWidth: number | null;
+  onFormResize: (w: number | null) => void;
   loaded: LoadedParams | null;
   panelErrors: FormError[];
   busy: boolean;
@@ -108,12 +115,16 @@ export function SidePanel(props: {
   // no form here (a stage or the workflow settings are open): back to Design
   const shown = tab === "form" && !owner ? "design" : tab;
   const tabs = (["design", "inspect", ...(owner ? ["form" as const] : []), "logs", "changes"] as const);
-  // the form tab takes two thirds of the window (or more if the panel was made wider)
-  const width = shown === "form" ? Math.max(props.width, Math.round(window.innerWidth * 0.66)) : props.width;
+  // the form tab has its own width, two thirds of the window until it's dragged
+  const width = shown === "form" ? Math.min(formMax(), props.formWidth ?? formDefault()) : props.width;
 
   return (
     <aside className={`fg-panel${shown === "form" ? " is-form" : ""}`} style={{ width }}>
-      {shown !== "form" && <ResizeHandle width={props.width} onResize={props.onResize} />}
+      {shown === "form" ? (
+        <ResizeHandle width={width} onResize={props.onFormResize} min={FORM_MIN} max={formMax} reset={() => props.onFormResize(null)} />
+      ) : (
+        <ResizeHandle width={props.width} onResize={props.onResize} min={PANEL_MIN} max={panelMax} reset={() => props.onResize(PANEL_DEFAULT)} />
+      )}
       <div className="fg-tabs" role="tablist">
         {tabs.map((t) => (
           <button
@@ -292,7 +303,7 @@ function ChangesTab(props: { draft: DraftState | undefined; wf: WorkflowView; on
   );
 }
 
-function ResizeHandle({ width, onResize }: { width: number; onResize: (w: number) => void }) {
+function ResizeHandle({ width, onResize, min, max, reset }: { width: number; onResize: (w: number) => void; min: number; max: () => number; reset: () => void }) {
   const start = useRef<{ x: number; w: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   return (
@@ -308,14 +319,14 @@ function ResizeHandle({ width, onResize }: { width: number; onResize: (w: number
       onPointerMove={(e) => {
         if (!start.current) return;
         const w = start.current.w + (start.current.x - e.clientX);
-        onResize(Math.min(panelMax(), Math.max(PANEL_MIN, Math.round(w))));
+        onResize(Math.min(max(), Math.max(min, Math.round(w))));
       }}
       onPointerUp={(e) => {
         start.current = null;
         setDragging(false);
         (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
       }}
-      onDoubleClick={() => onResize(PANEL_DEFAULT)}
+      onDoubleClick={reset}
     />
   );
 }

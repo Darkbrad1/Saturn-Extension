@@ -1,4 +1,4 @@
-# sonover-code (v0.3.66)
+# sonover-code (v0.3.67)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo. It lets you work on a Saturn instance's workflows, resources, menus and logs from inside VS Code (or VSCodium).
 
@@ -26,14 +26,14 @@ Browser tests: `node tools/serve.mjs &` (a small test server on port 8765), then
 The Saturn sidebar opens every screen: Workflows, Resources, Menus, System Logs, and (under AI Skills) What's new and Keyboard shortcuts.
 
 ### Workflows: the node view
-The Workflows screen opens as a node editor, like Blender's: each action or command is a flow of step cards joined by wires. The old list view is one click away (List view).
+The Workflows screen opens as a node editor, like Blender's: each action or command is a flow of step cards joined by wires (a Create step's card is titled with the resource it creates). The old list view is one click away (List view).
 - **Top bar:** workflow switcher, Undo, + Add, direction (vertical or horizontal), Reload, Open in Saturn ↗, Workflow JSON (the whole workflow with your unsaved changes), Operators JSON (every operator the instance offers, as Saturn lists them), Layers, Panel, List view. Under it, a breadcrumb row; each step in it takes you back there.
 - **Editing steps:** pick a step to edit it in the side panel, which starts with Saturn's description of its operator and ends with its Output (what the next step gets); a setting that points at a record (a Person, an Agent) is a searchable record picker that also takes a typed {{ template }}; a change applies when you're done with it (Enter, clicking away). Nothing goes to Saturn until you Save the workflow; Undo and Discard work on these unsaved changes. Steps can be added (Shift+A, or + on a wire), duplicated, disabled, copied and pasted, deleted, and dragged onto a wire to move them. Code and emails open in their own editor tab.
 - **Cards:** every value is colour-highlighted; a property map (like a Property Updater's) shows one row per property.
 - **Branches:** an If shows its True and False side by side; a switch shows one column per case and Otherwise last. Pick a switch to change the value it checks and its cases (rename, add, reorder, remove); the Add menu has Switch (cases).
 - **Picking several steps:** Shift or Ctrl/Cmd+click, a box drawn on the empty canvas, or Ctrl/Cmd+A. Then: one right-click menu or key for all of them, drag them together onto a wire, and (when they're the same kind of step) edit the settings they share, with Mixed where they differ. Middle-drag or Space+drag moves around the canvas.
 - **Layers panel (left, T):** stages, actions and commands. Add, rename, reorder, Duplicate, delete; double-click a stage (here or on the workflow map) for its settings. Pick several (one kind at a time) to drag, duplicate or delete them together; several actions can have their access rules set together. Dragging actions or commands into another list asks Copy or Move (an action can become a command and back).
-- **Side panel (right, N):** Design (the picked step's settings), Inspect, Form or Parameters (the action's form or the command's parameters, edited with the Resources screen's editor), Logs (the System Logs about this workflow, action or step), Changes (the unsaved changes).
+- **Side panel (right, N):** Design (the picked step's settings), Inspect, Form or Parameters (the action's form or the command's parameters, edited with the Resources screen's editor; the panel widens to two thirds of the window there and can be resized), Logs (the System Logs about this workflow, action or step), Changes (the unsaved changes).
 - **Workflow settings:** names, triggers, Hooks, Linked resources (a button per resource, opening it on the Resources screen). While it's open, the canvas shows the workflow map: Global actions, the stages with their actions, the commands underneath, arrows for how a record moves between stages and dashed lines for the commands each action runs. Boxes can be dragged (kept on this computer); drag an action's arrow to another stage to change where it moves the record.
 
 ### Resources
@@ -61,6 +61,11 @@ A page to change every shortcut of the node view, Resources and Menus. A key ano
 The release notes on their own page, newest first, with a search.
 
 ## Version history
+
+### New in 0.3.67: Create cards named after their resource, a resizable Form tab
+A Create step's card shows the resource it creates where it said Create; the Form / Parameters tab can be resized like the other tabs.
+- `src/layout.ts`: `cardTitle` (a `create` step with a `resource` that isn't a template is titled with it).
+- `src/panel.tsx` / `src/App.tsx`: the Form tab's own width (`formWidth` in the node view's saved state; null = two thirds of the window, `FORM_MIN` 420 to 90%), a `ResizeHandle` on it (double-click: back to two thirds). `test55.mjs`; `test15.mjs` now expects the handle.
 
 ### New in 0.3.66: What Saturn says about each operator
 The side panel shows each operator's description and its Output; disabled operators leave the Add menu; settings that point at a record are a searchable record picker.

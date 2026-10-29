@@ -1,5 +1,5 @@
 import type { Edge, Node } from "@xyflow/react";
-import type { Catalog, Flow, Path } from "./types";
+import type { Catalog, Flow, OperatorFlow, Path } from "./types";
 
 // ---- sizing -------------------------------------------------------------
 export const NODE_W = 230;
@@ -181,6 +181,13 @@ function offset(block: Block, dx: number, dy: number, parentId?: string) {
   }
 }
 
+/** A step card's title: a Create step is named after the resource it creates (not a template); others by their operator. */
+function cardTitle(f: OperatorFlow): string {
+  if (f.operator !== "create") return f.label;
+  const resource = f.params.find((p) => p.key === "resource")?.value.trim();
+  return resource && !resource.includes("{{") ? resource : f.label;
+}
+
 function stepBlock(f: Flow, catalog: Catalog): Block {
   const id = "n:" + pathKey(f.path);
   let data: NvNodeData;
@@ -190,7 +197,7 @@ function stepBlock(f: Flow, catalog: Catalog): Block {
     data = {
       role: "step",
       flow: f,
-      title: f.label,
+      title: cardTitle(f),
       subtitle: entry?.category ?? f.operator ?? undefined,
       color: categoryColor(entry?.category ?? f.operator),
       // a property map shows up to MAX_ENTRIES of its own rows, so its card isn't cut at MAX_ROWS

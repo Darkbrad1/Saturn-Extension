@@ -31,7 +31,7 @@ await tab("Form").click();
 await p.waitForTimeout(500);
 const wide = (await panel.boundingBox()).width;
 ok(wide >= 1440 * 0.65 && wide > narrow, `the panel gets wider on the Form tab (${Math.round(narrow)} -> ${Math.round(wide)})`);
-ok((await panel.locator(".fg-resize").count()) === 0 && (await panel.locator(".pe-menu").count()) === 0, "no resize handle and no settings menu on the Form tab");
+ok((await panel.locator(".fg-resize").count()) === 1 && (await panel.locator(".pe-menu").count()) === 0, "a resize handle (0.3.67) and no settings menu on the Form tab");
 ok((await item("Staff").count()) === 1 && (await item("Staff").locator(".rs-chip.is-static").innerText()) === "User", "the field list shows Staff with its blue User chip");
 
 // ===== editing one field =====

@@ -1,6 +1,14 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.67",
+    title: "Create cards named after their resource, a resizable Form tab",
+    items: [
+      "A Create step's card is titled with the resource it creates (for example DocumentRequest) instead of Create. When the resource is a {{ template }}, it still says Create.",
+      "The Form / Parameters tab can be resized: drag its left edge. It starts at two thirds of the window, keeps the width you drag it to (separately from the other tabs), and double-clicking the edge puts it back.",
+    ],
+  },
+  {
     version: "0.3.66",
     title: "What Saturn says about each operator",
     items: [
