@@ -1,4 +1,4 @@
-# sonover-code (v0.3.67)
+# sonover-code (v0.3.68)
 
 The Saturn / Sonover VS Code extension, built entirely from this repo. It lets you work on a Saturn instance's workflows, resources, menus and logs from inside VS Code (or VSCodium).
 
@@ -28,7 +28,7 @@ The Saturn sidebar opens every screen: Workflows, Resources, Menus, System Logs,
 ### Workflows: the node view
 The Workflows screen opens as a node editor, like Blender's: each action or command is a flow of step cards joined by wires (a Create step's card is titled with the resource it creates). The old list view is one click away (List view).
 - **Top bar:** workflow switcher, Undo, + Add, direction (vertical or horizontal), Reload, Open in Saturn ↗, Workflow JSON (the whole workflow with your unsaved changes), Operators JSON (every operator the instance offers, as Saturn lists them), Layers, Panel, List view. Under it, a breadcrumb row; each step in it takes you back there.
-- **Editing steps:** pick a step to edit it in the side panel, which starts with Saturn's description of its operator and ends with its Output (what the next step gets); a setting that points at a record (a Person, an Agent) is a searchable record picker that also takes a typed {{ template }}; a change applies when you're done with it (Enter, clicking away). Nothing goes to Saturn until you Save the workflow; Undo and Discard work on these unsaved changes. Steps can be added (Shift+A, or + on a wire), duplicated, disabled, copied and pasted, deleted, and dragged onto a wire to move them. Code and emails open in their own editor tab.
+- **Editing steps:** pick a step to edit it in the side panel, which starts with Saturn's description of its operator and ends with its Output (what the next step gets); a setting that points at a record (a Person, an Agent) is a searchable record picker that also takes a typed {{ template }}; a setting Saturn shows only after another choice (Create Task's Completion Property, for record_update) shows only then, in the side panel and the Add form, keeping its value while hidden; a change applies when you're done with it (Enter, clicking away). Nothing goes to Saturn until you Save the workflow; Undo and Discard work on these unsaved changes. Steps can be added (Shift+A, or + on a wire), duplicated, disabled, copied and pasted, deleted, and dragged onto a wire to move them. Code and emails open in their own editor tab.
 - **Cards:** every value is colour-highlighted; a property map (like a Property Updater's) shows one row per property.
 - **Branches:** an If shows its True and False side by side; a switch shows one column per case and Otherwise last. Pick a switch to change the value it checks and its cases (rename, add, reorder, remove); the Add menu has Switch (cases).
 - **Picking several steps:** Shift or Ctrl/Cmd+click, a box drawn on the empty canvas, or Ctrl/Cmd+A. Then: one right-click menu or key for all of them, drag them together onto a wire, and (when they're the same kind of step) edit the settings they share, with Mixed where they differ. Middle-drag or Space+drag moves around the canvas.
@@ -61,6 +61,12 @@ A page to change every shortcut of the node view, Resources and Menus. A key ano
 The release notes on their own page, newest first, with a search.
 
 ## Version history
+
+### New in 0.3.68: Settings that show only when they matter
+Step settings Saturn's form shows only after another choice now do the same in the side panel and the Add form; a hidden one keeps its value.
+- Host (`operatorCatalog`): each param keeps `showWhen`, the text of its `form_visibility` rule when `evaluator` is `function` (else null).
+- `src/showwhen.ts` (new): `shownWhen(rule, values)` reads the rule without running code (the CSP has no eval): `params.x` paths, strings, numbers, true / false / null / undefined, `=== !== == != < > <= >=`, `&& || !`, brackets, an arrow function or a body with one `return`; a rule it can't read shows the setting. It reads all six rules in the owner's operator list.
+- `src/forms.tsx` `fieldsFor`: a catalog setting whose rule is false is left out (the panel, the Add form and the several-steps editor); its value stays in the step. Mock: Create Task's completion settings and a Period / Start Date pair with the owner's rules. `test56.mjs` (10), `hosttest-operators.cjs` (+2).
 
 ### New in 0.3.67: Create cards named after their resource, a resizable Form tab
 A Create step's card shows the resource it creates where it said Create; the Form / Parameters tab can be resized like the other tabs.

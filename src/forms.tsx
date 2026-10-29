@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Catalog, CatalogParam, CommandView } from "./types";
+import { shownWhen } from "./showwhen";
 import {
   ColorChip,
   DateButtons,
@@ -188,7 +189,8 @@ export function fieldsFor(
       // and the settings the step has that the catalog doesn't list (like a Create step's properties)
       const listed = new Set(entry.params.map((p) => p.param));
       return [
-        ...entry.params.filter((p) => !p.mergedInto).map((p) => enrich(paramField(p), p.type, p.inputType)),
+        // a setting with a "Show only when" rule shows while it's true; its value is kept either way
+        ...entry.params.filter((p) => !p.mergedInto && shownWhen(p.showWhen, values)).map((p) => enrich(paramField(p), p.type, p.inputType)),
         ...Object.keys(values).filter((k) => !listed.has(k)).map((k) => extraField(k, values[k])),
       ];
     }

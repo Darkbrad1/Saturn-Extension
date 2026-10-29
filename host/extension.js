@@ -907,6 +907,8 @@ function operatorCatalog(operators) {
           })() : null,
           lookupHint: lookupKind && lookupKind !== "values" && lookupKind !== "resources" && !(lookupKind === "map" && nonEmptyString(param?.map?.reference)) && !simpleResourceLookup(typeof param?.lookup_reference == "string" ? param.lookup_reference : null) ? `${lookupKind} lookup \u2014 the web app resolves this at runtime; enter a value directly` : null,
           inputType: nonEmptyString(param?.input_properties?.type),
+          // "Show only when" (0.3.68): the rule Saturn's form uses to show this setting, the function's text
+          showWhen: param?.form_visibility?.evaluator === "function" ? nonEmptyString(param.form_visibility.data) : null,
           sensitive: param?.sensitive === !0,
           // An empty default for an email message or html param gets a starter template.
           defaultValue: defaultValue || (/^message$/i.test(key) && type === "object" ? EMAIL_TEMPLATE_HTML : /^html$/i.test(operator) && type === "object" ? HTML_SNIPPET_TEMPLATE : ""),

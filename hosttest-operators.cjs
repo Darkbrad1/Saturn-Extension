@@ -1,6 +1,7 @@
 // v0.3.65: the node view's Operators JSON button. viewOperatorsJson reads Saturn's operator list (GET /api/Operators,
 // a read only) and opens it as JSON in a tab beside; offline, the copy kept for offline use is shown, with a message;
 // with neither, an error message.
+// v0.3.68: and each setting's "Show only when" rule (form_visibility with evaluator function) as showWhen.
 // v0.3.66: the catalog keeps what Saturn says about each operator: disabled, its output, and a map lookup's resource
 // (Create Task's Person), from the owner's real operator list.
 const fs = require("fs"), Module = require("module");
@@ -68,7 +69,9 @@ const reset = () => { docs.length = 0; shown.length = 0; infos.length = 0; error
     { operator: "create_task", name: "Create Task", category: "People & Tasks", description: "Creates a durable platform task.",
       output: { description: "The task that was created.", type: "object", fields: [{ path: "id", type: "string", description: "The new task's id." }, { type: "x" }] },
       params: [{ param: "assignee_user", type: "string", label: "Person", map: { type: "model", reference: "User", value_field: "id", label_field: "first_name" }, lookup_type: "map", lookup_value_field: "id", lookup_search_field: "first_name" },
-        { param: "title", type: "string", label: "Title", required: true }] },
+        { param: "title", type: "string", label: "Title", required: true },
+        { param: "completion_property", type: "string", label: "Completion Property", form_visibility: { evaluator: "function", data: "(params) => params.completion_indicator === \"record_update\"" } },
+        { param: "odd", type: "string", label: "Odd", form_visibility: { evaluator: "something_else", data: "x" } }] },
     { operator: "save_locally", name: "Save Locally", category: "Files & Storage", output: { description: "Nothing new.", type: "passthrough" }, params: [], status: "disabled" },
     { operator: "debug", name: "Debug", params: [{ param: "message", type: "string", label: "Message" }] },
   ] };
@@ -80,4 +83,8 @@ const reset = () => { docs.length = 0; shown.length = 0; infos.length = 0; error
   const person = cat.create_task.params.find((x) => x.param === "assignee_user");
   ok(person.lookupResource && person.lookupResource.resource === "User" && person.lookupResource.valueField === "id" && person.lookupResource.labelField === "first_name" && person.lookupResource.typed === true, "a map lookup becomes a record picker on its resource: " + JSON.stringify(person.lookupResource));
   ok(person.lookupHint === null, "with no \"enter a value directly\" hint");
+  // ---- "Show only when" (0.3.68)
+  const prop = cat.create_task.params.find((x) => x.param === "completion_property");
+  ok(prop.showWhen === '(params) => params.completion_indicator === "record_update"', "a function form_visibility rule is kept as showWhen: " + prop.showWhen);
+  ok(cat.create_task.params.find((x) => x.param === "odd").showWhen === null && cat.create_task.params.find((x) => x.param === "title").showWhen === null, "another kind of rule, or none, gives null");
 })().catch((e) => { console.log("FAIL threw: " + e.stack); });

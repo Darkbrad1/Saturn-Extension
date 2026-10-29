@@ -184,6 +184,8 @@ export interface CatalogParam {
   lookupResource?: { resource: string; valueField: string; labelField: string; typed?: boolean } | null;
   lookupHint?: string | null;
   inputType?: string | null;
+  /** "Show only when" (0.3.68): Saturn's rule for showing this setting, as function text (`src/showwhen.ts`) */
+  showWhen?: string | null;
   defaultValue: string;
   codeLanguage: string | null;
   mergedInto: string | null;

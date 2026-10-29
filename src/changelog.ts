@@ -1,6 +1,15 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.68",
+    title: "Settings that show only when they matter",
+    items: [
+      "Some step settings only matter after another choice, and now they only show then, like in Saturn's own form. For example, Create Task's Completion Property and Completion Value appear when Completion Indicator is record_update, and Completion Action when it is workflow_action.",
+      "This works in the side panel and in the Add form, and changes as soon as you pick another choice.",
+      "A setting that gets hidden keeps its value, so switching back shows it again as it was.",
+    ],
+  },
+  {
     version: "0.3.67",
     title: "Create cards named after their resource, a resizable Form tab",
     items: [
