@@ -12,6 +12,7 @@ import { send } from "./bridge";
 import { highlight } from "./controls";
 import { titleOf, type Tree } from "./panel";
 import type { Catalog, Flow, WorkflowView } from "./types";
+import { switchSteps } from "./types";
 import {
   ACTION_KEYS,
   STEP_KEYS,
@@ -82,6 +83,7 @@ function walk(f: Flow | null, visit: (f: Flow) => void) {
   if (!f) return;
   visit(f);
   if (f.kind === "if") [...f.whenTrue, ...f.whenFalse].forEach((c) => walk(c, visit));
+  else if (f.kind === "switch") switchSteps(f).forEach((c) => walk(c, visit));
   else if (f.kind === "series" || f.kind === "parallel" || f.kind === "each") f.children.forEach((c) => walk(c, visit));
 }
 

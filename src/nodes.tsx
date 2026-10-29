@@ -51,7 +51,30 @@ export function NvNodeView({ data, selected }: NodeProps<NvNode>) {
         )}
       </div>
       {data.disabled && data.role !== "head" && <div className="nv-bypass" />}
-      {data.outputs === "branch" && v ? (
+      {data.outputs === "branch" && data.branches && v ? (
+        // a switch (0.3.64): one output per case, then Otherwise, spread along the bottom
+        <div className="nv-node-body">
+          {(data.rows ?? []).map(row)}
+          <div className="nv-branch-foot is-cases">
+            {data.branches.map((b) => (
+              <span key={b.id} className={b.id === "otherwise" ? "is-otherwise" : ""} title={b.label}>{b.label}</span>
+            ))}
+          </div>
+          {data.branches.map((b, i, all) => (
+            <Handle key={b.id} type="source" id={b.id} position={Position.Bottom} className="nv-h nv-h-case nv-h-vb" style={{ left: `${((i + 0.5) / all.length) * 100}%` }} />
+          ))}
+        </div>
+      ) : data.outputs === "branch" && data.branches ? (
+        <div className="nv-node-body">
+          {(data.rows ?? []).map(row)}
+          {data.branches.map((b) => (
+            <div key={b.id} className="nv-socket-row out" title={b.label}>
+              {b.label}
+              <Handle type="source" id={b.id} position={Position.Right} className="nv-h nv-h-case" />
+            </div>
+          ))}
+        </div>
+      ) : data.outputs === "branch" && v ? (
         <div className="nv-node-body">
           {(data.rows ?? []).map(row)}
           <div className="nv-branch-foot">

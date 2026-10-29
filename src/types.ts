@@ -56,6 +56,20 @@ export interface IfFlow {
   /** Saturn's "mock" flag: true = the step is disabled (skipped when it runs). */
   mock?: boolean;
 }
+/** A switch step (0.3.64): the value it checks, its cases (each a value and its steps) and Otherwise. */
+export interface SwitchFlow {
+  kind: "switch";
+  label: string;
+  value: string;
+  cases: { value: string; steps: Flow[]; childrenPath: Path }[];
+  otherwise: Flow[];
+  otherwisePath: Path;
+  path: Path;
+  /** Saturn's "mock" flag: true = the step is disabled (skipped when it runs). */
+  mock?: boolean;
+}
+/** Every step directly under a switch: each case's, then Otherwise's. */
+export const switchSteps = (f: SwitchFlow): Flow[] => [...f.cases.flatMap((c) => c.steps), ...f.otherwise];
 export interface ReferenceFlow {
   kind: "reference";
   label: string;
@@ -83,6 +97,7 @@ export type Flow =
   | ParallelFlow
   | EachFlow
   | IfFlow
+  | SwitchFlow
   | ReferenceFlow
   | OperatorFlow;
 

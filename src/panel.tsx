@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FormEnvContext, MultiEditor, PanelEditor, type FormEnv, type FormError, type LoadedParams } from "./forms";
 import { ActionPanel, CommandPanel, MultiActionPanel, StagePanel, WorkflowPanel, type SettingsOps } from "./settings";
 import { codeParams, isEmailSummary, operatorName, type NvEdge, type NvNode, type RowAction } from "./layout";
-import type { Catalog, CommandView, DraftState, Flow, Path, WorkflowView } from "./types";
+import type { Catalog, CommandView, DraftState, Flow, Path, SwitchFlow, WorkflowView } from "./types";
+import { switchSteps } from "./types";
 import { LogsTab } from "./logs";
 import { FormTab, type FormOwner } from "./formtab";
 
@@ -28,6 +29,8 @@ export function countSteps(f: Flow | null): number {
       return 1;
     case "if":
       return 1 + [...f.whenTrue, ...f.whenFalse].reduce((s, c) => s + countSteps(c), 0);
+    case "switch":
+      return 1 + switchSteps(f).reduce((s, c) => s + countSteps(c), 0);
     case "series":
       return f.children.reduce((s, c) => s + countSteps(c), 0);
     default:
@@ -40,6 +43,7 @@ export function titleOf(f: Flow, catalog: Catalog) {
   if (f.kind === "operator") return f.label || (f.operator ? catalog[f.operator]?.name : "") || "Step";
   if (f.kind === "each") return "For Each";
   if (f.kind === "if") return "If";
+  if (f.kind === "switch") return "Switch";
   if (f.kind === "parallel") return "Parallel";
   if (f.kind === "reference") return `Command: ${f.label}`;
   return f.label;
@@ -69,6 +73,8 @@ export function SidePanel(props: {
   busy: boolean;
   focusToken: number;
   onCommit: (f: Flow, values: Record<string, string>, delay: number | null) => void;
+  /** a switch's cases changed (0.3.64): each row's value and the index it came from (null: a new case) */
+  onSwitchCases: (f: SwitchFlow, rows: CaseRow[]) => void;
   wf: WorkflowView;
   tree: Tree | undefined;
   node: NvNode | null;
@@ -361,7 +367,7 @@ function DesignTab(props: Parameters<typeof SidePanel>[0] & { f: Flow }) {
       ? entry?.category ?? "Operator"
       : f.kind === "reference"
         ? "Command group"
-        : { each: "Loop", if: "Condition", parallel: "Parallel block", series: "Group" }[f.kind];
+        : { each: "Loop", if: "Condition", switch: "Switch", parallel: "Parallel block", series: "Group" }[f.kind];
 
   return (
     <>
@@ -460,6 +466,12 @@ function DesignTab(props: Parameters<typeof SidePanel>[0] & { f: Flow }) {
         </Section>
       )}
 
+      {f.kind === "switch" && (
+        <Section title="Cases" id="switch-cases" actions={props.busy ? <span className="fg-saving">Saving…</span> : null}>
+          <SwitchCases key={pathKey(f.path)} f={f} busy={props.busy} onChange={(rows) => props.onSwitchCases(f, rows)} />
+        </Section>
+      )}
+
       {files.length > 0 && (
         <Section title="Code & email" id="files">
           {files.map((a) => (
@@ -504,6 +516,11 @@ function InspectTab({ f, catalog }: { f: Flow; catalog: Catalog }) {
     rows = f.condition
       ? [{ k: "Condition", v: `${f.condition.property} ${f.condition.operator} ${f.condition.value}` }]
       : [{ k: "Function", v: f.evaluatorSource ?? "—" }];
+  else if (f.kind === "switch")
+    rows = [
+      { k: "Value", v: f.value || "—" },
+      { k: "Cases", v: f.cases.map((c) => c.value || "(empty)").join(", ") || "none" },
+    ];
   else rows = [{ k: "Steps inside", v: String(f.children.length) }];
   return (
     <>
@@ -633,6 +650,129 @@ function EmptyPanel(props: Parameters<typeof SidePanel>[0]) {
 // ---- small pieces -----------------------------------------------------------
 const pathKey = (p: Path) => p.join(".");
 
+/** One case as the panel sends it: its value, and the index it had (null for a new one). */
+export interface CaseRow {
+  value: string;
+  from: number | null;
+}
+/** A switch's cases (0.3.64): each one's value (applied when you leave the box or press Enter), ↑ / ↓ to reorder,
+ *  × to remove it with its steps, and a box to add one. Every change is one edit, so Undo takes it back. */
+function SwitchCases(props: { f: SwitchFlow; busy: boolean; onChange: (rows: CaseRow[]) => void }) {
+  const { f } = props;
+  // what was last sent, until the host's answer arrives (so a quick second change builds on the first)
+  const lastSent = useRef<CaseRow[] | null>(null);
+  const casesKey = JSON.stringify(f.cases.map((c) => c.value));
+  useEffect(() => {
+    lastSent.current = null;
+  }, [casesKey]);
+  const rows = (): CaseRow[] => lastSent.current ?? f.cases.map((c, i) => ({ value: c.value, from: i }));
+  // values typed and not sent yet, by case index
+  const [typed, setTyped] = useState<Record<number, string>>({});
+  const [adding, setAdding] = useState("");
+  const pending = useRef<{ typed: Record<number, string>; adding: string }>({ typed: {}, adding: "" });
+  pending.current = { typed, adding };
+  const send = (next: CaseRow[]) => {
+    lastSent.current = next;
+    setTyped({});
+    props.onChange(next);
+  };
+  /** The typed values (and a typed new case) applied; null when nothing changed. */
+  const withTyped = (t: Record<number, string>, add: string): CaseRow[] | null => {
+    const next = rows().map((r, i) => (t[i] !== undefined ? { ...r, value: t[i] } : r));
+    const before = rows();
+    const changed = next.some((r, i) => r.value !== before[i].value);
+    if (add.trim()) return [...next, { value: add.trim(), from: null }];
+    return changed ? next : null;
+  };
+  // leaving the panel (another step picked, the panel closed) applies what was typed
+  const onChangeRef = useRef(props.onChange);
+  onChangeRef.current = props.onChange;
+  useEffect(
+    () => () => {
+      const next = withTyped(pending.current.typed, pending.current.adding);
+      if (next) onChangeRef.current(next);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  const commit = () => {
+    const next = withTyped(typed, "");
+    if (next) send(next);
+    else setTyped({});
+  };
+  const move = (i: number, by: number) => {
+    const next = withTyped(typed, "") ?? rows();
+    const [r] = next.splice(i, 1);
+    next.splice(i + by, 0, r);
+    send(next);
+  };
+  const remove = (i: number) => send((withTyped(typed, "") ?? rows()).filter((_, j) => j !== i));
+  const add = () => {
+    if (!adding.trim()) return;
+    const next = withTyped(typed, adding);
+    setAdding("");
+    if (next) send(next);
+  };
+  const seen = new Map<string, number>();
+  f.cases.forEach((c) => seen.set(c.value, (seen.get(c.value) ?? 0) + 1));
+  const otherwiseSteps = f.otherwise.reduce((s, x) => s + countSteps(x), 0);
+  const doubled = [...seen].filter(([, n]) => n > 1).map(([v]) => v);
+  return (
+    <div className="fg-cases" onKeyDown={(e) => e.stopPropagation()}>
+      <p className="fg-hint">Runs the first case whose value matches {f.value ? <code>{f.value}</code> : "the value"}; Otherwise when none does.</p>
+      {f.cases.map((c, i) => {
+        const steps = c.steps.reduce((s, x) => s + countSteps(x), 0);
+        return (
+          <div key={i} className="fg-case">
+            <input
+              className="fg-input is-mono"
+              aria-label={`Case ${i + 1} value`}
+              placeholder="(empty)"
+              value={typed[i] ?? c.value}
+              disabled={props.busy}
+              onChange={(e) => setTyped((t) => ({ ...t, [i]: e.target.value }))}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              }}
+            />
+            <span className="fg-case-count" title={`${steps} step${steps === 1 ? "" : "s"} in this case`}>{steps}</span>
+            <button className="fg-case-btn" title="Move up" aria-label={`Move case ${i + 1} up`} disabled={i === 0 || props.busy} onClick={() => move(i, -1)}>↑</button>
+            <button className="fg-case-btn" title="Move down" aria-label={`Move case ${i + 1} down`} disabled={i === f.cases.length - 1 || props.busy} onClick={() => move(i, 1)}>↓</button>
+            <button
+              className="fg-case-btn is-danger"
+              title={steps ? `Remove this case and its ${steps} step${steps === 1 ? "" : "s"} (Undo brings it back)` : "Remove this case"}
+              aria-label={`Remove case ${i + 1}`}
+              disabled={props.busy}
+              onClick={() => remove(i)}
+            >
+              ×
+            </button>
+          </div>
+        );
+      })}
+      {doubled.length > 0 && <p className="fg-hint is-warn">Two cases have the value {doubled.map((v) => `“${v || "(empty)"}”`).join(", ")}; only the first one runs.</p>}
+      <div className="fg-case is-new">
+        <input
+          className="fg-input is-mono"
+          aria-label="New case value"
+          placeholder="New case value"
+          value={adding}
+          disabled={props.busy}
+          onChange={(e) => setAdding(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") add();
+          }}
+        />
+        <button className="fg-btn" disabled={!adding.trim() || props.busy} onClick={add}>Add case</button>
+      </div>
+      <p className="fg-hint">
+        Otherwise: {otherwiseSteps} step{otherwiseSteps === 1 ? "" : "s"}. To add steps to a case, drag them onto its wire on the canvas, or click its + / empty box.
+      </p>
+    </div>
+  );
+}
+
 function IconButton(props: {
   label: string;
   onClick: () => void;
@@ -705,6 +845,12 @@ function KindIcon({ kind }: { kind: Flow["kind"] }) {
       return (
         <svg {...p}>
           <path d="M2 8h4l3-4h5M9 12h5M6 8l3 4" />
+        </svg>
+      );
+    case "switch":
+      return (
+        <svg {...p}>
+          <path d="M2 8h3M5 8l3-5h6M5 8h9M5 8l3 5h6" />
         </svg>
       );
     case "parallel":

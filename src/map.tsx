@@ -21,6 +21,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import type { Flow, Path, WorkflowView } from "./types";
+import { switchSteps } from "./types";
 
 /** The record field whose value is the stage (Saturn's workflows keep the stage in `status`). */
 export const STAGE_FIELD = "status";
@@ -43,6 +44,7 @@ function walk(f: Flow | null | undefined, visit: (f: Flow) => void) {
     f.whenTrue.forEach((c) => walk(c, visit));
     f.whenFalse.forEach((c) => walk(c, visit));
   }
+  if (f.kind === "switch") switchSteps(f).forEach((c) => walk(c, visit));
 }
 
 /** What a flow calls (command ids) and the stages it moves the record to. */

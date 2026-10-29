@@ -61,7 +61,7 @@
       { key: "max_attempts", label: "Max attempts", type: "number", defaultValue: "1", description: null, choices: [], lookupResource: null, secret: false, showWhen: null }] },
   ];
 
-  const STAFF_FIELD = {"key":"staff","type":"string","meta_tags":[],"defaults":{"read":"","write":""},"label":"Staff","required":false,"searchable":false,"unique":false,"hideInTable":false,"hideInForm":false,"hideInView":false,"hideInDrawer":false,"ipaddress":false,"hide":false,"email":false,"tableColumnWidth":0,"placeInOwnTab":false,"map_label_type":"property","source":"static","access_control":{},"number_of_columns":{"full_width":false,"default":1},"form_number_of_columns":{"full_width":false,"default":1},"required_columns":[],"rendering":{"component":"default","options":{"size":"small","shape":"circle","opacity":0.2},"_variances":{"list":{"component":"default","options":{"size":"small","shape":"circle","opacity":0.2}},"view":{"component":"default","span":2,"options":{"size":"small","shape":"circle","opacity":0.2}},"form":{}}},"default_view":"SLKJDSF","views":[{"id":"SLKJDSF","view":"data_table","details":{}}],"input_properties":{"type":"input","options":{"code":"<template></template> "}},"lookup_value_field":"id","lookup_label_type":"function","lookup_label":"(res,{_user,_,spice})=>{\n//your code comes here\nreturn `${res.first_name} ${res.last_name}`\n}","map":{"type":"model","value_field":"id","label_field":"label","reference":"User"},"lookup_type":"map"};
+  const STAFF_FIELD = {"key":"staff","type":"string","meta_tags":[],"defaults":{"read":"","write":""},"label":"Staff","required":false,"searchable":false,"unique":false,"hideInTable":false,"hideInForm":false,"hideInView":false,"hideInDrawer":false,"ipaddress":false,"hide":false,"email":false,"tableColumnWidth":0,"placeInOwnTab":false,"map_label_type":"property","source":"static","access_control":{},"number_of_columns":{"full_width":false,"default":1},"form_number_of_columns":{"full_width":false,"default":1},"required_columns":[],"rendering":{"component":"default","options":{"size":"small","shape":"circle","opacity":0.2},"_variances":{"list":{"component":"default","options":{"size":"small","shape":"circle","opacity":0.2}},"view":{"component":"default","span":2,"options":{"size":"small","shape":"circle","opacity":0.2}},"form":{}}},"default_view":"SLKJDSF","views":[{"id":"SLKJDSF","view":"data_table","details":{}}],"input_properties":{"type":"input","options":{"code":"<template></template> "}},"lookup_value_field":"id","lookup_label_type":"function","lookup_label":"(res,{_user,_,spice})=>{\n//your code comes here\nreturn `${res.first_name} ${res.last_name}`\n}","map":{"type":"model","value_field":"id","label_field":"label","reference":"User"},"lookup_type":"map","lookup_filter":"`user`.`group` = 'user_group-344907c9-ebb5-4afc-9dac-f5fb17614795'"};
   const op = (operator, data, extra = {}) => ({ type: "command", operator, data, id: Math.random().toString(36).slice(2, 8), ...extra });
   const defs = {
     wf_orders: {
@@ -164,9 +164,10 @@
     if (n.type === "each") { operator = "each"; values = { collection: n.reference ?? "", concurrency: String(n.concurrency ?? "") }; }
     else if (n.type === "if") { operator = "if"; values = { evaluatorKind: n.evaluator ?? "command", command: n.data?.command ?? "", property: n.data?.property ?? "", conditionOperator: n.data?.operator ?? "==", value: txt(n.data?.value) }; }
     else if (n.type === "parallel") { operator = "parallel"; values = { concurrency: String(n.concurrency ?? "") }; }
+    else if (n.type === "switch") { operator = "switch"; values = { value: txt(n.data?.value) }; }
     else if (n.type === "reference") { operator = "reference"; values = { command: n.reference, ...Object.fromEntries(Object.entries(n.parameters || {}).map(([k, v]) => [k, txt(v)])) }; }
     const designed = [];
-    if (!["each", "if", "parallel", "reference"].includes(operator)) for (const [k, v] of Object.entries(n.data || {})) { if (k === "_properties") continue; if (isHtml(v)) { designed.push(k); values[k] = v.html; } else values[k] = typeof v === "string" ? v : JSON.stringify(v, null, 2); }
+    if (!["each", "if", "switch", "parallel", "reference"].includes(operator)) for (const [k, v] of Object.entries(n.data || {})) { if (k === "_properties") continue; if (isHtml(v)) { designed.push(k); values[k] = v.html; } else values[k] = typeof v === "string" ? v : JSON.stringify(v, null, 2); }
     return { operator, values, delay: n.delay ?? null, designed, withDesignTree: designed.filter((k) => n.data[k].json) };
   }
   // an operator step's data from the panel's text values, like the host's paramsToData (updateOperator, updateOperators)
@@ -201,10 +202,18 @@
       condition: d.property ? { property: d.property, operator: d.operator || "==", value: txt(d.value) } : null,
       whenTrue: br(n.true, "true"), whenFalse: br(n.false, "false"), path: t, truePath: [...t, "true", "commands"], falsePath: [...t, "false", "commands"] };
   }
+  // a switch (0.3.64), like the host's switchView
+  function sw(n, t) {
+    const br = (l, bp) => { if (!l || typeof l !== "object") return []; if (!l.type || l.type === "series") { const f = series(l, bp); return f && f.kind === "series" ? f.children : f ? [f] : []; } const v = step(l, bp); return v ? [v] : []; };
+    return { kind: "switch", label: "Switch", value: txt(n.data?.value), path: t,
+      cases: (n.cases || []).map((c, i) => ({ value: c && c.value != null ? String(c.value) : "", steps: br(c && c.command, [...t, "cases", i, "command"]), childrenPath: [...t, "cases", i, "command", "commands"] })),
+      otherwise: br(n.otherwise, [...t, "otherwise"]), otherwisePath: [...t, "otherwise", "commands"] };
+  }
   function step(n, t) { const v = step0(n, t); if (v && n && n.mock === true) v.mock = true; if (v && v.kind === "operator" && typeof n.id === "string") v.stepId = n.id; return v; }
   function step0(n, t) {
     if (!n) return null;
     if (n.type === "if") return iff(n, t);
+    if (n.type === "switch") return sw(n, t);
     if (n.type === "each") { const i = n.command ? series(n.command, [...t, "command"]) : null;
       return { kind: "each", label: "Each", concurrency: n.concurrency ?? null, collection: n.reference ?? null, children: i ? i.children : [], path: t, childrenPath: [...t, "command", "commands"] }; }
     if (n.type === "parallel" || n.type === "series") { const cp = [...t, "commands"];
@@ -235,7 +244,8 @@
     ];
     for (const src of srcs) {
       const walk = (f) => { if (!f) return; if (f.kind === "reference") { const c = cmds.find((x) => x.id === f.targetId || x.name === f.targetId); if (c) { f.label = c.label; f.targetName = c.name; c.usages.push({ label: src.label, pathLabel: f.path.slice(-2).join("."), path: f.path, target: src.target }); } }
-        (f.children || []).forEach(walk); (f.whenTrue || []).forEach(walk); (f.whenFalse || []).forEach(walk); };
+        (f.children || []).forEach(walk); (f.whenTrue || []).forEach(walk); (f.whenFalse || []).forEach(walk);
+        (f.cases || []).forEach((c) => c.steps.forEach(walk)); (f.kind === "switch" ? f.otherwise : []).forEach(walk); };
       walk(src.flow);
     }
     cmds.forEach((c) => (c.usageCount = c.usages.length));
@@ -361,6 +371,9 @@
         post("nodeParams", { path: p.path, ...formOf(n) });
         break;
       }
+      // like the host's switchCasesEdit: each row keeps the steps of the case it came from
+      case "setSwitchCases": apply(id, "Changed the switch's cases", (d) => { const n = get(d, p.path); if (!n || n.type !== "switch") throw new Error("That switch is no longer where it was.");
+        const before = n.cases || []; n.cases = p.cases.map((r) => r.from != null && before[r.from] ? { ...before[r.from], value: String(before[r.from].value) === r.value ? before[r.from].value : r.value } : { value: r.value, command: { type: "series", commands: [] } }); }); break;
       case "updateOperator": {
         const c = catalog[p.operator];
         const curN = get(def, p.path) || {};
@@ -370,6 +383,7 @@
           if (p.operator === "each") { n.reference = p.values.collection; n.concurrency = Number(p.values.concurrency || 1); }
           else if (p.operator === "if") { n.evaluator = p.values.evaluatorKind; n.data = p.values.evaluatorKind === "command" ? { command: p.values.command } : { property: p.values.property, operator: p.values.conditionOperator, value: p.values.value }; }
           else if (p.operator === "parallel") n.concurrency = Number(p.values.concurrency || 1);
+          else if (p.operator === "switch") n.data = { ...(n.data || {}), value: p.values.value };
           else if (p.operator === "reference") { const { command, ...rest } = p.values; n.reference = command; n.parameters = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== "")); }
           else { n.data = operatorData(n, p.operator, p.values); if (p.delay) n.delay = p.delay; else delete n.delay; } });
         break;
@@ -381,6 +395,8 @@
         if (p.operator === "each") node = { type: "each", operator: "Each", reference: p.values.collection, concurrency: Number(p.values.concurrency || 1), command: { type: "series", commands: [] } };
         else if (p.operator === "if") node = { type: "if", operator: "command", evaluator: p.values.evaluatorKind, data: { property: p.values.property, operator: p.values.conditionOperator, value: p.values.value }, true: { type: "series", commands: [] }, false: { type: "series", commands: [] } };
         else if (p.operator === "series") node = { type: "series", operator: "series", commands: [] };
+        else if (p.operator === "switch") { if (!(p.values.value || "").trim()) { post("editRejected", { errors: [{ param: "value", label: "Value to check", message: "is required — the cases are compared with it" }] }); break; }
+          node = { type: "switch", data: { value: p.values.value.trim() }, cases: [], otherwise: { type: "series", commands: [] } }; }
         else if (p.operator === "parallel") node = { type: "parallel", operator: "parallel", concurrency: 1, commands: [] };
         else if (p.operator === "reference") {
           // like the host's vo(): keep only parameters the command declares

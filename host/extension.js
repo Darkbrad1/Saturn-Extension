@@ -1022,6 +1022,7 @@ var MAX_STEP_DEPTH = 12;
 function seriesView(series, catalog, path, depth = 0) {
   if (!series || typeof series != "object" || depth > MAX_STEP_DEPTH) return null;
   if (nonEmptyString(series.type) === "if") return ifView(series, catalog, path, depth);
+  if (nonEmptyString(series.type) === TYPE_SWITCH) return switchView(series, catalog, path, depth);
   let childrenPath = [...path, "commands"],
     children = asArray(series.commands).map((step, index) => stepView(step, catalog, [...childrenPath, index], depth + 1)).filter(step => step !== null);
   return {
@@ -1067,6 +1068,35 @@ function ifView(step, catalog, path, depth) {
     falsePath: [...path, "false", "commands"]
   };
 }
+// branchSteps — The steps of one branch (an If side, a switch case, Otherwise): a series' steps, or the one step.
+function branchSteps(node, catalog, branchPath, depth) {
+  if (!node || typeof node != "object") return [];
+  let type = nonEmptyString(node.type);
+  if (type === null || type === "series") {
+    let series = seriesView(node, catalog, branchPath, depth + 1);
+    return series && series.kind === "series" ? series.children : series ? [series] : [];
+  }
+  let view = stepView(node, catalog, branchPath, depth + 1);
+  return view ? [view] : [];
+}
+// switchView — A switch step (0.3.64) -> its flow view: the value it checks, each case (its value and steps) and
+// Otherwise. As Saturn stores it: {type: "switch", data: {value}, cases: [{value, command}], otherwise}.
+function switchView(step, catalog, path, depth) {
+  let data = step.data && typeof step.data == "object" && !Array.isArray(step.data) ? step.data : {};
+  return {
+    kind: "switch",
+    label: "Switch",
+    value: previewText(data.value).text,
+    cases: asArray(step.cases).map((item, index) => ({
+      value: item && typeof item == "object" && item.value !== void 0 && item.value !== null ? String(item.value) : "",
+      steps: branchSteps(item && typeof item == "object" ? item.command : null, catalog, [...path, "cases", index, "command"], depth),
+      childrenPath: [...path, "cases", index, "command", "commands"]
+    })),
+    otherwise: branchSteps(step.otherwise, catalog, [...path, "otherwise"], depth),
+    otherwisePath: [...path, "otherwise", "commands"],
+    path: path
+  };
+}
 // stepView (minified: yr) — One step (operator, if, each, parallel, series, reference) -> its flow view.
 function stepView(step, catalog, path, depth = 0) {
   let view = stepViewBase(step, catalog, path, depth);
@@ -1077,6 +1107,7 @@ function stepViewBase(step, catalog, path, depth = 0) {
   if (!step || typeof step != "object" || depth > MAX_STEP_DEPTH) return null;
   let type = nonEmptyString(step.type);
   if (type === "if") return ifView(step, catalog, path, depth);
+  if (type === TYPE_SWITCH) return switchView(step, catalog, path, depth);
   if (type === "each") {
     // An Each's body is a nested `command` series, or its own `commands`.
     let body = step.command ? seriesView(step.command, catalog, [...path, "command"], depth + 1) : seriesView({
@@ -1284,6 +1315,9 @@ function walkFlow(node, visit) {
     case "if":
       node.whenTrue.forEach(child => walkFlow(child, visit)), node.whenFalse.forEach(child => walkFlow(child, visit));
       break;
+    case "switch":
+      node.cases.forEach(item => item.steps.forEach(child => walkFlow(child, visit))), node.otherwise.forEach(child => walkFlow(child, visit));
+      break;
   }
 }
 // relativePathLabel (minified: gp) — A step path relative to its action or command, as text (e.g. commands[0].true), for the usage list.
@@ -1394,6 +1428,7 @@ function workflowView(workflow, catalog) {
 var TYPE_REFERENCE = "reference",
   TYPE_EACH = "each",
   TYPE_IF = "if",
+  TYPE_SWITCH = "switch",
   TYPE_SERIES = "series",
   TYPE_PARALLEL = "parallel";
 // isObjectLike (minified: mp) — Is it a non-null object?
@@ -1566,6 +1601,20 @@ function insertAfter(path) {
     index: 1
   };
 }
+// seriesForSteps — Before steps go into a branch that holds one plain step (an If side or a switch case can be a
+// single step, not a series): that step becomes a series holding it, in place, as insertAt does. Changes `root`.
+function seriesForSteps(root, childrenPath) {
+  if (childrenPath[childrenPath.length - 1] !== "commands") return;
+  let owner = getAt(root, childrenPath.slice(0, -1));
+  if (!owner || typeof owner != "object" || Array.isArray(owner) || owner.commands !== void 0) return;
+  let type = nonEmptyString(owner.type);
+  if (type === null && owner.operator === void 0 || type === "series" || type === "parallel") return;
+  let moved = {
+    ...owner
+  };
+  for (let key of Object.keys(owner)) delete owner[key];
+  owner.type = "series", owner.commands = [moved];
+}
 // insertAt (minified: Ge) — A copy with items inserted into the array at a path.
 function insertAt(definition, path, index, item) {
   if (path.length === 0) throw new Error("Refusing to insert at an empty path");
@@ -1686,6 +1735,7 @@ function moveStep(definition, fromPath, toPath, index) {
     at = index;
   // Moving later in the same list: the removal shifts the target index down by one.
   samePath(fromList, toPath) && at !== null && at > fromIndex && (at -= 1);
+  seriesForSteps(next, movedTargetPath(fromPath, toPath));
   let {
     parent: parent,
     key: key
@@ -1722,6 +1772,16 @@ function stepFormValues(definition, path, catalog) {
     },
     delay: finiteNumber(step.delay)
   };
+  if (nonEmptyString(step.type) === TYPE_SWITCH) {
+    let data = step.data && typeof step.data == "object" && !Array.isArray(step.data) ? step.data : {};
+    return {
+      operator: TYPE_SWITCH,
+      values: {
+        value: data.value === null || data.value === void 0 ? "" : typeof data.value == "string" ? data.value : JSON.stringify(data.value)
+      },
+      delay: finiteNumber(step.delay)
+    };
+  }
   if (nonEmptyString(step.type) === TYPE_IF) {
     let data = step.data && typeof step.data == "object" && !Array.isArray(step.data) ? step.data : {};
     return {
@@ -1807,7 +1867,7 @@ function stampStepIds(definition) {
       if (!node || typeof node != "object") return;
       let step = node;
       // Steps are objects with an operator or a step type; step data is not searched.
-      if ((typeof step.operator == "string" || ["command", "series", "parallel", "if", "each", "reference"].includes(typeof step.type == "string" ? step.type : "")) && !nonEmptyString(step.id)) {
+      if ((typeof step.operator == "string" || ["command", "series", "parallel", "if", "switch", "each", "reference"].includes(typeof step.type == "string" ? step.type : "")) && !nonEmptyString(step.id)) {
         let id = unusedId(ids);
         ids.add(id), step.id = id, stamped++;
       }
@@ -1984,6 +2044,51 @@ function newIfStep(evaluator, data) {
     }
   };
 }
+// newSwitchStep — A new switch step (0.3.64): the value it checks, no cases yet, an empty Otherwise.
+function newSwitchStep(value) {
+  return {
+    type: TYPE_SWITCH,
+    data: {
+      value: value
+    },
+    cases: [],
+    otherwise: {
+      type: "series",
+      commands: []
+    }
+  };
+}
+// switchCasesEdit — A switch's cases rebuilt from the panel's list (0.3.64), as one edit: each row {value, from} keeps
+// the steps of the case it came from (`from`: its index before the change) or starts empty (`from`: null); a case
+// left out is removed with its steps. A value typed the same as before keeps its stored type (a number stays one).
+function switchCasesEdit(definition, path, rows) {
+  let step = getAt(definition, path);
+  if (!step || typeof step != "object" || Array.isArray(step) || nonEmptyString(step.type) !== TYPE_SWITCH) throw new Error("That switch is no longer where it was \u2014 reopen it and try again.");
+  if (!Array.isArray(rows)) throw new Error("Missing the list of cases.");
+  let before = asArray(step.cases),
+    used = new Set(),
+    cases = rows.map(row => {
+      let value = String(row?.value ?? ""),
+        from = Number.isInteger(row?.from) && row.from >= 0 && row.from < before.length && !used.has(row.from) ? row.from : null;
+      if (from === null) return {
+        value: value,
+        command: {
+          type: "series",
+          commands: []
+        }
+      };
+      used.add(from);
+      let old = before[from] && typeof before[from] == "object" ? before[from] : {};
+      return {
+        ...old,
+        value: old.value !== void 0 && old.value !== null && String(old.value) === value ? old.value : value
+      };
+    });
+  return setAt(definition, path, {
+    ...step,
+    cases: cases
+  });
+}
 // containerPatch (minified: ko) — The Each / Parallel / If editor's values -> the step fields to change.
 function containerPatch(kind, values) {
   let errors = [],
@@ -2005,6 +2110,20 @@ function containerPatch(kind, values) {
     patch: patch,
     errors: errors
   };
+  // a switch: the value its cases are compared with (kept in data.value, like Saturn's)
+  if (kind === TYPE_SWITCH) {
+    let value = (values.value ?? "").trim();
+    return value ? patch.data = {
+      value: value
+    } : errors.push({
+      param: "value",
+      label: "Value to check",
+      message: "is required \u2014 the cases are compared with it"
+    }), {
+      patch: patch,
+      errors: errors
+    };
+  }
   if (kind === TYPE_PARALLEL) return readConcurrency(), {
     patch: patch,
     errors: errors
@@ -2072,9 +2191,14 @@ function countNestedSteps(node, depth = 0) {
   if (Array.isArray(node)) return node.reduce((total, child) => total + 1 + countNestedSteps(child, depth + 1), 0);
   let nodeObject = node,
     count = 0;
-  for (let key of ["commands", "command", "true", "false"]) {
+  // a branch that is one plain step (not a group) counts that step too
+  let plain = branch => (nonEmptyString(branch.type) !== null || branch.operator !== void 0) && !["series", "parallel"].includes(nonEmptyString(branch.type) ?? "") ? 1 : 0,
+    branchCount = branch => plain(branch) + countNestedSteps(branch, depth + 1);
+  // a switch's cases each hold their steps under `command`; Otherwise is a branch like an If side
+  for (let item of Array.isArray(nodeObject.cases) ? nodeObject.cases : []) item && typeof item == "object" && item.command && typeof item.command == "object" && (count += branchCount(item.command));
+  for (let key of ["commands", "command", "true", "false", "otherwise"]) {
     let branch = nodeObject[key];
-    Array.isArray(branch) ? count += branch.reduce((sum, item) => sum + 1 + countNestedSteps(item, depth + 1), 0) : branch && typeof branch == "object" && (count += countNestedSteps(branch, depth + 1));
+    Array.isArray(branch) ? count += branch.reduce((sum, item) => sum + 1 + countNestedSteps(item, depth + 1), 0) : branch && typeof branch == "object" && (count += branchCount(branch));
   }
   return count;
 }
@@ -2229,6 +2353,7 @@ function moveStepsEdit(definition, paths, toChildrenPath, index) {
     if (!Array.isArray(list) || !step || typeof step != "object" || Array.isArray(step)) throw new Error("A selected step is no longer where it was — select again and retry.");
     return { list, step };
   });
+  seriesForSteps(draft, toChildrenPath);
   let target = getAt(draft, toChildrenPath);
   if (target === void 0 || target === null) {
     let { parent, key } = parentOf(draft, toChildrenPath);
@@ -2571,6 +2696,8 @@ function findCommandReferences(definition, commandId) {
         Array.isArray(branch) && branch.forEach((child, index) => walk(child, owner, [...trail, `${key}[${index}]`]));
       }
       step.command && typeof step.command == "object" && walk(step.command, owner, [...trail, "command"]);
+      for (let key of ["true", "false", "otherwise"]) step[key] && typeof step[key] == "object" && !Array.isArray(step[key]) && walk(step[key], owner, [...trail, key]);
+      Array.isArray(step.cases) && step.cases.forEach((item, index) => item?.command && typeof item.command == "object" && walk(item.command, owner, [...trail, `cases[${index}]`]));
     };
   for (let action of asArray(definition?.actions)) walk(action?.task, `Global Action: ${action?.label ?? action?.action ?? "?"}`, []);
   for (let stage of asArray(definition?.stages)) for (let stageAction of asArray(stage?.actions)) walk(stageAction?.task, `Stage ${stage?.label ?? stage?.stage} / Action ${stageAction?.label ?? stageAction?.action}`, []);
@@ -2616,7 +2743,7 @@ function stepSummary(step, catalog) {
   if (!step || typeof step != "object") return "step";
   let node = step,
     type = nonEmptyString(node.type);
-  return type === "series" ? "group" : type === "parallel" ? "parallel block" : type === "each" ? "loop" : type === "if" ? "condition" : type === "reference" ? "reference" : stepTitle(node, catalog);
+  return type === "series" ? "group" : type === "parallel" ? "parallel block" : type === "each" ? "loop" : type === "if" ? "condition" : type === TYPE_SWITCH ? "switch" : type === "reference" ? "reference" : stepTitle(node, catalog);
 }
 // deletionImpact (minified: $r) — What deleting a stage / action / command would take with it: nested actions and steps,
 // and (for a command) the references that would break.
@@ -9961,7 +10088,7 @@ var draftHistoryLimit = 20,
               delay: delay
             } = message.payload ?? {};
             // Containers: their settings are checked by containerPatch first.
-            if (operator === TYPE_EACH || operator === TYPE_IF || operator === TYPE_SERIES || operator === TYPE_PARALLEL) {
+            if (operator === TYPE_EACH || operator === TYPE_IF || operator === TYPE_SWITCH || operator === TYPE_SERIES || operator === TYPE_PARALLEL) {
               let {
                 patch: patch,
                 errors: errors
@@ -9975,8 +10102,8 @@ var draftHistoryLimit = 20,
                 });
                 return;
               }
-              let container = operator === TYPE_EACH ? newEachStep(String(patch.reference), Number(patch.concurrency ?? 1)) : operator === TYPE_SERIES ? newSeriesStep() : operator === TYPE_PARALLEL ? newParallelStep(Number(patch.concurrency ?? 1)) : newIfStep(String(patch.evaluator), patch.data ?? {}),
-                summary = operator === TYPE_EACH ? "Added a loop" : operator === TYPE_IF ? "Added a condition" : operator === TYPE_SERIES ? "Added a group" : "Added a parallel block";
+              let container = operator === TYPE_EACH ? newEachStep(String(patch.reference), Number(patch.concurrency ?? 1)) : operator === TYPE_SERIES ? newSeriesStep() : operator === TYPE_PARALLEL ? newParallelStep(Number(patch.concurrency ?? 1)) : operator === TYPE_SWITCH ? newSwitchStep(patch.data.value) : newIfStep(String(patch.evaluator), patch.data ?? {}),
+                summary = operator === TYPE_EACH ? "Added a loop" : operator === TYPE_IF ? "Added a condition" : operator === TYPE_SWITCH ? "Added a switch" : operator === TYPE_SERIES ? "Added a group" : "Added a parallel block";
               await this.applyEdit(workflowId, summary, draft => insertAt(draft, childrenPath, typeof index == "number" ? index : null, container));
               return;
             }
@@ -10167,6 +10294,17 @@ var draftHistoryLimit = 20,
             break;
           }
         // Changes a step's settings: a container's, a command reference's target and parameters, or an operator's parameters.
+        // A switch's cases (0.3.64): added, removed, renamed or reordered, as one draft edit.
+        case "setSwitchCases":
+          {
+            let {
+              workflowId: workflowId,
+              path: stepPath,
+              cases: rows
+            } = message.payload ?? {};
+            await this.applyEdit(workflowId, "Changed the switch's cases", draft => switchCasesEdit(draft, stepPath, rows));
+            break;
+          }
         case "updateOperator":
           {
             let {
@@ -10176,7 +10314,7 @@ var draftHistoryLimit = 20,
               values: values,
               delay: delay
             } = message.payload ?? {};
-            if (operator === TYPE_EACH || operator === TYPE_IF || operator === TYPE_PARALLEL) {
+            if (operator === TYPE_EACH || operator === TYPE_IF || operator === TYPE_SWITCH || operator === TYPE_PARALLEL) {
               let {
                 patch: patch,
                 errors: errors
@@ -10190,10 +10328,17 @@ var draftHistoryLimit = 20,
                 });
                 return;
               }
-              await this.applyEdit(workflowId, operator === TYPE_EACH ? "Updated the loop" : operator === TYPE_PARALLEL ? "Updated the parallel block" : "Updated the condition", draft => {
+              await this.applyEdit(workflowId, operator === TYPE_EACH ? "Updated the loop" : operator === TYPE_PARALLEL ? "Updated the parallel block" : operator === TYPE_SWITCH ? "Updated the switch" : "Updated the condition", draft => {
                 let step = getAt(draft, stepPath);
                 if (!step || typeof step != "object" || Array.isArray(step)) throw new Error("That step is no longer where it was \u2014 reopen it and try again.");
-                return setAt(draft, stepPath, {
+                // a switch keeps its other data (only the value changes)
+                return setAt(draft, stepPath, operator === TYPE_SWITCH ? {
+                  ...step,
+                  data: {
+                    ...(step.data && typeof step.data == "object" && !Array.isArray(step.data) ? step.data : {}),
+                    ...patch.data
+                  }
+                } : {
                   ...step,
                   ...patch
                 });
@@ -10870,7 +11015,7 @@ var draftHistoryLimit = 20,
               return;
             }
             let catalog = await this.getOperatorCatalog(),
-              what = operator === TYPE_EACH ? "the loop" : operator === TYPE_IF ? "the condition" : operator === TYPE_SERIES ? "the group" : operator === TYPE_PARALLEL ? "the parallel block" : operator === TYPE_REFERENCE ? "the reference" : `"${typeof operator == "string" && catalog?.get(operator)?.name || "step"}"`;
+              what = operator === TYPE_EACH ? "the loop" : operator === TYPE_IF ? "the condition" : operator === TYPE_SWITCH ? "the switch" : operator === TYPE_SERIES ? "the group" : operator === TYPE_PARALLEL ? "the parallel block" : operator === TYPE_REFERENCE ? "the reference" : `"${typeof operator == "string" && catalog?.get(operator)?.name || "step"}"`;
             await this.forgetParamFiles(String(workflowId), stepPath), await this.applyEdit(workflowId, draft => {
               let innerCount = countNestedSteps(getAt(draft, stepPath)),
                 inside = innerCount > 0 ? ` and ${innerCount} step${innerCount === 1 ? "" : "s"} inside it` : "";
@@ -11294,7 +11439,9 @@ function describeStepPath(stepPath) {
   for (let index = 0; index < stepPath.length; index++) {
     let key = stepPath[index],
       next = stepPath[index + 1];
-    if (typeof key == "string" && typeof next == "number") {
+    if (key === "cases" && typeof next == "number") {
+      parts.push(`case ${next + 1}`), index++;
+    } else if (key === "otherwise") parts.push("the otherwise branch");else if (typeof key == "string" && typeof next == "number") {
       let noun = key === "stages" ? "stage" : key === "actions" ? "action" : key === "commands" ? "command" : key;
       parts.push(`${noun} ${next + 1}`), index++;
     } else (key === "true" || key === "false") && parts.push(`the ${key} branch`);

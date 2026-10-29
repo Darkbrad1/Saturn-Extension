@@ -143,6 +143,10 @@ export function fieldsFor(
             ]
           : [{ key: "command", label: "Function", kind: "code" as const, language: "javascript", required: true }]),
       ];
+    case "switch":
+      return [
+        { key: "value", label: "Value", kind: "text", required: true, placeholder: "{{ _store.who }}", help: "Each case is compared with this; Otherwise runs when none matches." },
+      ];
     case "reference": {
       const cmd = commands.find((c) => c.id === values.command || c.name === values.command);
       const declared = cmd?.parameters ?? [];
@@ -246,6 +250,7 @@ function paramField(p: CatalogParam): FieldSpec {
 export function defaultsFor(operator: string, catalog: Catalog, commands: CommandView[]): Record<string, string> {
   if (operator === "if") return { evaluatorKind: "condition", conditionOperator: "==" };
   if (operator === "each") return { collection: "{{ _flow }}", concurrency: "1" };
+  if (operator === "switch") return { value: "" };
   if (operator === "reference") return { command: commands[0]?.id ?? "" };
   const entry = catalog[operator];
   const v: Record<string, string> = {};
@@ -254,7 +259,7 @@ export function defaultsFor(operator: string, catalog: Catalog, commands: Comman
 }
 
 export function needsForm(operator: string, catalog: Catalog) {
-  if (["each", "if", "reference"].includes(operator)) return true;
+  if (["each", "if", "switch", "reference"].includes(operator)) return true;
   if (operator === "series" || operator === "parallel") return false;
   return (catalog[operator]?.params ?? []).some((p) => p.required && !p.defaultValue && !p.mergedInto);
 }
@@ -719,7 +724,7 @@ export const DELAY_FIELD: FieldSpec = {
   scrub: { step: 50, min: 0, px: 2 },
   ms: true,
 };
-export const hasDelay = (operator: string) => !["each", "if", "series", "parallel", "reference"].includes(operator);
+export const hasDelay = (operator: string) => !["each", "if", "switch", "series", "parallel", "reference"].includes(operator);
 export function parseDelay(v: string): number | null {
   const d = v.trim() === "" ? null : Number(v);
   return d !== null && Number.isFinite(d) && d > 0 ? d : null;

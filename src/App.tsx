@@ -1459,6 +1459,11 @@ export function App() {
             busy={busy}
             focusToken={focusToken}
             onCommit={commitPanel}
+            onSwitchCases={(f, rows) => {
+              setPanelErrors([]);
+              edit("setSwitchCases", { path: f.path, cases: rows });
+              sourceRef.current = "panel";
+            }}
             wf={wf}
             tree={tree}
             node={selected}
@@ -1720,7 +1725,7 @@ function NodeMenu(props: {
 
 function addTitle(op: string, catalog: Catalog) {
   return (
-    ({ each: "For Each loop", if: "Condition", series: "Group", parallel: "Parallel block", reference: "Command" } as Record<string, string>)[op] ??
+    ({ each: "For Each loop", if: "Condition", switch: "Switch", series: "Group", parallel: "Parallel block", reference: "Command" } as Record<string, string>)[op] ??
     catalog[op]?.name ??
     op
   );
@@ -2119,6 +2124,7 @@ function AddMenu(props: {
         : []),
       { op: "each", name: "For Each loop", cat: "Flow control", color: KIND_COLORS.each },
       { op: "if", name: "Condition (If)", cat: "Flow control", color: KIND_COLORS.if },
+      { op: "switch", name: "Switch (cases)", cat: "Flow control", color: KIND_COLORS.switch },
       { op: "parallel", name: "Parallel block", cat: "Flow control", color: KIND_COLORS.parallel },
       { op: "series", name: "Group", cat: "Flow control", color: KIND_COLORS.series },
     ];

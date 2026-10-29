@@ -3641,3 +3641,66 @@ body.nv-scrubbing * {
 #sonover-node-view .nv-confirm {
   width: 300px;
 }
+/* ---- a switch's outputs (0.3.64): one per case, then Otherwise */
+#sonover-node-view .nv-branch-foot.is-cases span {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 2px;
+  color: var(--nv-case, #e0a35c);
+}
+#sonover-node-view .nv-branch-foot.is-cases .is-otherwise {
+  color: var(--nv-false);
+}
+#sonover-node-view .nv-h-case {
+  background: var(--nv-case, #e0a35c);
+}
+/* ---- a switch's cases in the side panel (0.3.64) */
+#sonover-node-view .fg-cases {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#sonover-node-view .fg-case {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+#sonover-node-view .fg-case .fg-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#sonover-node-view .fg-case-count {
+  min-width: 18px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--nv-dim, #9a9a9a);
+}
+#sonover-node-view .fg-case-btn {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+#sonover-node-view .fg-case-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+#sonover-node-view .fg-case-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+#sonover-node-view .fg-case-btn.is-danger:hover:not(:disabled) {
+  color: #f28b82;
+}
+#sonover-node-view .fg-case.is-new {
+  margin-top: 4px;
+}
+#sonover-node-view .fg-hint.is-warn {
+  color: #e8b45a;
+}

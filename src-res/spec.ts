@@ -326,6 +326,14 @@ export const GROUPS: Group[] = [
             when: (p) => isRichText(p) || get(p, ["input_properties", "ai_actions"]) !== undefined,
             edit: { kind: "json" },
           },
+          // a real definition's Dynamic Component input keeps its Vue code here (0.3.64)
+          {
+            path: ["input_properties", "component_definition"],
+            label: "Input component code",
+            hint: "The Vue component the form shows for this property (Saturn's Dynamic Component input).",
+            when: (p) => typeof get(p, ["input_properties", "component_definition"]) === "string",
+            edit: { kind: "code", lang: "html", empty: "<template>\n\n</template>\n" },
+          },
           {
             path: ["input_properties", "options", "code"],
             label: "Component template",
@@ -466,6 +474,14 @@ export const GROUPS: Group[] = [
           { id: "lookup_label.countries", path: ["lookup_label"], label: "Label field", hint: "What people see in the list.", when: (p) => lookupType(p) === "countries", edit: { kind: "select", options: COUNTRY_FIELDS } },
           // a label function; for Countries, lookup_label is a field name instead (above)
           { path: ["lookup_label"], label: "Label function", when: (p) => lookupType(p) !== "countries" && (p.lookup_label_type === "function" || typeof p.lookup_label === "string"), edit: { kind: "code", lang: "javascript", empty: "(res)=>{\n  return ''\n}" } },
+          // seen on a real form field (0.3.64): only the records that match are offered
+          {
+            path: ["lookup_filter"],
+            label: "Filter",
+            hint: "Only the records that match are offered, in Saturn's query language, for example `user`.`group` = 'user_group-…'.",
+            when: (p) => ["lookup", "map", "resources"].includes(lookupType(p)) || p.lookup_filter !== undefined,
+            edit: { kind: "text", mono: true },
+          },
         ],
       },
       {

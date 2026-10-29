@@ -1,6 +1,17 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.64",
+    title: "The switch step",
+    items: [
+      "Workflows with a switch step (it checks a value, like {{ _store.who }}, and runs the first case that matches, or Otherwise) now show it on the canvas: one column per case, side by side like an If's True and False, with Otherwise last.",
+      "Pick a switch to change the value it checks, and its cases in the side panel: rename a case, add one, move it up or down, or remove it with its steps. Each change is one step for Undo.",
+      "Add steps to a case like anywhere else: drop them on its wire, or click its empty box. A case that holds a single step becomes a group the first time you add another.",
+      "Add a new switch from the Add menu (Shift+A): Switch (cases). It asks for the value first.",
+      "On the Resources screen and the Form tab: a lookup's Filter (only the records that match are offered) and a Dynamic Component input's code (Input component code), both stored where Saturn keeps them.",
+    ],
+  },
+  {
     version: "0.3.63",
     title: "Rich text editor, and the JSON on every screen",
     items: [

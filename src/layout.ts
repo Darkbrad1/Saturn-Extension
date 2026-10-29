@@ -77,6 +77,8 @@ export interface NvNodeData extends Record<string, unknown> {
   disabled?: boolean; // Saturn "mock": true
   insert?: InsertPoint; // slots: where a new step goes
   outputs?: "flow" | "branch" | "none";
+  /** a switch's outputs (0.3.64): one handle per case, then Otherwise; `id` is the edge's `branch` */
+  branches?: { id: string; label: string }[];
   inputs?: boolean;
   invalid?: boolean;
 }
@@ -87,7 +89,8 @@ export interface InsertPoint {
 }
 export interface NvEdgeData extends Record<string, unknown> {
   insert: InsertPoint | null;
-  branch?: "true" | "false";
+  /** "true" / "false" for an If, "case0", "case1", … / "otherwise" for a switch */
+  branch?: string;
 }
 
 export type NvNode = Node<NvNodeData>;
@@ -108,6 +111,7 @@ const CATEGORY_COLORS = [
 export const KIND_COLORS = {
   each: "#246283",
   if: "#5c3b83",
+  switch: "#7a4f1e",
   parallel: "#2f6a6a",
   series: "#3c4a5a",
   reference: "#1f6e4a",
@@ -302,7 +306,13 @@ function headNode(id: string, f: Flow, w = NODE_W): NvNode {
   let title = f.label;
   let rows: { key: string; value: string }[] = [];
   let outputs: NvNodeData["outputs"] = "flow";
-  if (f.kind === "each") {
+  let branches: NvNodeData["branches"];
+  if (f.kind === "switch") {
+    title = "Switch";
+    outputs = "branch";
+    rows = [{ key: "Value", value: f.value || "—" }];
+    branches = [...f.cases.map((c, i) => ({ id: `case${i}`, label: c.value === "" ? "(empty)" : c.value })), { id: "otherwise", label: "Otherwise" }];
+  } else if (f.kind === "each") {
     title = "For Each";
     rows = [
       { key: "Collection", value: f.collection ?? "—" },
@@ -346,6 +356,7 @@ function headNode(id: string, f: Flow, w = NODE_W): NvNode {
       rows,
       inputs: true,
       outputs,
+      ...(branches ? { branches } : {}),
     },
     style: { width: w },
   };
@@ -367,7 +378,8 @@ function containerBlock(f: Flow, catalog: Catalog): Block {
   const frameId = "f:" + key;
   const head = headNode("h:" + key, f);
   const join = rerouteNode("j:" + key);
-  const headH = stepHeight(head.data.rows?.length ?? 1);
+  // a switch's head lists its outputs as rows when the flow runs left to right
+  const headH = stepHeight((head.data.rows?.length ?? 1) + (!V && head.data.branches ? head.data.branches.length : 0));
 
   // rows of content: one for series/each, one per child for parallel,
   // true + false for if.
@@ -376,7 +388,7 @@ function containerBlock(f: Flow, catalog: Catalog): Block {
     w: number;
     h: number;
     childrenPath: Path;
-    branch?: "true" | "false";
+    branch?: string;
     perChild?: boolean;
   };
   const lanes: Lane[] = [];
@@ -395,12 +407,16 @@ function containerBlock(f: Flow, catalog: Catalog): Block {
     const fl = row(f.whenFalse, catalog);
     lanes.push({ ...t, childrenPath: f.truePath, branch: "true" });
     lanes.push({ ...fl, childrenPath: f.falsePath, branch: "false" });
+  } else if (f.kind === "switch") {
+    // one lane per case, side by side, then Otherwise
+    f.cases.forEach((c, i) => lanes.push({ ...row(c.steps, catalog), childrenPath: c.childrenPath, branch: `case${i}` }));
+    lanes.push({ ...row(f.otherwise, catalog), childrenPath: f.otherwisePath, branch: "otherwise" });
   }
 
   for (const lane of lanes) {
     if (lane.blocks.length === 0 && !lane.perChild) {
       const what =
-        f.kind === "if" ? `Empty ${lane.branch} branch` : f.kind === "each" ? "Empty loop" : f.kind === "parallel" ? "No branches" : "Empty group";
+        f.kind === "if" ? `Empty ${lane.branch} branch` : f.kind === "switch" ? (lane.branch === "otherwise" ? "Empty otherwise" : "Empty case") : f.kind === "each" ? "Empty loop" : f.kind === "parallel" ? "No branches" : "Empty group";
       lane.blocks = [slotBlock(`s:${key}:${lane.branch ?? "body"}`, { childrenPath: lane.childrenPath, index: 0 }, what)];
       lane.w = SLOT_W;
       lane.h = SLOT_H;
@@ -430,6 +446,8 @@ function containerBlock(f: Flow, catalog: Catalog): Block {
           ? `Loop over ${f.kind === "each" ? f.collection ?? "…" : ""}`
           : f.kind === "if"
             ? "Condition"
+            : f.kind === "switch"
+              ? "Switch"
             : f.kind === "parallel"
               ? "Parallel"
               : f.label && f.label !== "Series"
@@ -489,7 +507,7 @@ interface LaneV {
   w: number;
   h: number;
   childrenPath: Path;
-  branch?: "true" | "false";
+  branch?: string;
   perChild?: boolean;
 }
 /** Top-to-bottom container: head on top, lanes side by side, join at the bottom. */
@@ -515,6 +533,8 @@ function containerBlockV(f: Flow, lanes: LaneV[], head: NvNode, join: NvNode, he
           ? `Loop over ${f.collection ?? "…"}`
           : f.kind === "if"
             ? "Condition"
+            : f.kind === "switch"
+              ? "Switch"
             : f.kind === "parallel"
               ? "Parallel"
               : f.label && f.label !== "Series"

@@ -1,4 +1,5 @@
 import type { Catalog, Flow, Path, WorkflowView } from "./types";
+import { switchSteps } from "./types";
 
 // Search across a workflow: stages, stage actions, global actions, commands —
 // and the steps inside every action and command (operators, loops, conditions,
@@ -36,6 +37,7 @@ function matches(q: string[], ...texts: (string | null | undefined)[]) {
 const KIND_WORDS: Record<string, string> = {
   each: "loop for each each",
   if: "condition if branch",
+  switch: "switch case cases otherwise",
   parallel: "parallel block",
   series: "group series",
   reference: "command reference",
@@ -63,12 +65,14 @@ function stepHits(flow: Flow | null, q: string[], catalog: Catalog, out: StepHit
       if (f.kind === "each") title = `For Each ${f.collection ?? ""}`.trim();
       if (f.kind === "if") title = f.condition ? `If ${f.condition.property} ${f.condition.operator} ${f.condition.value}` : "If";
       if (f.kind === "parallel") title = "Parallel";
+      if (f.kind === "switch") title = `Switch ${f.value}`.trim();
       if (f.kind === "series") title = f.label && f.label !== "Series" ? `Group ${f.label}` : "Group";
-      const extra = f.kind === "each" ? f.collection : f.kind === "if" ? f.condition?.property ?? f.evaluatorSource : null;
+      const extra = f.kind === "each" ? f.collection : f.kind === "if" ? f.condition?.property ?? f.evaluatorSource : f.kind === "switch" ? `${f.value} ${f.cases.map((c) => c.value).join(" ")}` : null;
       if (matches(q, words, extra)) hit = f.kind;
     }
     if (hit) out.push({ path: f.path, title, why: hit, disabled: !!f.mock });
     if (f.kind === "if") [...f.whenTrue, ...f.whenFalse].forEach(visit);
+    else if (f.kind === "switch") switchSteps(f).forEach(visit);
     else if (f.kind === "series" || f.kind === "each" || f.kind === "parallel") f.children.forEach(visit);
   };
   // the root series of an action is not a step itself
