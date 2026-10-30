@@ -1135,7 +1135,7 @@ function switchView(step, catalog, path, depth) {
 // stepView (minified: yr) — One step (operator, if, each, parallel, series, reference) -> its flow view.
 function stepView(step, catalog, path, depth = 0) {
   let view = stepViewBase(step, catalog, path, depth);
-  return view && step && typeof step == "object" && (step.mock === !0 && (view.mock = !0), view.kind === "operator" && typeof step.id == "string" && step.id && (view.stepId = step.id)), view;
+  return view && step && typeof step == "object" && (step.mock === !0 && (view.mock = !0), (view.kind === "operator" || view.kind === "parallel") && typeof step.id == "string" && step.id && (view.stepId = step.id)), view;
 }
 // stepViewBase (minified: yr$base) — stepView without the additions: stepView adds the disabled flag (mock) and the step's id (stepId).
 function stepViewBase(step, catalog, path, depth = 0) {
@@ -1890,6 +1890,42 @@ function collectIds(root) {
   return visit(root), ids;
 }
 // stampStepIds (minified: Ma) — Gives every step without an id one.
+// storeWriteRows (0.3.72) — the rows of a Write store values step, checked: each a key (not empty, not twice, not a
+// prototype key) and a value, as text.
+function storeWriteRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error("Write store values needs at least one key.");
+  let seen = new Set();
+  return rows.map(row => {
+    let key = String(row?.key ?? "").trim();
+    if (!key) throw new Error("Every store value needs a key.");
+    if (seen.has(key)) throw new Error(`"${key}" is written twice \u2014 give each value its own key.`);
+    if (["__proto__", "constructor", "prototype"].includes(key)) throw new Error(`"${key}" can't be a store key.`);
+    return seen.add(key), {
+      key: key,
+      value: typeof row?.value == "string" ? row.value : String(row?.value ?? "")
+    };
+  });
+}
+// isStoreWrites (0.3.72) — a Parallel whose steps are all Write Store steps (what the node view shows as Write store values).
+function isStoreWrites(step) {
+  return !!step && typeof step == "object" && step.type === TYPE_PARALLEL && Array.isArray(step.commands) && step.commands.length > 0 && step.commands.every(child => child && child.type === "command" && child.operator === "write_store");
+}
+// storeWriteStep (0.3.72) — one Write Store step for a row, keeping the step it replaces (its id, mock, delay, other data).
+function storeWriteStep(row, previous, ids) {
+  let id = nonEmptyString(previous?.id);
+  if (!id) id = unusedId(ids), ids.add(id);
+  return {
+    ...(previous && typeof previous == "object" ? previous : {}),
+    id: id,
+    type: "command",
+    operator: "write_store",
+    data: {
+      ...(previous?.data && typeof previous.data == "object" ? previous.data : {}),
+      key: row.key,
+      value: row.value
+    }
+  };
+}
 function stampStepIds(definition) {
   let copy = structuredClone(definition),
     ids = collectIds(copy),
@@ -11108,7 +11144,7 @@ var draftHistoryLimit = 20,
               return;
             }
             let catalog = await this.getOperatorCatalog(),
-              what = operator === TYPE_EACH ? "the loop" : operator === TYPE_IF ? "the condition" : operator === TYPE_SWITCH ? "the switch" : operator === TYPE_SERIES ? "the group" : operator === TYPE_PARALLEL ? "the parallel block" : operator === TYPE_REFERENCE ? "the reference" : `"${typeof operator == "string" && catalog?.get(operator)?.name || "step"}"`;
+              what = operator === TYPE_EACH ? "the loop" : operator === TYPE_IF ? "the condition" : operator === TYPE_SWITCH ? "the switch" : operator === TYPE_SERIES ? "the group" : operator === TYPE_PARALLEL ? "the parallel block" : operator === "write_store_values" ? "Write store values" : operator === TYPE_REFERENCE ? "the reference" : `"${typeof operator == "string" && catalog?.get(operator)?.name || "step"}"`;
             await this.forgetParamFiles(String(workflowId), stepPath), await this.applyEdit(workflowId, draft => {
               let innerCount = countNestedSteps(getAt(draft, stepPath)),
                 inside = innerCount > 0 ? ` and ${innerCount} step${innerCount === 1 ? "" : "s"} inside it` : "";
@@ -11261,6 +11297,45 @@ var draftHistoryLimit = 20,
                 ...draft,
                 name: trimmed
               };
+            });
+            break;
+          }
+        // Write store values (0.3.72): a step the node view shows as one card, stored as Saturn knows it, a Parallel with
+        // one Write Store step per row. With `path` the Parallel there gets the rows (it must hold only Write Store
+        // steps; the rows keep the ids of the steps they replace, by place); without, a new one goes in at
+        // childrenPath / index. One draft edit either way; empty or doubled keys are refused.
+        case "setStoreWrites":
+          {
+            let {
+                workflowId: workflowId,
+                path: stepPath,
+                childrenPath: childrenPath,
+                index: index,
+                rows: rows
+              } = message.payload ?? {},
+              list = [];
+            // the rows are checked inside the edit, so a refusal is answered with editFailed like any other
+            await this.applyEdit(workflowId, () => Array.isArray(stepPath) ? `Set ${list.length} store value${list.length === 1 ? "" : "s"}: ${list.map(row => row.key).join(", ")}` : `Added Write store values (${list.map(row => row.key).join(", ")})`, draft => {
+              list = storeWriteRows(rows);
+              if (Array.isArray(stepPath)) {
+                let current = getAt(draft, stepPath);
+                if (!isStoreWrites(current)) throw new Error("That step is no longer a Parallel of Write Store steps \u2014 reopen the workflow and try again.");
+                let ids = new Set(collectIds(draft)),
+                  commands = list.map((row, at) => storeWriteStep(row, current.commands[at], ids));
+                return setAt(draft, stepPath, {
+                  ...current,
+                  commands: commands
+                });
+              }
+              if (!Array.isArray(childrenPath)) throw new Error("Missing where to add the step.");
+              let ids = new Set(collectIds(draft)),
+                parallel = {
+                  id: unusedId(ids),
+                  type: TYPE_PARALLEL,
+                  operator: TYPE_PARALLEL
+                };
+              ids.add(parallel.id), parallel.commands = list.map(row => storeWriteStep(row, null, ids));
+              return insertAt(draft, childrenPath, typeof index == "number" ? index : null, parallel);
             });
             break;
           }

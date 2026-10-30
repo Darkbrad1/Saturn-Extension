@@ -53,6 +53,9 @@
       params: [P("resource_name", "Resource Name", { lookupKind: "resources", required: true }), P("query", "Query", { description: "N1QL query filter to apply when retrieving records (WHERE clause)" }),
         P("limit", "Limit", { type: "number" }), P("offset", "Offset", { type: "number" }), P("sort", "Sort", { description: "N1QL ORDER BY clause" }),
         P("columns", "Columns", { description: "Comma-separated list of specific columns to return" })] },
+    // Saturn's Write Store Value: one key, one value (0.3.72's Write store values is a Parallel of these)
+    write_store: { name: "Write Store Value", category: "Data", description: "Save a value in the workflow's store.", icon: null,
+      params: [P("key", "Key", { required: true }), P("value", "Value")] },
     debug: { name: "Debug", category: "Developer", description: "Log the current context.", icon: null,
       params: [P("message", "Message", { description: "What to write to the System Logs" }), P("label", "Label"), P("level", "Level", { lookupValues: ["info", "warn", "error"] })] },
     schedule_followup: { name: "Schedule Follow-up", category: "Records", description: "Schedule a follow-up on the record.", icon: null,
@@ -181,7 +184,9 @@
       { stage: "done", label: "Done", color: "#22c55e", actions: [
         { id: "close", action: "close", label: "Close", task: { type: "series", commands: [op("send_email", { to: "a@b.c", subject: "Closed" }),
           // a Read step with a query, a sort and columns as Saturn writes them (0.3.70)
-          op("read", { resource_name: "orders", query: "`orders`.`status` = 'shipped' AND `orders`.`total` > 100", limit: "20", sort: "`orders`.`shipped_at` DESC", columns: "`orders`.`status`,`orders`.`total`" })] } },
+          op("read", { resource_name: "orders", query: "`orders`.`status` = 'shipped' AND `orders`.`total` > 100", limit: "20", sort: "`orders`.`shipped_at` DESC", columns: "`orders`.`status`,`orders`.`total`" }),
+          // three store values written at once, as Saturn keeps them: a Parallel of Write Store steps (0.3.72)
+          { id: "PWS001", type: "parallel", operator: "parallel", commands: [op("write_store", { key: "who", value: "loan_officer" }), op("write_store", { key: "closed_at", value: "{{ _util.moment().toISOString() }}" }), op("write_store", { key: "reason", value: "{{ _form.reason }}" })] }] } },
       ] },
     ],
     actions: [{ id: "audit", action: "audit", label: "Audit", task: { type: "series", commands: [op("debug", { label: "audit start" }), op("debug", { label: "audit end", level: "warn" })] } }],
@@ -256,7 +261,7 @@
       cases: (n.cases || []).map((c, i) => ({ value: c && c.value != null ? String(c.value) : "", steps: br(c && c.command, [...t, "cases", i, "command"]), childrenPath: [...t, "cases", i, "command", "commands"] })),
       otherwise: br(n.otherwise, [...t, "otherwise"]), otherwisePath: [...t, "otherwise", "commands"] };
   }
-  function step(n, t) { const v = step0(n, t); if (v && n && n.mock === true) v.mock = true; if (v && v.kind === "operator" && typeof n.id === "string") v.stepId = n.id; return v; }
+  function step(n, t) { const v = step0(n, t); if (v && n && n.mock === true) v.mock = true; if (v && (v.kind === "operator" || v.kind === "parallel") && typeof n.id === "string") v.stepId = n.id; return v; }
   function step0(n, t) {
     if (!n) return null;
     if (n.type === "if") return iff(n, t);
@@ -546,6 +551,18 @@
           if (def.commands.some((x) => x.name === name)) { fail(`A command named "${name}" already exists in this workflow.`); break; }
           apply(id, `Added command "${p.label}"`, (d) => d.commands.push({ id: Math.random().toString(36).slice(2, 8), name, label: p.label.trim(), command: { type: "series", commands: [] }, parameters: [] }));
         }
+        break;
+      }
+      // like the host's setStoreWrites: a Parallel of Write Store steps, one per row (0.3.72); one edit
+      case "setStoreWrites": {
+        (window.__posted = window.__posted || []).push(msg);
+        const rows = p.rows || [];
+        const keys = rows.map((r) => String(r.key || "").trim());
+        if (!rows.length || keys.some((k) => !k)) { post("editFailed", { message: "Every store value needs a key." }); break; }
+        if (new Set(keys).size !== keys.length) { post("editFailed", { message: "A key is written twice." }); break; }
+        const mk = (r, prev) => ({ ...(prev || {}), id: prev?.id || "ws" + Math.random().toString(36).slice(2, 8), type: "command", operator: "write_store", data: { ...(prev?.data || {}), key: r.key.trim(), value: r.value } });
+        if (p.path) apply(id, `Set ${rows.length} store values`, (d) => { const par = get(d, p.path); if (!par || par.type !== "parallel") throw new Error("That step is no longer a Parallel of Write Store steps."); par.commands = rows.map((r, i) => mk(r, par.commands[i])); });
+        else apply(id, "Added Write store values", (d) => { const list = get(d, p.childrenPath); list.splice(p.index ?? list.length, 0, { id: "pw" + Math.random().toString(36).slice(2, 8), type: "parallel", operator: "parallel", commands: rows.map((r) => mk(r)) }); });
         break;
       }
       // like the host's renameWorkflow: the name, one edit

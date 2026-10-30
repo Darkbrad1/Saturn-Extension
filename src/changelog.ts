@@ -1,6 +1,17 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.72",
+    title: "Write store values: several store keys in one step",
+    items: [
+      "A new step, Write store values, writes several keys to the store at once. Add it from the Add menu (Shift+A): type each key and its value (plain text or a {{ template }}), then Add.",
+      "Saturn has no such step, so it's saved as what Saturn knows: a Parallel block with one Write Store Value step per key. Saturn's own editor shows it that way, and it runs exactly like that.",
+      "Any Parallel block that holds only Write Store Value steps shows as one Write store values card, with a row per key, including ones built by hand in Saturn.",
+      "Pick the card to edit its keys in the side panel: change a key or value, + Add a key, × to take one out, ↑ / ↓ to reorder. Each change is one unsaved change, so Undo works.",
+      "Right-click the card for Show as separate steps, which draws the real Parallel block and its Write Store Value steps. Right-click that Parallel for Show as one Write store values card to go back.",
+    ],
+  },
+  {
     version: "0.3.71",
     title: "Tighter property rows, an Add menu for several at once, renaming workflows",
     items: [

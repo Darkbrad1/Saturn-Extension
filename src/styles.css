@@ -3917,3 +3917,19 @@ body.nv-scrubbing * {
   padding: 2px 6px; border-radius: 4px; background: #1b1b1b; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45); pointer-events: none; }
 #sonover-node-view .fg-panel .nv-recform .nv-prop:focus-within .nv-field-caption + .nv-field-help,
 #sonover-node-view .fg-panel .nv-recform .nv-prop:focus-within .nv-field-help + .nv-field-caption { display: none; }
+
+/* Write store values (0.3.72): a key and a value per row, the tools on the right */
+#sonover-node-view .nv-sw { display: flex; flex-direction: column; gap: 4px; }
+#sonover-node-view .nv-sw-head, #sonover-node-view .nv-sw-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto; gap: 6px; align-items: center; }
+#sonover-node-view .nv-sw-head { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--nv-muted); }
+#sonover-node-view .nv-sw-head span:nth-child(2) { grid-column: 2; }
+#sonover-node-view .nv-sw-key input, #sonover-node-view .nv-sw-value input { width: 100%; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; }
+#sonover-node-view .nv-sw-row.is-dup .nv-sw-key input { border-color: #e5534b; }
+#sonover-node-view .nv-sw-tools { display: inline-flex; gap: 1px; opacity: .45; }
+#sonover-node-view .nv-sw-row:hover .nv-sw-tools, #sonover-node-view .nv-sw-row:focus-within .nv-sw-tools { opacity: 1; }
+#sonover-node-view .nv-sw-tools button:disabled { opacity: .3; cursor: default; }
+#sonover-node-view .nv-sw-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+#sonover-node-view .nv-sw-problem { color: #f0a7a1; font-size: 11px; }
+#sonover-node-view .nv-modal .nv-sw { min-width: 460px; }
+#sonover-node-view .nv-sw-key input, #sonover-node-view .nv-sw-value input { padding: 5px 8px; border-radius: 4px; border: 1px solid #191919; background: #1d1d1d; color: inherit; outline: none; }
+#sonover-node-view .nv-sw-key input:focus, #sonover-node-view .nv-sw-value input:focus { border-color: #0d99ff; }

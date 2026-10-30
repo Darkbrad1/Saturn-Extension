@@ -43,6 +43,7 @@ import { DirContext, NodeActions, edgeTypes, nodeTypes } from "./nodes";
 import { Outliner, machineName, nextStageColor, type CreateRequest } from "./outliner";
 import { SidePanel, countSteps, sameOperator, titleOf, type BulkOps, type PanelScope, type Tree } from "./panel";
 import { searchWorkflow } from "./search";
+import { STORE_WRITES, STORE_WRITES_LABEL, StoreRows, combineStoreWrites, isStoreWrites, rowsProblem, type StoreRow } from "./storewrites";
 import type { Catalog, CommandUsage, CommandView, DraftState, Flow, Path, WorkflowSummary, WorkflowView } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -140,6 +141,8 @@ interface Saved {
   dir?: LayoutDir;
   /** the layers panel shown (default) or folded away */
   layers?: boolean;
+  /** Parallels of Write Store steps shown as separate steps, not one Write store values card (their ids; 0.3.72) */
+  apart?: string[];
 }
 const PANEL_DEFAULT = 320;
 
@@ -227,13 +230,16 @@ export function App() {
   const pendingOpen = useRef<{ kind: "action" | "command"; stageIndex: number | null; machine: string } | null>(null);
   /** Where the Add menu inserts when it was opened from a slot or a wire's + button. */
   const addAt = useRef<InsertPoint | null>(null);
+  // Write store values (0.3.72): the ones shown as separate steps, and the small Add form for a new one
+  const [apart, setApart] = useState<Set<string>>(() => new Set(saved.apart ?? []));
+  const [storeForm, setStoreForm] = useState<InsertPoint | null>(null);
   const pendingRead = useRef<string | null>(null);
   const formRef = useRef<FormState>(null);
   formRef.current = form;
 
   useEffect(
-    () => saveNodeViewState({ open, panel, panelWidth, formWidth, trees: treeByWf, collapsed: collapsedByWf, dir, layers }),
-    [open, panel, panelWidth, formWidth, treeByWf, collapsedByWf, dir, layers],
+    () => saveNodeViewState({ open, panel, panelWidth, formWidth, trees: treeByWf, collapsed: collapsedByWf, dir, layers, apart: [...apart] }),
+    [open, panel, panelWidth, formWidth, treeByWf, collapsedByWf, dir, layers, apart],
   );
   useEffect(() => {
     const off = onSelectionChange(setCurrentId);
@@ -427,7 +433,7 @@ export function App() {
   }, [toast]);
 
   const wf = currentId ? workflows[currentId] : undefined;
-  const trees = useMemo(() => (wf ? treesOf(wf) : []), [wf]);
+  const trees = useMemo(() => (wf ? treesOf(wf).map((t) => ({ ...t, flow: t.flow ? (combineStoreWrites(t.flow, apart) as typeof t.flow) : t.flow })) : []), [wf, apart]);
   const treeKey = (wf && treeByWf[wf.id]) || trees[0]?.key;
   const tree = trees.find((t) => t.key === treeKey) ?? trees[0];
   const draft = wf ? drafts[wf.id] : undefined;
@@ -605,7 +611,7 @@ export function App() {
         toast("Groups have no settings — drag steps in or out of them instead.");
         return;
       }
-      // Settings are edited in the side panel: open it and put the cursor in the first field.
+      // Settings are edited in the side panel (a Write store values step's rows too): open it and put the cursor in the first field.
       setPanel(true);
       setFocusToken((t) => t + 1);
     },
@@ -928,6 +934,10 @@ export function App() {
       if (!wf) return;
       if (operator === "__paste") {
         pasteAt(at);
+        return;
+      }
+      if (operator === STORE_WRITES) {
+        setStoreForm(at);
         return;
       }
       if (operator.startsWith("cmd:")) {
@@ -1523,6 +1533,11 @@ export function App() {
             busy={busy}
             focusToken={focusToken}
             onCommit={commitPanel}
+            onStoreWrites={(f, rows) => {
+              setPanelErrors([]);
+              edit("setStoreWrites", { path: f.path, rows });
+              sourceRef.current = "panel";
+            }}
             onSwitchCases={(f, rows) => {
               setPanelErrors([]);
               edit("setSwitchCases", { path: f.path, cases: rows });
@@ -1568,6 +1583,17 @@ export function App() {
         />
       )}
 
+      {storeForm && (
+        <StoreWritesForm
+          busy={busy}
+          onCancel={() => setStoreForm(null)}
+          onAdd={(rows) => {
+            edit("setStoreWrites", { childrenPath: storeForm.childrenPath, index: storeForm.index, rows });
+            setStoreForm(null);
+          }}
+        />
+      )}
+
       {form && (
         // the same lookups as the side panel (records for pickers, resource names), 0.3.66
         <FormEnvContext.Provider value={formEnv}>
@@ -1604,6 +1630,14 @@ export function App() {
           }}
           onCopy={copyStep}
           onCopyContents={copyContents}
+          onApart={(id, on) =>
+            setApart((cur) => {
+              const next = new Set(cur);
+              if (on) next.add(id);
+              else next.delete(id);
+              return next;
+            })
+          }
           onPaste={(at) => pasteAt(at)}
           onAdd={(at) => {
             addAt.current = at;
@@ -1854,6 +1888,8 @@ function NodeMenu(props: {
   onToggleMock: (f: Flow) => void;
   onDelete: (f: Flow) => void;
   onEnter: (f: Flow) => void;
+  /** a Write store values step shown as its separate steps (true) or as one card again (false) */
+  onApart: (parallelId: string, apart: boolean) => void;
 }) {
   const f = props.menu.node?.data.flow;
   const after = f ? insertAfter(f) : props.menu.at;
@@ -1890,6 +1926,8 @@ function NodeMenu(props: {
             <div className="nv-ctx-title">{f.kind === "operator" ? f.label : f.kind}</div>
             {f.kind !== "series" && item("Edit settings", "Enter", () => props.onEdit(f))}
             {f.kind === "reference" && item("Open command", "Tab", () => props.onEnter(f))}
+            {f.kind === "operator" && f.storeWrites?.parallel.stepId && item("Show as separate steps", "", () => props.onApart(f.storeWrites!.parallel.stepId!, true))}
+            {f.kind === "parallel" && f.stepId && isStoreWrites(f) && item("Show as one Write store values card", "", () => props.onApart(f.stepId!, false))}
             <div className="nv-ctx-sep" />
             {item("Copy", "Ctrl C", () => props.onCopy(f))}
             {contents.map((c) => item(`Copy steps in ${c.label}`, "", () => props.onCopyContents(c.path, c.label)))}
@@ -1911,6 +1949,45 @@ function NodeMenu(props: {
   );
 }
 
+
+/** The Add form for a new Write store values step: its rows, then Add (one edit). */
+function StoreWritesForm(props: { busy: boolean; onAdd: (rows: StoreRow[]) => void; onCancel: () => void }) {
+  const [rows, setRows] = useState<StoreRow[]>([{ key: "", value: "" }]);
+  const problem = rowsProblem(rows);
+  return (
+    <div className="nv-modal-back" onMouseDown={props.onCancel}>
+      <form
+        className="nv-modal"
+        onMouseDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") props.onCancel();
+          e.stopPropagation();
+        }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!problem) props.onAdd(rows.map((r) => ({ key: r.key.trim(), value: r.value })));
+        }}
+      >
+        <div className="nv-modal-head">
+          <div className="nv-modal-title">{STORE_WRITES_LABEL}</div>
+          <div className="nv-modal-sub">Add step · saved in Saturn as a Parallel block of Write Store steps</div>
+        </div>
+        <div className="nv-modal-body">
+          <StoreRows initial={[]} autoFocus onCommit={() => {}} live={setRows} />
+        </div>
+        <div className="nv-modal-foot">
+          <span className="nv-spacer" />
+          <button type="button" className="nv-btn" onClick={props.onCancel}>
+            Cancel
+          </button>
+          <button type="submit" className="nv-btn is-primary" disabled={!!problem || props.busy} title={problem ?? undefined}>
+            Add
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 function addTitle(op: string, catalog: Catalog) {
   return (
@@ -2390,6 +2467,10 @@ function AddMenu(props: {
       { op: "switch", name: "Switch (cases)", cat: "Flow control", color: KIND_COLORS.switch },
       { op: "parallel", name: "Parallel block", cat: "Flow control", color: KIND_COLORS.parallel },
       { op: "series", name: "Group", cat: "Flow control", color: KIND_COLORS.series },
+      // several store keys in one step, saved as a Parallel of Write Store steps (0.3.72)
+      ...(props.catalog.write_store
+        ? [{ op: STORE_WRITES, name: STORE_WRITES_LABEL, cat: props.catalog.write_store.category || "Data", color: categoryColor(props.catalog.write_store.category ?? "write_store"), desc: "Write several values to the store in one step. Saved in Saturn as a Parallel block of Write Store steps." }]
+        : []),
     ];
     // every command, added directly as a step (like an operator)
     const cmds = props.commands.map((c) => ({

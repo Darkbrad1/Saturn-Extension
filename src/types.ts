@@ -24,6 +24,8 @@ export interface SeriesFlow {
 export interface ParallelFlow {
   kind: "parallel";
   label: string;
+  /** the Parallel's own id in the definition (0.3.72) */
+  stepId?: string;
   concurrency: number | null;
   children: Flow[];
   path: Path;
@@ -91,6 +93,8 @@ export interface OperatorFlow {
   path: Path;
   /** Saturn's "mock" flag: true = the step is disabled (skipped when it runs). */
   mock?: boolean;
+  /** a Write store values step (0.3.72): really the Parallel at `path`, with its Write Store steps at stepPaths */
+  storeWrites?: { parallel: ParallelFlow; stepPaths: Path[] };
 }
 export type Flow =
   | SeriesFlow

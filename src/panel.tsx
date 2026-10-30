@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FormEnvContext, MultiEditor, PanelEditor, type FormEnv, type FormError, type LoadedParams } from "./forms";
 import { ActionPanel, CommandPanel, MultiActionPanel, StagePanel, WorkflowPanel, type SettingsOps } from "./settings";
 import { codeParams, isEmailSummary, operatorName, type NvEdge, type NvNode, type RowAction } from "./layout";
-import type { Catalog, CommandView, DraftState, Flow, Path, SwitchFlow, WorkflowView } from "./types";
+import type { Catalog, CommandView, DraftState, Flow, OperatorFlow, Path, SwitchFlow, WorkflowView } from "./types";
+import { StoreWritesPanel, type StoreRow } from "./storewrites";
 import { switchSteps } from "./types";
 import { LogsTab } from "./logs";
 import { FormTab, type FormOwner } from "./formtab";
@@ -83,6 +84,8 @@ export function SidePanel(props: {
   onCommit: (f: Flow, values: Record<string, string>, delay: number | null) => void;
   /** a switch's cases changed (0.3.64): each row's value and the index it came from (null: a new case) */
   onSwitchCases: (f: SwitchFlow, rows: CaseRow[]) => void;
+  /** a Write store values step's rows changed (0.3.72) */
+  onStoreWrites: (f: OperatorFlow, rows: StoreRow[]) => void;
   wf: WorkflowView;
   tree: Tree | undefined;
   node: NvNode | null;
@@ -377,7 +380,9 @@ function DesignTab(props: Parameters<typeof SidePanel>[0] & { f: Flow }) {
         ]
       : [];
   const kindLabel =
-    f.kind === "operator"
+    f.kind === "operator" && f.storeWrites
+      ? "Data · a Parallel in Saturn"
+      : f.kind === "operator"
       ? entry?.category ?? "Operator"
       : f.kind === "reference"
         ? "Command group"
@@ -395,7 +400,7 @@ function DesignTab(props: Parameters<typeof SidePanel>[0] & { f: Flow }) {
           </div>
           <div className="fg-head-sub">
             {kindLabel}
-            {f.kind === "operator" && f.operator && <code>{f.operator}</code>}
+            {f.kind === "operator" && f.operator && !f.storeWrites && <code>{f.operator}</code>}
           </div>
         </div>
         <div className="fg-head-actions">
@@ -448,7 +453,12 @@ function DesignTab(props: Parameters<typeof SidePanel>[0] & { f: Flow }) {
         </Section>
       )}
 
-      {f.kind === "series" ? (
+      {f.kind === "operator" && f.storeWrites ? (
+        <Section title="Store values" id="store-writes" actions={props.busy ? <span className="fg-saving">Saving…</span> : null}>
+          <StoreWritesPanel key={pathKey(f.path)} workflowId={props.wf.id} f={f} busy={props.busy} onChange={(rows) => props.onStoreWrites(f, rows)} />
+          <p className="fg-hint">Each row is one Write Store step inside a Parallel block, which is how Saturn keeps it. Right-click the card for Show as separate steps.</p>
+        </Section>
+      ) : f.kind === "series" ? (
         <Section title="Group" id="group">
           <div className="fg-row">
             <span className="fg-label">Steps</span>

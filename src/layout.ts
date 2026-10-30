@@ -191,7 +191,24 @@ function cardTitle(f: OperatorFlow): string {
 function stepBlock(f: Flow, catalog: Catalog): Block {
   const id = "n:" + pathKey(f.path);
   let data: NvNodeData;
-  if (f.kind === "operator") {
+  if (f.kind === "operator" && f.storeWrites) {
+    // Write store values (0.3.72): really a Parallel of Write Store steps, drawn as one card, a row per key
+    const entry = catalog.write_store;
+    const rows = f.params.map((p) => ({ key: p.key, value: p.value }));
+    data = {
+      role: "step",
+      flow: f,
+      title: f.label,
+      subtitle: entry?.category ?? "Data",
+      color: categoryColor(entry?.category ?? "write_store"),
+      rows: rows.slice(0, MAX_ENTRIES),
+      moreRows: Math.max(0, rows.length - MAX_ENTRIES),
+      inputs: true,
+      outputs: "flow",
+      invalid: false,
+      disabled: !!f.mock,
+    };
+  } else if (f.kind === "operator") {
     const entry = f.operator ? catalog[f.operator] : undefined;
     const rows = operatorRows(f, catalog);
     data = {
