@@ -2193,7 +2193,7 @@ function Canvas(props: {
     return nodes.map((n) => {
       const cls = [
         n.id === hotEdge ? "is-hot" : "",
-        n.data.flow && n.data.role !== "frame" && props.highlight.has(pathKey(n.data.flow.path)) ? "is-match" : "",
+        n.data.flow && props.highlight.has(pathKey(n.data.flow.path)) ? "is-match" : "",
       ].filter(Boolean).join(" ");
       return cls ? { ...n, className: cls } : n;
     });
@@ -2246,13 +2246,43 @@ function Canvas(props: {
       const h = i.measured?.height ?? 0;
       if (pt.x >= x - 8 && pt.x <= x + w + 8 && pt.y >= y - 8 && pt.y <= y + h + 8) return n.id;
     }
+    // an If's or switch's empty output, only its dot (0.3.74): "b:<head id>:<branch>"
+    for (const n of layout.nodes) {
+      for (const [branch, ins] of Object.entries(n.data.emptyBranches ?? {})) {
+        if (d.flows.some((f) => isWithin(ins.childrenPath, f.path))) continue;
+        const el = document.querySelector(`#sonover-node-view .react-flow__node[data-id="${CSS.escape(n.id)}"] [data-empty="${CSS.escape(branch)}"]`);
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        const c = rf.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+        if (Math.hypot(pt.x - c.x, pt.y - c.y) < 30) return `b:${n.id}:${branch}`;
+      }
+    }
     return null;
   };
+  /** Where a drop target (a slot, an empty output's dot or a wire) puts what's dropped. */
+  const insertOf = (target: string): InsertPoint | null | undefined => {
+    if (target.startsWith("s:")) return layout.nodes.find((x) => x.id === target)?.data.insert;
+    if (target.startsWith("b:")) {
+      const cut = target.lastIndexOf(":");
+      return layout.nodes.find((x) => x.id === target.slice(2, cut))?.data.emptyBranches?.[target.slice(cut + 1)];
+    }
+    return layout.edges.find((x) => x.id === target)?.data?.insert;
+  };
+  // the empty output a dragged step is over lights up
+  useEffect(() => {
+    document.querySelectorAll("#sonover-node-view .nv-h.is-empty.is-hot").forEach((el) => el.classList.remove("is-hot"));
+    if (!hotEdge?.startsWith("b:")) return;
+    const cut = hotEdge.lastIndexOf(":");
+    document
+      .querySelector(`#sonover-node-view .react-flow__node[data-id="${CSS.escape(hotEdge.slice(2, cut))}"] [data-empty="${CSS.escape(hotEdge.slice(cut + 1))}"]`)
+      ?.classList.add("is-hot");
+  }, [hotEdge]);
 
   const portsOf = (n: NvNode): Set<string> => {
     const f = n.data.flow!;
     const k = pathKey(f.path);
-    return n.data.role === "frame" ? new Set([n.id, "h:" + k, "j:" + k]) : new Set([n.id]);
+    // a container's head stands for the whole container: none of its own wires is a place to drop it
+    return n.data.role === "head" ? new Set([n.id, "j:" + k]) : new Set([n.id]);
   };
 
   return (
@@ -2295,7 +2325,7 @@ function Canvas(props: {
           props.onOwner();
           return;
         }
-        const pickable = node.data.role === "step" || node.data.role === "head" || node.data.role === "frame";
+        const pickable = node.data.role === "step" || node.data.role === "head";
         if (pickable && (ev.shiftKey || ev.metaKey || ev.ctrlKey)) props.onToggleSelect(node);
         else if (pickable) props.onSelect(node);
         else props.onSelect(null);
@@ -2331,7 +2361,7 @@ function Canvas(props: {
       }}
       onNodeDragStart={(_, n) => {
         const node = n as NvNode;
-        const movable = (node.data.role === "step" || node.data.role === "frame") && !!node.data.flow;
+        const movable = (node.data.role === "step" || node.data.role === "head") && !!node.data.flow;
         // a picked step dragged: every picked step goes along
         if (movable && props.inSelection(node)) {
           const picked = layout.nodes.filter((x) => pickableInBox(x) && props.inSelection(x));
@@ -2367,9 +2397,7 @@ function Canvas(props: {
         }
         keepPlaces(next);
         if (!d || !target) return;
-        const ins = target.startsWith("s:")
-          ? layout.nodes.find((x) => x.id === target)?.data.insert
-          : layout.edges.find((x) => x.id === target)?.data?.insert;
+        const ins = insertOf(target);
         if (ins && d.many) props.onMoveMany(ins);
         else if (ins) props.onMove(d.flow, ins);
       }}
@@ -2409,7 +2437,7 @@ function Canvas(props: {
 
 /** Nodes a box (or Select all) picks: steps and groups, not the head card, slots or reroutes. */
 function pickableInBox(n: NvNode) {
-  return (n.data.role === "step" || n.data.role === "frame") && !!n.data.flow;
+  return (n.data.role === "step" || n.data.role === "head") && !!n.data.flow;
 }
 
 const READABLE_ZOOM = 0.8;

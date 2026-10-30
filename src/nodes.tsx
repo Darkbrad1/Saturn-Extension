@@ -41,6 +41,24 @@ export function NvNodeView({ id, data, selected }: NodeProps<NvNode>) {
     id === "start" ? "is-owner" : "",
   ].join(" ");
   const row = (r: NvRow, i: number) => <Row key={i} r={r} flow={data.flow} />;
+  // an output with no steps after it (0.3.74): only its dot, which adds a step there when clicked
+  const empty = (branch: string, label: string) => {
+    const at = data.emptyBranches?.[branch];
+    if (!at) return {};
+    return {
+      className: " is-empty nodrag",
+      title: `${label} has no steps yet: click to add one, or drop a step here`,
+      "data-empty": branch,
+      onClick: (e: React.MouseEvent) => {
+        e.stopPropagation();
+        actions?.add(at, e.clientX, e.clientY);
+      },
+    };
+  };
+  const out = (branch: string, label: string, base: string, extra: Record<string, unknown> = {}) => {
+    const { className = "", ...rest } = empty(branch, label) as { className?: string };
+    return <Handle key={branch} type="source" id={branch} position={v ? Position.Bottom : Position.Right} className={base + className} {...extra} {...rest} />;
+  };
   return (
     <div className={cls}>
       {selected && data.role === "step" && actions?.resized && (
@@ -72,9 +90,7 @@ export function NvNodeView({ id, data, selected }: NodeProps<NvNode>) {
               <span key={b.id} className={b.id === "otherwise" ? "is-otherwise" : ""} title={b.label}>{b.label}</span>
             ))}
           </div>
-          {data.branches.map((b, i, all) => (
-            <Handle key={b.id} type="source" id={b.id} position={Position.Bottom} className="nv-h nv-h-case nv-h-vb" style={{ left: `${((i + 0.5) / all.length) * 100}%` }} />
-          ))}
+          {data.branches.map((b, i, all) => out(b.id, b.label, "nv-h nv-h-case nv-h-vb", { style: { left: `${((i + 0.5) / all.length) * 100}%` } }))}
         </div>
       ) : data.outputs === "branch" && data.branches ? (
         <div className="nv-node-body">
@@ -82,7 +98,7 @@ export function NvNodeView({ id, data, selected }: NodeProps<NvNode>) {
           {data.branches.map((b) => (
             <div key={b.id} className="nv-socket-row out" title={b.label}>
               {b.label}
-              <Handle type="source" id={b.id} position={Position.Right} className="nv-h nv-h-case" />
+              {out(b.id, b.label, "nv-h nv-h-case")}
             </div>
           ))}
         </div>
@@ -93,19 +109,19 @@ export function NvNodeView({ id, data, selected }: NodeProps<NvNode>) {
             <span className="is-true">True</span>
             <span className="is-false">False</span>
           </div>
-          <Handle type="source" id="true" position={Position.Bottom} className="nv-h nv-h-true nv-h-vb" style={{ left: "25%" }} />
-          <Handle type="source" id="false" position={Position.Bottom} className="nv-h nv-h-false nv-h-vb" style={{ left: "75%" }} />
+          {out("true", "True", "nv-h nv-h-true nv-h-vb", { style: { left: "25%" } })}
+          {out("false", "False", "nv-h nv-h-false nv-h-vb", { style: { left: "75%" } })}
         </div>
       ) : data.outputs === "branch" ? (
         <div className="nv-node-body">
           {(data.rows ?? []).map(row)}
           <div className="nv-socket-row out">
             True
-            <Handle type="source" id="true" position={Position.Right} className="nv-h nv-h-true" />
+            {out("true", "True", "nv-h nv-h-true")}
           </div>
           <div className="nv-socket-row out">
             False
-            <Handle type="source" id="false" position={Position.Right} className="nv-h nv-h-false" />
+            {out("false", "False", "nv-h nv-h-false")}
           </div>
         </div>
       ) : (

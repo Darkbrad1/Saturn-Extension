@@ -3965,3 +3965,28 @@ body.nv-scrubbing * {
 #sonover-node-view .nv-modal .nv-sw { min-width: 460px; }
 #sonover-node-view .nv-sw-key input, #sonover-node-view .nv-sw-value input { padding: 5px 8px; border-radius: 4px; border: 1px solid #191919; background: #1d1d1d; color: inherit; outline: none; }
 #sonover-node-view .nv-sw-key input:focus, #sonover-node-view .nv-sw-value input:focus { border-color: #0d99ff; }
+
+/* an If's or switch's output with no steps (0.3.74): only its dot; hover shows +, a click adds a step */
+#sonover-node-view .nv-h.is-empty {
+  cursor: pointer;
+  pointer-events: all;
+  transition: scale 0.1s;
+}
+#sonover-node-view .nv-h.is-empty:hover,
+#sonover-node-view .nv-h.is-empty.is-hot {
+  scale: 1.6;
+  box-shadow: 0 0 0 2px var(--nv-select);
+}
+#sonover-node-view .nv-h.is-empty:hover::after,
+#sonover-node-view .nv-h.is-empty.is-hot::after {
+  content: "+";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 700;
+  color: #111;
+}

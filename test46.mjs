@@ -87,8 +87,11 @@ const ref = p.locator(".react-flow__node", { hasText: "Notify customer" }).first
 await ref.click({ modifiers: ["Control"] });
 await p.waitForTimeout(250);
 // onto the wire between the Condition group and the Loop group (a wire touching a picked step can't take them)
-const cond = await p.locator(".react-flow__node-frame", { hasText: "Condition" }).first().boundingBox();
-const loop = await p.locator(".react-flow__node-frame", { hasText: "Loop over" }).first().boundingBox();
+// (0.3.74: no boxes round them; the If's join dot and the loop's card mark the gap)
+const condJoin = await p.locator('.react-flow__node[data-id^="j:"]').nth(0).boundingBox();
+const loopHead = await p.locator(".react-flow__node", { has: p.locator(".nv-node-title", { hasText: /^For Each$/ }) }).first().boundingBox();
+const cond = { x: loopHead.x, width: loopHead.width, y: condJoin.y, height: condJoin.height };
+const loop = loopHead;
 const src = await card("Update Record", 0).boundingBox();
 const tx = cond.x + cond.width / 2, ty = (cond.y + cond.height + loop.y) / 2;
 await p.mouse.move(src.x + src.width / 2, src.y + 12);

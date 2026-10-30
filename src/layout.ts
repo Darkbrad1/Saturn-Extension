@@ -8,8 +8,9 @@ const ROW_H = 20;
 const MAX_ROWS = 6;
 const GAP_X = 64;
 const GAP_Y = 36;
-const FRAME_PAD = 22;
-const FRAME_TOP = 38;
+// no box is drawn round a container (0.3.74): this is only the room left round its cards
+const FRAME_PAD = 14;
+const FRAME_TOP = 6;
 const REROUTE = 14;
 const TERMINAL_W = 150;
 const TERMINAL_H = 60;
@@ -79,6 +80,8 @@ export interface NvNodeData extends Record<string, unknown> {
   outputs?: "flow" | "branch" | "none";
   /** a switch's outputs (0.3.64): one handle per case, then Otherwise; `id` is the edge's `branch` */
   branches?: { id: string; label: string }[];
+  /** an If's or switch's outputs with no steps yet (0.3.74): just their dot, which adds a step there */
+  emptyBranches?: Record<string, InsertPoint>;
   inputs?: boolean;
   invalid?: boolean;
 }
@@ -370,7 +373,6 @@ function headNode(id: string, f: Flow, w = NODE_W): NvNode {
     id,
     type: "nv",
     position: { x: 0, y: 0 },
-    draggable: false,
     data: {
       role: "head",
       flow: f,
@@ -437,17 +439,15 @@ function containerBlock(f: Flow, catalog: Catalog): Block {
     lanes.push({ ...row(f.otherwise, catalog), childrenPath: f.otherwisePath, branch: "otherwise" });
   }
 
+  // an empty If or switch branch is only its dot on the head (0.3.74); an empty group, loop or parallel is a plain
+  // wire from its head to its join (chainEdges with no blocks), whose + adds the first step
   for (const lane of lanes) {
-    if (lane.blocks.length === 0 && !lane.perChild) {
-      const what =
-        f.kind === "if" ? `Empty ${lane.branch} branch` : f.kind === "switch" ? (lane.branch === "otherwise" ? "Empty otherwise" : "Empty case") : f.kind === "each" ? "Empty loop" : f.kind === "parallel" ? "No branches" : "Empty group";
-      lane.blocks = [slotBlock(`s:${key}:${lane.branch ?? "body"}`, { childrenPath: lane.childrenPath, index: 0 }, what)];
-      lane.w = SLOT_W;
-      lane.h = SLOT_H;
-    }
+    if (lane.blocks.length === 0 && !lane.perChild && lane.branch)
+      head.data.emptyBranches = { ...head.data.emptyBranches, [lane.branch]: { childrenPath: lane.childrenPath, index: 0 } };
   }
+  const isDot = (l: Lane) => !!l.branch && l.blocks.length === 0 && !l.perChild;
   if (V) return containerBlockV(f, lanes, head, join, headH, frameId);
-  const laneH = (l: Lane) => Math.max(l.h, 36);
+  const laneH = (l: Lane) => (isDot(l) ? 0 : Math.max(l.h, 36));
   const contentW = lanes.reduce((m, l) => Math.max(m, l.w), 0);
   const contentH =
     lanes.reduce((s, l) => s + laneH(l), 0) + GAP_Y * Math.max(0, lanes.length - 1);
@@ -506,7 +506,7 @@ function containerBlock(f: Flow, catalog: Catalog): Block {
       const b = lane.blocks[0];
       edges.push(edge(headPort(), b.entry, { childrenPath: lane.childrenPath, index: childIndex }));
       edges.push(edge(b.exit, joinPort, { childrenPath: lane.childrenPath, index: childIndex + 1 }));
-    } else {
+    } else if (!isDot(lane)) {
       edges.push(
         ...chainEdges(lane.blocks, headPort(lane.branch), joinPort, lane.childrenPath, {
           branch: lane.branch,
@@ -536,7 +536,7 @@ interface LaneV {
 }
 /** Top-to-bottom container: head on top, lanes side by side, join at the bottom. */
 function containerBlockV(f: Flow, lanes: LaneV[], head: NvNode, join: NvNode, headH: number, frameId: string): Block {
-  const laneW = (l: LaneV) => Math.max(l.w, 60);
+  const laneW = (l: LaneV) => (l.blocks.length || !l.branch || l.perChild ? Math.max(l.w, 60) : 0);
   const contentW = lanes.reduce((s, l) => s + laneW(l), 0) + GAP_X * Math.max(0, lanes.length - 1);
   const contentH = lanes.reduce((m, l) => Math.max(m, l.h), 0);
   const innerW = Math.max(NODE_W, contentW);
@@ -589,7 +589,7 @@ function containerBlockV(f: Flow, lanes: LaneV[], head: NvNode, join: NvNode, he
       const b = lane.blocks[0];
       edges.push(edge(headPort(), b.entry, { childrenPath: lane.childrenPath, index: childIndex }));
       edges.push(edge(b.exit, joinPort, { childrenPath: lane.childrenPath, index: childIndex + 1 }));
-    } else {
+    } else if (lane.blocks.length || !lane.branch) {
       edges.push(...chainEdges(lane.blocks, headPort(lane.branch), joinPort, lane.childrenPath, { branch: lane.branch }));
     }
     x += lw + GAP_X;
@@ -753,7 +753,29 @@ function layoutTreeIn(
   edges.push(
     ...chainEdges(r.blocks, { id: "start", handle: "out" }, { id: "end", handle: "in" }, childrenPath),
   );
-  return { nodes, edges };
+  return { nodes: flatten(nodes), edges };
+}
+
+/**
+ * Every card placed on the canvas itself (0.3.74): a container's frame was only there to draw a box round it, which
+ * isn't drawn any more, so its cards take their place on the canvas and the frame goes. A container's head card
+ * stands for the container (picking, moving, the right-click menu).
+ */
+function flatten(nodes: NvNode[]): NvNode[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const at = (n: NvNode): { x: number; y: number } => {
+    const parent = n.parentId ? byId.get(n.parentId) : undefined;
+    if (!parent) return n.position;
+    const p = at(parent);
+    return { x: p.x + n.position.x, y: p.y + n.position.y };
+  };
+  return nodes
+    .filter((n) => n.data.role !== "frame")
+    .map((n) => {
+      if (!n.parentId) return n;
+      const { parentId: _drop, ...rest } = n;
+      return { ...rest, position: at(n) };
+    });
 }
 
 /** Is `inner` the same path as, or inside, `outer`? */

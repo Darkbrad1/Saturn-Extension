@@ -23,11 +23,12 @@ await p.waitForTimeout(500);
 await p.getByRole("button", { name: /Resend invoice/ }).click();
 await p.waitForTimeout(700);
 await p.screenshot({ path: out + "/41-if-slot.png" });
-const slot = p.locator(".react-flow__node-slot", { hasText: "Empty false branch" });
-ok(await slot.count() === 1, "empty False branch shows a slot");
-await slot.locator("button").click();
+// 0.3.74: an empty branch is only its dot on the If
+const slot = p.locator(".nv-h.is-empty[data-empty='false']");
+ok(await slot.count() === 1, "empty False branch shows only its dot");
+await slot.click({ force: true });
 await p.waitForTimeout(300);
-ok(await p.locator(".nv-menu").count() === 1, "clicking the slot opens the Add menu");
+ok(await p.locator(".nv-menu").count() === 1, "clicking the dot opens the Add menu");
 await p.keyboard.type("send email");
 await p.keyboard.press("Enter");
 await p.waitForTimeout(300);
@@ -57,20 +58,20 @@ await p.keyboard.press("Enter");
 await p.waitForTimeout(600);
 ifn = (await def()).actions[0].task.commands[1];
 ok(ifn.true.commands.length === 2 && ifn.true.commands[1].type === "parallel", "+ on a True-branch wire inserts there");
-// drag a step onto the empty slot of the new parallel block
+// drag a step onto the wire inside the new, empty parallel block (0.3.74: a plain wire from its card to its join)
 await p.waitForTimeout(300);
-const pslot = p.locator(".react-flow__node-slot", { hasText: "No branches" });
-ok(await pslot.count() === 1, "empty parallel block shows a slot");
 await p.keyboard.press("Home"); await p.waitForTimeout(400);
+const pwire = p.locator('.react-flow__edge[data-id^="e:h:actions.0.task.commands.1.true.commands.1:out->j:"]');
+ok(await pwire.count() === 1, "empty parallel block shows a wire from its card to its join");
 const src = await p.locator(".react-flow__node", { hasText: "Run Script" }).boundingBox();
-const dst = await pslot.boundingBox();
+const dst = await pwire.locator("path").first().evaluate((el) => { const l = el.getTotalLength(); const q = el.getPointAtLength(l * 0.5); const m = el.getScreenCTM(); return { x: q.x * m.a + m.e, y: q.y * m.d + m.f, width: 0, height: 0 }; });
 await p.mouse.move(src.x + 40, src.y + 10); await p.mouse.down();
 for (let i = 1; i <= 12; i++) await p.mouse.move(src.x + 40 + (dst.x + dst.width / 2 - src.x - 40) * i / 12, src.y + 10 + (dst.y + dst.height / 2 - src.y - 10) * i / 12);
-ok(await p.locator(".react-flow__node-slot.is-hot").count() === 1, "slot lights up while dragging over it");
+ok(await p.locator(".react-flow__edge.is-hot").count() === 1, "the wire lights up while dragging over it");
 await p.mouse.up();
 await p.waitForTimeout(600);
 const acts = (await def()).actions[0].task.commands;
-ok(acts[0].type === "if" && acts[0].true.commands[1].commands[0]?.operator === "run_script", "dropping on the slot moves the step into it");
+ok(acts[0].type === "if" && acts[0].true.commands[1].commands[0]?.operator === "run_script", "dropping on the wire moves the step into it");
 await p.keyboard.press("Control+z"); await p.waitForTimeout(400);
 
 // ===== create stage / action / command =====

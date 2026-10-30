@@ -26,7 +26,7 @@ await p.locator(".nv-ol-item", { hasText: "Assign staff" }).first().click();
 await p.waitForTimeout(900);
 
 // ===== on the canvas =====
-ok((await p.locator(".react-flow__node-frame", { hasText: /^Switch/ }).count()) === 1, "the switch is drawn in its own frame");
+ok((await p.locator(".react-flow__node-frame").count()) === 0 && (await head().count()) === 1, "the switch is a card, with no box round it (0.3.74)");
 ok((await head().innerText()).includes("{{ _store.who }}"), "its card shows the value it checks");
 ok((await outputs()).join(",") === "underwriter,Otherwise", "one output per case, then Otherwise: " + (await outputs()).join(","));
 ok((await head().locator(".nv-h-case").count()) === 2, "each output has its own wire handle");
@@ -56,17 +56,17 @@ await p.waitForTimeout(500);
 sw = await theSwitch();
 ok(sw.cases.length === 2 && sw.cases[1].value === "loan_officer" && sw.cases[1].command.type === "series" && sw.cases[1].command.commands.length === 0, "Add case adds an empty case at the end");
 ok((await outputs()).join(",") === "manager,loan_officer,Otherwise", "a third column: " + (await outputs()).join(","));
-ok((await p.locator(".nv-slot", { hasText: "Empty case" }).count()) === 1, "the new case shows an empty box to add a step");
+ok((await head().locator(".nv-h.is-empty").count()) === 1, "the new case is only its dot (0.3.74)");
 
 // a step into the empty case
-await p.locator(".nv-slot", { hasText: "Empty case" }).click();
+await head().locator(".nv-h.is-empty").click({ force: true });
 await p.waitForTimeout(300);
 await p.keyboard.type("group");
 await p.waitForTimeout(150);
 await p.locator(".nv-menu-item", { hasText: /^Group/ }).first().click();
 await p.waitForTimeout(600);
 sw = await theSwitch();
-ok(sw.cases[1].command.commands.length === 1 && sw.cases[1].command.commands[0].type === "series", "a step added from the empty box goes into that case");
+ok(sw.cases[1].command.commands.length === 1 && sw.cases[1].command.commands[0].type === "series", "a step added from the empty dot goes into that case");
 
 // reorder
 await head().click();

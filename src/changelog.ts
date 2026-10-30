@@ -1,6 +1,15 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.74",
+    title: "No boxes round containers, empty branches are just their dot",
+    items: [
+      "If, Switch, Parallel, Group and For Each are no longer drawn inside a shaded box. Their card is a card like any other: click it for its settings, pick it with others, drag it onto a wire to move the whole block.",
+      "A branch of an If or Switch with no steps is only its dot on the card, with no line and no Empty … box. Click the dot to add a step there, or drop a step on it.",
+      "An empty Group, For Each or Parallel is a plain wire from its card; hover it for + to add the first step.",
+    ],
+  },
+  {
     version: "0.3.73",
     title: "Highlighted queries, resizing cards from either side, the mouse's back button",
     items: [
