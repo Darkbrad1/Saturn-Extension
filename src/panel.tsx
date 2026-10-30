@@ -81,6 +81,8 @@ export function SidePanel(props: {
   panelErrors: FormError[];
   busy: boolean;
   focusToken: number;
+  /** bumped to bring the Design tab forward (the action's or command's name clicked on the canvas) */
+  designToken?: number;
   onCommit: (f: Flow, values: Record<string, string>, delay: number | null) => void;
   /** a switch's cases changed (0.3.64): each row's value and the index it came from (null: a new case) */
   onSwitchCases: (f: SwitchFlow, rows: CaseRow[]) => void;
@@ -113,6 +115,9 @@ export function SidePanel(props: {
   onCollapse: () => void;
 }) {
   const [tab, setTab] = useState<"design" | "inspect" | "form" | "logs" | "changes">("design");
+  useEffect(() => {
+    if (props.designToken) setTab("design");
+  }, [props.designToken]);
   const f = props.node?.data.flow;
   const pending = props.draft?.pending ?? 0;
   const owner = props.scope.kind === "tree" ? formOwner(props.wf, props.tree) : null;

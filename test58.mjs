@@ -44,7 +44,7 @@ ok((await p.locator(".nv-reset-layout").count()) === 1, "Reset layout shows once
 // ===== resize it =====
 await card().click();
 await p.waitForTimeout(300);
-const edge = card().locator(".nv-resize-edge");
+const edge = card().locator(".nv-resize-edge.is-right");
 ok((await edge.count()) === 1, "a picked card has a handle on its right edge");
 const eb = await edge.boundingBox();
 const w0 = now.width;

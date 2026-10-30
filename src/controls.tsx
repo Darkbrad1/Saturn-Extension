@@ -34,7 +34,20 @@ Prism.languages.cron = {
   "cron-name": /\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|SUN|MON|TUE|WED|THU|FRI|SAT)\b/i,
 };
 
-export type HlLang = "tpl" | "json" | "javascript" | "html" | "css" | "cron" | "plain";
+// a Read step's query, sort or columns: N1QL as Saturn's Read takes it (0.3.73)
+Prism.languages.n1ql = {
+  template: TEMPLATE,
+  string: { pattern: /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/, greedy: true },
+  identifier: { pattern: /`[^`]*`/, greedy: true, inside: { punctuation: /^`|`$/ } },
+  keyword: /\b(?:AND|OR|NOT|IN|IS|LIKE|BETWEEN|MISSING|NULL|VALUED|ANY|EVERY|SATISFIES|END|WITHIN|ASC|DESC|ARRAY|FOR|CASE|WHEN|THEN|ELSE)\b/i,
+  boolean: /\b(?:true|false)\b/i,
+  function: /\b[a-z_]\w*(?=\s*\()/i,
+  number: /\b\d+(?:\.\d+)?\b/,
+  operator: /[=<>!]=?|\|\||[-+*/%]/,
+  punctuation: /[()[\],.;]/,
+};
+
+export type HlLang = "tpl" | "json" | "javascript" | "html" | "css" | "cron" | "n1ql" | "plain";
 
 /** Which grammar a code parameter's language maps to. */
 export function langFor(codeLanguage: string | null | undefined): HlLang {
@@ -52,6 +65,7 @@ const GRAMMAR: Record<HlLang, string | null> = {
   html: "markup_t",
   css: "css",
   cron: "cron",
+  n1ql: "n1ql",
   plain: null,
 };
 

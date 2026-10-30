@@ -20,7 +20,7 @@ import {
   send,
 } from "./bridge";
 import { STAGE_FIELD, WorkflowMap } from "./map";
-import { hint, keysOf, listenForShortcuts, pressed, shown as shownKey, type Bindings } from "./keys";
+import { hint, keysOf, listenForShortcuts, onMouseBack, pressed, shown as shownKey, type Bindings } from "./keys";
 import { FormEnvContext, StepForm, defaultsFor, needsForm, type FormEnv, type FormError, type LoadedParams } from "./forms";
 import type { AccessSubjects, Binding, SettingsOps, TriggersState } from "./settings";
 import type { ResourceField } from "./recordform";
@@ -173,6 +173,8 @@ export function App() {
   const canvasNodes = useRef<NvNode[]>([]);
   const [panelErrors, setPanelErrors] = useState<FormError[]>([]);
   const [focusToken, setFocusToken] = useState(0);
+  // bumped when the open action's or command's own settings are asked for (its name on the canvas, 0.3.73): the panel shows Design
+  const [designToken, setDesignToken] = useState(0);
   const [treeByWf, setTreeByWf] = useState<Record<string, string>>(saved.trees);
   const [collapsedByWf, setCollapsedByWf] = useState<Record<string, string[]>>(saved.collapsed ?? {});
   const [query, setQuery] = useState("");
@@ -1010,6 +1012,9 @@ export function App() {
     return true;
   }, [wf, history]);
 
+  // the mouse's back button goes back along the breadcrumb, like Back (0.3.73)
+  useEffect(() => (open ? onMouseBack(() => void goBack()) : undefined), [open, goBack]);
+
   /** A breadcrumb clicked: back to the tree at that place in the history (what came after it is dropped). */
   const goTo = useCallback(
     (index: number) => {
@@ -1471,6 +1476,15 @@ export function App() {
                   setSelectedEdge(e);
                   if (e) setSelected(null);
                 }}
+                onOwner={() => {
+                  // the card at the top (the action's or command's name): its own settings in the side panel
+                  setSelected(null);
+                  setExtra([]);
+                  setSelectedEdge(null);
+                  setScope({ kind: "tree" });
+                  setPanel(true);
+                  setDesignToken((t) => t + 1);
+                }}
                 onMove={doMove}
                 onOpen={(f) => {
                   if (!enterGroup(f)) openEdit(f);
@@ -1532,6 +1546,7 @@ export function App() {
             panelErrors={panelErrors}
             busy={busy}
             focusToken={focusToken}
+            designToken={designToken}
             onCommit={commitPanel}
             onStoreWrites={(f, rows) => {
               setPanelErrors([]);
@@ -2026,6 +2041,8 @@ function Canvas(props: {
   selectedEdgeId: string | null;
   onSelect: (n: NvNode | null) => void;
   onSelectEdge: (e: NvEdge | null) => void;
+  /** the start card (the action's or command's name) clicked: its own settings */
+  onOwner: () => void;
   onMove: (f: Flow, to: InsertPoint) => void;
   onOpen: (f: Flow) => void;
   fitRef: React.MutableRefObject<() => void>;
@@ -2059,12 +2076,12 @@ function Canvas(props: {
     setPlaces(next);
     send("saveMapLayout", { workflowId: props.layoutKey, positions: Object.keys(next).length ? next : null });
   };
-  const resizedRef = useRef<(id: string, width: number) => void>(() => {});
+  const resizedRef = useRef<(id: string, width: number, x: number) => void>(() => {});
   const rowActions = useMemo(
     () => ({
       open: props.onRow,
       add: (at: InsertPoint, x: number, y: number) => onAddAtRef.current(at, x, y),
-      resized: (id: string, width: number) => resizedRef.current(id, width),
+      resized: (id: string, width: number, x: number) => resizedRef.current(id, width, x),
     }),
     [props.onRow],
   );
@@ -2104,12 +2121,13 @@ function Canvas(props: {
       }),
     [layout, places],
   );
-  resizedRef.current = (id, width) => {
-    const n = layout.nodes.find((x) => x.id === id);
+  resizedRef.current = (id, width, x) => {
+    const n = layout.nodes.find((c) => c.id === id);
     if (!n) return;
     const k = placeKey(n);
     const at = placesRef.current[k];
-    keepPlaces({ ...placesRef.current, [k]: { x: at?.x ?? 0, y: at?.y ?? 0, w: Math.round(width) } });
+    // the left edge may have moved too (dragged on the left, or with Shift)
+    keepPlaces({ ...placesRef.current, [k]: { x: Math.round(x - n.position.x), y: at?.y ?? 0, w: Math.round(width) } });
   };
 
   useEffect(() => {
@@ -2271,6 +2289,10 @@ function Canvas(props: {
         const node = n as NvNode;
         if (node.data.role === "slot" && node.data.insert) {
           props.onAddAt(node.data.insert, ev.clientX, ev.clientY);
+          return;
+        }
+        if (node.id === "start") {
+          props.onOwner();
           return;
         }
         const pickable = node.data.role === "step" || node.data.role === "head" || node.data.role === "frame";

@@ -294,6 +294,35 @@
   outline: 2px solid var(--nv-select);
   outline-offset: 0;
 }
+/* a picked card's edges, dragged to change its width; Shift: both sides evenly (0.3.73) */
+#sonover-node-view .nv-resize-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  z-index: 5;
+  cursor: ew-resize;
+  touch-action: none;
+}
+#sonover-node-view .nv-resize-edge.is-left { left: -5px; }
+#sonover-node-view .nv-resize-edge.is-right { right: -5px; }
+#sonover-node-view .nv-resize-edge::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 3px;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--nv-select);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+#sonover-node-view .nv-resize-edge:hover::after { opacity: 0.9; }
+body.nv-sizing, body.nv-sizing * { cursor: ew-resize !important; user-select: none !important; }
+/* the card at the top (the action's or command's name): a click opens its settings (0.3.73) */
+#sonover-node-view .nv-node.is-owner { cursor: pointer; }
+#sonover-node-view .nv-node.is-owner:hover { border-color: #8a8a8a; }
 #sonover-node-view .nv-node.is-invalid .nv-node-header {
   background: repeating-linear-gradient(45deg, #6b2424, #6b2424 6px, #5a1f1f 6px, #5a1f1f 12px) !important;
 }
@@ -2767,6 +2796,7 @@
 #sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.cron-special { color: #ffa033; font-weight: 600; }
 #sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.keyword { color: #c586c0; }
 #sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.function { color: #dcdcaa; }
+#sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.identifier { color: #9cdcfe; }
 #sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.class-name { color: #4ec9b0; }
 #sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.regex { color: #d16969; }
 #sonover-node-view :is(.nv-hl-pre, .nv-row-v) .token.selector { color: #d7ba7d; }
@@ -3501,7 +3531,9 @@ body.nv-scrubbing * {
 #sonover-node-view .lgm-value summary { display: flex; align-items: center; gap: 8px; padding: 4px 7px; cursor: pointer; font-size: 11px; }
 #sonover-node-view .lgm-name { font-family: var(--nv-mono); font-weight: 600; color: #9cdcfe; }
 #sonover-node-view .lgm-size { color: var(--fg-text-3); font-size: 10.5px; }
-#sonover-node-view .lgm-value summary .lgm-link { margin-left: auto; }
+#sonover-node-view .lgm-value summary .lgm-size + .lgm-link { margin-left: auto; }
+#sonover-node-view .lgm-value summary .lgm-link + .lgm-link { margin-left: 10px; }
+#sonover-node-view .lgm-link.is-done, #sonover-node-view .fg-btn.is-done { color: #4ec98a; }
 #sonover-node-view .lgm-link { border: 0; background: none; padding: 0 2px; color: #0d99ff; font-size: 10.5px; cursor: pointer; }
 #sonover-node-view .lgm-json { margin: 0; padding: 6px 7px; border-top: 1px solid #3d3d3d; font-family: var(--nv-mono); font-size: 10.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto; }
 #sonover-node-view .lgm-json .token.property { color: #9cdcfe; }

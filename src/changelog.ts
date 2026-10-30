@@ -1,6 +1,18 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.73",
+    title: "Highlighted queries, resizing cards from either side, the mouse's back button",
+    items: [
+      "A Read step's query is coloured as you type it, in the text box and in each condition's value box: names in backticks, 'strings', AND / OR, functions like IFMISSINGORNULL and {{ templates }}. Sort and Columns as text too, and the query on the card. The text box grows for longer queries.",
+      "The mouse's back button goes back along the breadcrumb in the node view (like Back), and along the trail on the Resources screen.",
+      "A picked card can be made wider or narrower from its left edge as well as its right. Hold Shift while dragging either edge to change both sides evenly, so the card keeps its middle.",
+      "Clicking the action's or command's name at the top of the canvas shows its own settings in the side panel.",
+      "A log value's Copy says Copied for a moment, so you know it worked (Copy JSON too). Each value has Open as JSON beside it, which opens just that value in a tab beside. On the System Logs screen and in the Logs tab.",
+      "The System Logs record pane can be resized: drag its left edge. Double-click the edge for the normal width.",
+    ],
+  },
+  {
     version: "0.3.72",
     title: "Write store values: several store keys in one step",
     items: [

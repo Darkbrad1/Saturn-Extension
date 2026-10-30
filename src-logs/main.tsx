@@ -6,14 +6,18 @@ import { createRoot } from "react-dom/client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import css from "./logs.css";
 import { abs, cellText, dateOf, levelClass, rel, shape, str, type Field, type Rec } from "./records";
-import { MessageView, summarize } from "./message";
+import { CopyButton, MessageView, summarize } from "./message";
 
 declare function acquireVsCodeApi(): { postMessage: (m: unknown) => void; getState: () => unknown; setState: (s: unknown) => void };
 const vscode = acquireVsCodeApi();
 const send = (type: string, payload: Record<string, unknown> = {}) => vscode.postMessage({ type, payload });
 
 interface Init { instanceName: string; instanceUrl: string; resource: string | null; logResources: string[]; allResources: string[]; search?: string; filter?: string }
-interface Saved { resource?: string; columns?: Record<string, string[]>; live?: boolean }
+interface Saved { resource?: string; columns?: Record<string, string[]>; live?: boolean; detailWidth?: number }
+
+// the record's pane on the right: dragged by its left edge (0.3.73), kept between these sizes
+const DETAIL_MIN = 300;
+const detailMax = () => Math.max(DETAIL_MIN, window.innerWidth - 320);
 
 const json = (v: unknown) => {
   const t = JSON.stringify(v, null, 2) ?? "";
@@ -51,6 +55,8 @@ function App() {
   const [checked, setChecked] = useState<number | null>(null);
   const [picked, setPicked] = useState<Rec | null>(null);
   const [columns, setColumns] = useState<Record<string, string[]>>(saved.columns ?? {});
+  // null: the default width
+  const [detailWidth, setDetailWidth] = useState<number | null>(saved.detailWidth ?? null);
   const [colMenu, setColMenu] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [fresh, setFresh] = useState<Set<string>>(new Set());
@@ -60,9 +66,33 @@ function App() {
 
   useEffect(() => {
     try {
-      vscode.setState({ resource: resource ?? undefined, columns, live } satisfies Saved);
+      vscode.setState({ resource: resource ?? undefined, columns, live, detailWidth: detailWidth ?? undefined } satisfies Saved);
     } catch {}
-  }, [resource, columns, live]);
+  }, [resource, columns, live, detailWidth]);
+
+  /** Drags the record pane's left edge: wider to the left, narrower to the right. */
+  const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const pane = e.currentTarget.nextElementSibling as HTMLElement;
+    const x0 = e.clientX;
+    const w0 = pane.getBoundingClientRect().width;
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    el.classList.add("is-dragging");
+    document.body.classList.add("lg-sizing");
+    const move = (ev: PointerEvent) => setDetailWidth(Math.round(Math.min(detailMax(), Math.max(DETAIL_MIN, w0 + x0 - ev.clientX))));
+    const end = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", end);
+      el.removeEventListener("pointercancel", end);
+      el.classList.remove("is-dragging");
+      document.body.classList.remove("lg-sizing");
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+  };
 
   const keyOf = (r: Rec, i: number) => (r.id !== undefined ? String(r.id) : `${i}:${JSON.stringify(r).length}`);
   const show = (list: Rec[]) => {
@@ -366,17 +396,27 @@ function App() {
               </table>
             </div>
             {picked && (
-              <aside className="lg-detail" aria-label="Log record">
+              <>
+              <div
+                className="lg-detail-resize"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Drag to resize the record pane"
+                title="Drag to resize. Double-click for the normal width."
+                onPointerDown={startResize}
+                onDoubleClick={() => setDetailWidth(null)}
+              />
+              <aside className="lg-detail" aria-label="Log record" style={detailWidth ? { width: Math.min(detailWidth, detailMax()) } : undefined}>
                 <div className="lg-detail-head">
                   <b>Record {picked.id !== undefined ? `#${str(picked.id)}` : ""}</b>
                   <span className="lg-spacer" />
-                  <button type="button" className="lg-btn" onClick={() => send("copy", { text: JSON.stringify(picked, null, 2) })}>Copy JSON</button>
+                  <CopyButton className="lg-btn" onCopy={() => send("copy", { text: JSON.stringify(picked, null, 2) })}>Copy JSON</CopyButton>
                   <button type="button" className="lg-btn" onClick={() => send("openJson", { record: picked })}>Open as JSON</button>
                   <button type="button" className="lg-x" aria-label="Close" onClick={() => setPicked(null)}>×</button>
                 </div>
                 {sh.messageKey && typeof picked[sh.messageKey] === "string" && (
                   <section className="lg-message" aria-label="Message">
-                    <MessageView text={picked[sh.messageKey] as string} json={json} onCopy={(v) => send("copy", { text: JSON.stringify(v, null, 2) })} />
+                    <MessageView text={picked[sh.messageKey] as string} json={json} onCopy={(v) => send("copy", { text: JSON.stringify(v, null, 2) })} onOpen={(v) => send("openJson", { record: v })} />
                   </section>
                 )}
                 <dl className="lg-kv">
@@ -396,6 +436,7 @@ function App() {
                   ))}
                 </dl>
               </aside>
+              </>
             )}
           </div>
 

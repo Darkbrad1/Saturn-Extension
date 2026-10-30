@@ -101,3 +101,31 @@ export function listenForShortcuts(send: (type: string, payload?: Record<string,
   send("fetchShortcuts", {});
   return () => window.removeEventListener("message", onMessage);
 }
+
+/**
+ * The mouse's back button (and a keyboard's Browser Back key) calls `back` (0.3.73). The press is stopped so the
+ * webview itself never tries to go back a page. Returns the cleanup.
+ */
+export function onMouseBack(back: () => void) {
+  const stop = (e: MouseEvent) => {
+    if (e.button === 3 || e.button === 4) e.preventDefault();
+  };
+  const up = (e: MouseEvent) => {
+    if (e.button === 3 || e.button === 4) e.preventDefault();
+    if (e.button === 3) back();
+  };
+  const key = (e: KeyboardEvent) => {
+    if (e.key === "BrowserBack") {
+      e.preventDefault();
+      back();
+    }
+  };
+  window.addEventListener("mousedown", stop, true);
+  window.addEventListener("mouseup", up, true);
+  window.addEventListener("keydown", key, true);
+  return () => {
+    window.removeEventListener("mousedown", stop, true);
+    window.removeEventListener("mouseup", up, true);
+    window.removeEventListener("keydown", key, true);
+  };
+}

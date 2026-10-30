@@ -4,6 +4,7 @@
 // for the id), an ORDER BY clause for Sort, and a comma-separated list for Columns (written `user`.`email`, as
 // Saturn's own code lists them).
 import { useContext, useEffect, useMemo, useState } from "react";
+import { HighlightInput } from "./controls";
 import { FormEnvContext } from "./forms";
 import type { ResourceField } from "./recordform";
 
@@ -191,7 +192,7 @@ export function QueryEditor(props: { resource: string; value: string; onChange: 
       </div>
       {asText || !resource ? (
         <>
-          <textarea className="nv-query-text" rows={3} spellCheck={false} aria-label="Query" placeholder={`e.g. \`${alias(resource || "user")}\`.\`status\` = 'active'`} value={value} onChange={(e) => props.onChange(e.target.value)} onBlur={() => props.onCommit()} />
+          <HighlightInput multiline mono rows={Math.min(10, Math.max(3, Math.ceil(value.length / 48)))} lang="n1ql" className="nv-query-text" ariaLabel="Query" placeholder={`e.g. \`${alias(resource || "user")}\`.\`status\` = 'active'`} value={value} onChange={props.onChange} onBlur={() => props.onCommit()} />
           {parsed === null && value.trim() && <span className="nv-muted">Too involved to show as conditions, so it's kept exactly as written.</span>}
         </>
       ) : (
@@ -239,11 +240,11 @@ function QueryValue(props: { value: string; onDone: (v: string) => void }) {
   const [v, setV] = useState(props.value);
   useEffect(() => setV(props.value), [props.value]);
   return (
-    <input
-      aria-label="Value"
+    <HighlightInput
+      ariaLabel="Value"
       placeholder="value or {{ template }}"
       value={v}
-      onChange={(e) => setV(e.target.value)}
+      onChange={setV}
       onBlur={() => v !== props.value && props.onDone(v)}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
@@ -269,7 +270,7 @@ export function SortEditor(props: { resource: string; value: string; onChange: (
   if (asText || !resource)
     return (
       <div className="nv-query">
-        <input aria-label="Sort" placeholder={`e.g. \`${alias(resource || "user")}\`.\`created_at\` DESC`} value={value} onChange={(e) => props.onChange(e.target.value)} onBlur={() => props.onCommit()} />
+        <HighlightInput mono lang="n1ql" ariaLabel="Sort" placeholder={`e.g. \`${alias(resource || "user")}\`.\`created_at\` DESC`} value={value} onChange={props.onChange} onBlur={() => props.onCommit()} />
         {parsed !== null && resource && <button type="button" className="nv-link" onClick={() => setAsText(false)}>Pick properties</button>}
       </div>
     );
@@ -306,7 +307,7 @@ export function ColumnsEditor(props: { resource: string; value: string; onChange
   if (asText || !resource || !fields)
     return (
       <div className="nv-query">
-        <input aria-label="Columns" placeholder="Empty: every property" value={value} onChange={(e) => props.onChange(e.target.value)} onBlur={() => props.onCommit()} />
+        <HighlightInput mono lang="n1ql" ariaLabel="Columns" placeholder="Empty: every property" value={value} onChange={props.onChange} onBlur={() => props.onCommit()} />
         {parsed !== null && resource && fields && <button type="button" className="nv-link" onClick={() => setAsText(false)}>Pick properties</button>}
       </div>
     );

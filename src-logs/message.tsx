@@ -4,7 +4,34 @@
 // the JSON values inside it (named after the `const x =` / `x:` before them),
 // each value pretty-printed and highlighted. Shared by the System Logs screen
 // and the node view's Logs tab.
-import { useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+
+/**
+ * A Copy button that says "Copied" for a moment after it's pressed (0.3.73), so it's clear it worked. The copy itself
+ * is the extension's (VS Code's clipboard), which doesn't fail in practice.
+ */
+export function CopyButton(props: { onCopy: () => void; className: string; children?: ReactNode; title?: string }) {
+  const [done, setDone] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  return (
+    <button
+      type="button"
+      className={`${props.className}${done ? " is-done" : ""}`}
+      title={props.title}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        props.onCopy();
+        setDone(true);
+        window.clearTimeout(timer.current);
+        timer.current = window.setTimeout(() => setDone(false), 1500);
+      }}
+    >
+      {done ? "Copied ✓" : props.children ?? "Copy"}
+    </button>
+  );
+}
 
 export type MessagePart = { kind: "text"; text: string } | { kind: "value"; label: string | null; value: unknown };
 
@@ -87,6 +114,8 @@ export function MessageView(props: {
   /** highlighted HTML for a value (pretty-printed JSON) */
   json: (v: unknown) => string;
   onCopy?: (v: unknown) => void;
+  /** opens a value as JSON in a tab beside (0.3.73) */
+  onOpen?: (v: unknown) => void;
 }) {
   const parts = parseMessage(props.text);
   const values = parts.filter((p) => p.kind === "value").length;
@@ -113,16 +142,19 @@ export function MessageView(props: {
             <summary>
               <span className="lgm-name">{p.label ?? (Array.isArray(p.value) ? "list" : "value")}</span>
               <span className="lgm-size">{sizeOf(p.value)}</span>
-              {props.onCopy && (
+              {props.onCopy && <CopyButton className="lgm-link" onCopy={() => props.onCopy!(p.value)} title={`Copy ${p.label ?? "this value"} as JSON`} />}
+              {props.onOpen && (
                 <button
                   type="button"
                   className="lgm-link"
+                  title={`Open ${p.label ?? "this value"} as JSON in a tab beside`}
                   onClick={(e) => {
                     e.preventDefault();
-                    props.onCopy!(p.value);
+                    e.stopPropagation();
+                    props.onOpen!(p.value);
                   }}
                 >
-                  Copy
+                  Open as JSON
                 </button>
               )}
             </summary>

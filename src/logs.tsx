@@ -30,7 +30,7 @@ import {
   type LogTarget,
   type Rec,
 } from "../src-logs/records";
-import { MessageView, summarize } from "../src-logs/message";
+import { CopyButton, MessageView, summarize } from "../src-logs/message";
 
 const LIVE_MS = 10000;
 
@@ -372,9 +372,9 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
               {isOpen && (
                 <div className="lgt-detail">
                   <div className="fg-btn-row is-wrap">
-                    <button type="button" className="fg-btn" onClick={() => send("copyLogJson", { record: r })}>
+                    <CopyButton className="fg-btn" onCopy={() => send("copyLogJson", { record: r })}>
                       Copy JSON
-                    </button>
+                    </CopyButton>
                     <button type="button" className="fg-btn" onClick={() => send("openLogJson", { record: r })}>
                       Open as JSON
                     </button>
@@ -385,7 +385,7 @@ export function LogsTab(props: { wf: WorkflowView; tree: Tree | undefined; flow:
                     )}
                   </div>
                   {typeof r.trace === "string" && r.trace.trim() && <pre className="lgt-json lgt-trace">{r.trace}</pre>}
-                  <MessageView text={msg} json={jsonHtml} onCopy={(v) => send("copyLogJson", { record: v })} />
+                  <MessageView text={msg} json={jsonHtml} onCopy={(v) => send("copyLogJson", { record: v })} onOpen={(v) => send("openLogJson", { record: v })} />
                   <details className="lgt-whole">
                     <summary>Whole record</summary>
                     <pre className="lgt-json" dangerouslySetInnerHTML={{ __html: jsonHtml(r) }} />

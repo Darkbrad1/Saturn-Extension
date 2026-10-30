@@ -75,6 +75,10 @@ html, body { margin: 0; height: 100%; background: var(--lg-bg); color: var(--lg-
 .lg-level.is-debug { background: rgba(188,140,255,.15); }
 .lg-none { text-align: center; color: var(--lg-muted); padding: 30px !important; }
 .lg-detail { width: min(46%, 520px); flex: none; border-left: 1px solid var(--lg-border); overflow: auto; display: flex; flex-direction: column; }
+/* the pane's left edge, dragged to resize it (0.3.73) */
+.lg-detail-resize { flex: none; width: 7px; margin-right: -4px; position: relative; z-index: 2; cursor: col-resize; touch-action: none; }
+.lg-detail-resize:hover, .lg-detail-resize.is-dragging { background: var(--vscode-focusBorder, #0d99ff); opacity: .6; }
+body.lg-sizing, body.lg-sizing * { cursor: col-resize !important; user-select: none !important; }
 .lg-detail-head { position: sticky; top: 0; background: var(--lg-bg); display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--lg-border); }
 .lg-x { width: 26px; height: 26px; border: 0; border-radius: 4px; background: transparent; color: var(--lg-fg); font-size: 16px; cursor: pointer; }
 .lg-x:hover { background: var(--lg-hover); }
@@ -106,7 +110,9 @@ html, body { margin: 0; height: 100%; background: var(--lg-bg); color: var(--lg-
 .lgm-value summary { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; font-size: 12px; }
 .lgm-name { font-family: var(--lg-mono); font-weight: 600; color: #9cdcfe; }
 .lgm-size { color: var(--lg-muted); font-size: 11px; }
-.lgm-value summary .lgm-link { margin-left: auto; }
+.lgm-value summary .lgm-size + .lgm-link { margin-left: auto; }
+.lgm-value summary .lgm-link + .lgm-link { margin-left: 10px; }
+.lgm-link.is-done, .lg-btn.is-done { color: #4ec98a; }
 .lgm-link { background: none; border: 0; padding: 0 2px; color: var(--vscode-textLink-foreground, #3794ff); cursor: pointer; font-size: 11px; }
 .lgm-json { margin: 0; padding: 6px 10px 8px; font-family: var(--lg-mono); font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 420px; overflow: auto; border-top: 1px solid var(--lg-border); }
 .lgm-json .token.property { color: #9cdcfe; }

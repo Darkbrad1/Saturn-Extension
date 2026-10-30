@@ -15,7 +15,7 @@ import { Cards, PropertyEditor, Switch, useFavourites, type Field, type Lookups 
 import { setAt } from "./editor";
 import { ALL, GROUPS, KEY_PATTERN, pastePaths, TYPES, diff, get, keyFrom, mappedOf, newProperty, type Prop } from "./spec";
 import { SettingsPage, settingsError, settingsSummary, trimDraft, type Loaded, type SettingsDraft } from "./settings";
-import { hint, listenForShortcuts, pressed, type Bindings } from "../src/keys";
+import { hint, listenForShortcuts, onMouseBack, pressed, type Bindings } from "../src/keys";
 import css from "./res.css";
 import editorCss from "./editor.css";
 
@@ -522,6 +522,8 @@ function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+  // the mouse's back button goes back along the trail too (0.3.73)
+  useEffect(() => onMouseBack(() => trail.length && back()));
 
   const discard = () => {
     setWorks({});

@@ -2,9 +2,9 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   Handle,
-  NodeResizeControl,
   Position,
   getBezierPath,
+  useReactFlow,
   type EdgeProps,
   type NodeProps,
 } from "@xyflow/react";
@@ -25,8 +25,8 @@ export const NodeActions = createContext<{
   open: (f: Flow, a: RowAction) => void;
   /** Open the Add menu for a specific insertion point (slots and wire + buttons). */
   add: (at: InsertPoint, x: number, y: number) => void;
-  /** a card made wider or narrower by hand (0.3.69) */
-  resized?: (id: string, width: number) => void;
+  /** a card made wider or narrower by hand (0.3.69); `x`: where its left edge is now (0.3.73: either edge moves) */
+  resized?: (id: string, width: number, x: number) => void;
 } | null>(null);
 
 export function NvNodeView({ id, data, selected }: NodeProps<NvNode>) {
@@ -38,23 +38,20 @@ export function NvNodeView({ id, data, selected }: NodeProps<NvNode>) {
     selected ? "is-selected" : "",
     data.invalid ? "is-invalid" : "",
     data.disabled ? "is-disabled" : "",
+    id === "start" ? "is-owner" : "",
   ].join(" ");
   const row = (r: NvRow, i: number) => <Row key={i} r={r} flow={data.flow} />;
   return (
     <div className={cls}>
       {selected && data.role === "step" && actions?.resized && (
-        // a picked card's right edge can be dragged to make it wider or narrower
-        <NodeResizeControl
-          position="right"
-          resizeDirection="horizontal"
-          minWidth={180}
-          maxWidth={900}
-          className="nv-resize-edge"
-          onResizeEnd={(_, p) => actions.resized!(id, p.width)}
-        />
+        // a picked card's edges can be dragged to make it wider or narrower; Shift moves both edges evenly (0.3.73)
+        <>
+          <ResizeEdge id={id} side="left" onDone={actions.resized} />
+          <ResizeEdge id={id} side="right" onDone={actions.resized} />
+        </>
       )}
       <div className="nv-node-header" style={{ background: data.color }}>
-        <span className="nv-node-title" title={data.title}>
+        <span className="nv-node-title" title={id === "start" ? `${data.title}: click for its settings` : data.title}>
           {data.title}
         </span>
         {data.disabled ? (
@@ -136,9 +133,67 @@ export function NvNodeView({ id, data, selected }: NodeProps<NvNode>) {
 
 /** How a card's value is coloured: code in its language, JSON as JSON, anything else for {{ templates }},
  *  numbers and true / false / null. */
+const CARD_MIN = 180;
+const CARD_MAX = 900;
+
+/**
+ * One edge of a picked card, dragged to change its width (0.3.73). The other edge stays put; with Shift held, both
+ * edges move evenly and the card keeps its middle. The card follows the pointer while dragging; `onDone` keeps it.
+ */
+function ResizeEdge(props: { id: string; side: "left" | "right"; onDone: (id: string, width: number, x: number) => void }) {
+  const rf = useReactFlow();
+  const start = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const n = rf.getInternalNode(props.id);
+    if (!n) return;
+    const w0 = n.measured?.width ?? n.width ?? CARD_MIN;
+    const x0 = n.position.x;
+    const y0 = n.position.y;
+    const px0 = e.clientX;
+    const style = n.style ?? {};
+    let last = { w: w0, x: x0 };
+    const el = e.currentTarget as HTMLElement;
+    el.setPointerCapture(e.pointerId);
+    document.body.classList.add("nv-sizing");
+    const move = (ev: PointerEvent) => {
+      const dx = (ev.clientX - px0) / rf.getViewport().zoom;
+      const grow = props.side === "right" ? dx : -dx;
+      const w = Math.min(CARD_MAX, Math.max(CARD_MIN, w0 + (ev.shiftKey ? 2 * grow : grow)));
+      // how much of the change the left edge takes: none (right edge dragged), all (left edge), half (Shift)
+      const share = ev.shiftKey ? 0.5 : props.side === "left" ? 1 : 0;
+      const x = x0 - share * (w - w0);
+      last = { w, x };
+      rf.updateNode(props.id, { position: { x, y: y0 }, width: w, style: { ...style, width: w } });
+    };
+    const end = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", end);
+      el.removeEventListener("pointercancel", end);
+      document.body.classList.remove("nv-sizing");
+      if (last.w !== w0 || last.x !== x0) props.onDone(props.id, last.w, last.x);
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+  };
+  return (
+    <div
+      className={`nv-resize-edge nodrag nopan is-${props.side}`}
+      title="Drag to make the card wider or narrower. Hold Shift to change both sides evenly."
+      onPointerDown={start}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    />
+  );
+}
+
 function langOf(r: NvRow): HlLang {
   if (r.action?.kind === "code") return langFor(r.action.language);
   if (r.action?.kind === "email") return "plain";
+  // a Read step's query or sort (0.3.73): `alias`.`field`, META(`alias`)
+  if (/`[^`]+`\s*\.\s*`|\bMETA\s*\(\s*`/i.test(r.value)) return "n1ql";
   return /^\s*[[{]/.test(r.value) ? "json" : "tpl";
 }
 
