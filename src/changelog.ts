@@ -1,6 +1,14 @@
 /** Release notes, newest first, shown on the What's new page (src-news/); the newest sets the packaged version. */
 export const CHANGELOG: { version: string; title: string; items: string[] }[] = [
   {
+    version: "0.3.75",
+    title: "Dragging a step out of a switch case",
+    items: [
+      "A step that is the only one in a switch case, an If branch or Otherwise can be dragged out onto any wire. Before, the move was refused with \"src.splice is not a function\" or \"Can only move a command out of an array\". The case it came from is left empty (just its dot), keeping its value.",
+      "Deleting such a step leaves its case empty too, instead of taking the case's step slot away.",
+    ],
+  },
+  {
     version: "0.3.74",
     title: "No boxes round containers, empty branches are just their dot",
     items: [

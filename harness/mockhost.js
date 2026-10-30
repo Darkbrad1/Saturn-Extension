@@ -492,10 +492,10 @@
           const inside = (q, r) => q.length > r.length && r.every((k, i) => String(k) === String(q[i]));
           const ps = [...p.paths].sort(cmp).filter((x, _, all) => !all.some((o) => o !== x && inside(x, o)));
           if (ps.some((x) => p.toChildrenPath.length >= x.length && x.every((k, i) => String(k) === String(p.toChildrenPath[i])))) throw new Error("Cannot move a step inside itself");
-          const found = ps.map((x) => ({ list: get(d, x.slice(0, -1)), step: get(d, x) }));
+          const found = ps.map((x) => ({ list: get(d, x.slice(0, -1)), step: get(d, x), holder: get(d, x.slice(0, -1)), key: x[x.length - 1] }));
           const target = ensureArray(d, p.toChildrenPath); const marker = {};
           target.splice(p.toIndex == null ? target.length : p.toIndex, 0, marker);
-          for (const { list, step } of found) list.splice(list.indexOf(step), 1);
+          for (const { list, step, holder, key } of found) { if (Array.isArray(list)) list.splice(list.indexOf(step), 1); else holder[key] = { type: "series", commands: [] }; }
           target.splice(target.indexOf(marker), 1, ...found.map((f) => f.step)); });
         break;
       case "bulkSteps": {
@@ -506,7 +506,7 @@
             if (p.op === "delete") parent.splice(i, 1); else if (p.op === "duplicate") parent.splice(i + 1, 0, structuredClone(parent[i])); else parent[i].mock = !!p.mock; } });
         break;
       }
-      case "deleteOperator": apply(id, "Deleted step", (d) => { const parent = get(d, p.path.slice(0, -1)); parent.splice(p.path[p.path.length - 1], 1); }); break;
+      case "deleteOperator": apply(id, "Deleted step", (d) => { const parent = get(d, p.path.slice(0, -1)); const k = p.path[p.path.length - 1]; if (Array.isArray(parent)) parent.splice(k, 1); else parent[k] = { type: "series", commands: [] }; }); break;
       case "duplicateNode": apply(id, "Duplicated step", (d) => { const parent = get(d, p.path.slice(0, -1)); const i = p.path[p.path.length - 1]; parent.splice(i + 1, 0, structuredClone(parent[i])); }); break;
       // the workflow map's box positions, kept in localStorage (like the host's map-layouts.json, they outlive the page)
       // the keyboard shortcuts, from localStorage like the other harness pages (keys.html writes them)
@@ -529,7 +529,9 @@
       case "moveOperator":
         apply(id, "Moved step", (d) => {
           const from = p.fromPath; const fp = from.slice(0, -1); const fi = from[from.length - 1];
-          const src = get(d, fp); const [n] = src.splice(fi, 1);
+          // a step alone in a branch (a switch case of one step) leaves an empty series behind, like the host (0.3.75)
+          const src = get(d, fp); let n;
+          if (Array.isArray(src)) [n] = src.splice(fi, 1); else { n = src[fi]; src[fi] = { type: "series", commands: [] }; }
           let ti = p.toIndex; if (JSON.stringify(fp) === JSON.stringify(p.toChildrenPath) && ti > fi) ti -= 1;
           let to = p.toChildrenPath; const par = fp;
           if (to.length > par.length && par.every((x, i) => String(x) === String(to[i])) && typeof to[par.length] === "number" && to[par.length] > fi) { to = [...to]; to[par.length] -= 1; }

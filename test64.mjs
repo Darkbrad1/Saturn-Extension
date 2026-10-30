@@ -1,4 +1,4 @@
-// v0.3.74: no box round a container (If, switch, Parallel, group, loop): its head is a card like any other (picked,
+// v0.3.74 (and 0.3.75: dragging a step out of a switch case): no box round a container (If, switch, Parallel, group, loop): its head is a card like any other (picked,
 // box-picked, dragged onto a wire to move the whole block). An If's or switch's branch with no steps is only its dot:
 // no wire, no "Empty … branch" box; a click on the dot adds a step there, and a step dropped on it moves there. An
 // empty group, loop or Parallel is a plain wire from its card to its join, whose + adds the first step.
@@ -87,6 +87,37 @@ const par = node(/^Parallel$/).last();
 ok((await par.count()) === 1, "the empty Parallel is a card");
 const parWires = await p.evaluate((id) => [...document.querySelectorAll(".react-flow__edge")].map((e) => e.getAttribute("data-id") ?? "").filter((w) => w.includes(id)), await par.getAttribute("data-id"));
 ok(parWires.some((w) => /->j:/.test(w)), "an empty Parallel has a plain wire from its card to its join");
+
+// ===== 0.3.75: drag a step out of a switch case (the owner's Assign staff: each case holds one plain step) =====
+await p.goto("http://localhost:8765/csp.html?app");
+await p.waitForTimeout(1000);
+await p.locator(".nv-picker-item, .nv-card", { hasText: "Application" }).first().click();
+await p.waitForTimeout(900);
+await p.locator(".nv-ol-item", { hasText: "Assign staff" }).first().click();
+await p.waitForTimeout(900);
+const staff = async () => {
+  const d = await def();
+  return d.commands.find((c) => c.label === "Assign staff").command.commands.map((x) => (x.type === "switch" ? "switch[" + x.cases.map((k) => (k.command.commands ?? [k.command]).length).join(",") + "|" + (x.otherwise.commands ?? [x.otherwise]).length + "]" : x.operator));
+};
+const before = await staff();
+await p.screenshot({ path: `${out}/v0375-drag-out-before.png` });
+const pu = node(/^Property Updater$/).first();
+const ph = await pu.locator(".nv-node-header").boundingBox();
+const send = await node(/^Send Email$/).first().boundingBox();
+await p.mouse.move(ph.x + 30, ph.y + ph.height / 2);
+await p.mouse.down();
+await p.mouse.move(send.x + send.width / 2, send.y - 20, { steps: 20 });
+await p.mouse.move(send.x + send.width / 2, send.y - 18, { steps: 2 });
+await p.mouse.up();
+await p.waitForTimeout(900);
+const moved = await staff();
+ok(before.join() === "code,switch[1|1],code,send_email,debug" && moved.join() === "code,switch[0|1],code,property_updater,send_email,debug", "a step dragged out of a switch case moves there, and the case is left empty: " + moved.join());
+ok(!/splice|Cannot move/.test(await p.locator("body").innerText()), "with no error");
+ok((await node(/^Switch$/).first().locator(".nv-h.is-empty").count()) === 1, "the emptied case is just its dot");
+await p.screenshot({ path: `${out}/v0375-drag-out-after.png` });
+await p.keyboard.press("Control+z");
+await p.waitForTimeout(700);
+ok((await staff()).join() === before.join(), "Undo puts it back in its case");
 
 ok(errs.length === 0, "no page errors: " + errs.join(" | "));
 await b.close();

@@ -1,7 +1,7 @@
 // v0.3.64: the switch step. Its view (the value, each case with its steps, Otherwise), as Saturn stores it
 // ({type: "switch", data: {value}, cases: [{value, command}], otherwise}); setSwitchCases (rename, reorder, add,
 // remove as one draft edit, steps kept by where each case came from); updateOperator / addOperator for a switch;
-// moving a step into a case that holds one plain step (it becomes a group first); and the walkers that count steps,
+// moving a step into a case that holds one plain step (it becomes a group first), and out of one (0.3.75); and the walkers that count steps,
 // find command references and name a step's place.
 const fs = require("fs"), Module = require("module");
 const src = fs.readFileSync(process.argv[2], "utf8") +
@@ -65,6 +65,17 @@ const swPath = ["commands", 0, "command", "commands", 1];
   next = moveStepsEdit(def, [["commands", 0, "command", "commands", 0]], [...swPath, "otherwise", "commands"], 0);
   const ow = next.commands[0].command.commands[0].otherwise;
   ok(ow.type === "series" && ow.commands.map((x) => x.id).join() === "D,OTHER", "moveSteps: the same for Otherwise");
+
+  // ---- moving a step out of a case that holds one plain step (0.3.75): the case is left empty, not broken
+  const casePath = [...swPath, "cases", 0, "command"];
+  next = moveStep(def, casePath, ["commands", 0, "command", "commands"], 0);
+  let steps = next.commands[0].command.commands;
+  ok(steps[0].id === "ASSIGNBOTH" && steps[2].cases[0].command.type === "series" && steps[2].cases[0].command.commands.length === 0 && steps[2].cases[0].value === "underwriter", "moveStep: a case's only step moves out; the case keeps its value and is left empty");
+  next = moveStepsEdit(def, [[...swPath, "otherwise"]], ["commands", 1, "command", "commands"], 0);
+  ok(next.commands[1].command.commands[0].id === "OTHER" && next.commands[0].command.commands[1].otherwise.type === "series" && next.commands[0].command.commands[1].otherwise.commands.length === 0, "moveSteps: Otherwise's only step moves to another command; Otherwise is left empty");
+  let refused = null;
+  try { moveStepsEdit(def, [casePath], [...casePath, "commands"], 0); } catch (e) { refused = e.message; }
+  ok(/inside itself/.test(refused ?? ""), "moveSteps: dropping it into its own case is refused: " + refused);
 
   // ---- the walkers
   ok(countNestedSteps(sw()) === 2, "counting steps reaches the cases and Otherwise: " + countNestedSteps(sw()));

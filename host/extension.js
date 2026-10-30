@@ -1704,12 +1704,32 @@ function parentOf(definition, path) {
   };
 }
 // removeAt (minified: sn) — A copy with the item at a path removed.
+// BRANCH_SLOTS — the keys where a branch can hold one plain step instead of a series (an If's true / false, a switch
+// case's command, Otherwise, a loop's command). Taking that step out leaves an empty series there (0.3.75), so the
+// branch stays a branch rather than losing its key.
+const BRANCH_SLOTS = new Set(["command", "otherwise", "true", "false"]);
+// isBranchSlot — Is `parent[key]` a step sitting alone in a branch (see BRANCH_SLOTS)?
+function isBranchSlot(parent, key) {
+  let step = parent?.[key];
+  return !!parent && typeof parent == "object" && !Array.isArray(parent) && BRANCH_SLOTS.has(String(key)) && !!step && typeof step == "object" && !Array.isArray(step);
+}
 function removeAt(definition, path) {
   let copy = structuredClone(definition),
     {
       parent: parent,
       key: key
     } = parentOf(copy, path);
+  if (isBranchSlot(parent, key)) {
+    let removed = parent[key];
+    parent[key] = {
+      type: "series",
+      commands: []
+    };
+    return {
+      next: copy,
+      removed: removed
+    };
+  }
   if (Array.isArray(parent)) {
     let index = Number(key);
     if (!Number.isInteger(index) || index < 0 || index >= parent.length) throw new Error(`No command at index ${String(key)}`);
@@ -1760,7 +1780,8 @@ function moveStep(definition, fromPath, toPath, index) {
   if (fromPath.length === 0) throw new Error("Refusing to move an empty path");
   let fromList = fromPath.slice(0, -1),
     fromIndex = Number(fromPath[fromPath.length - 1]);
-  if (!Number.isInteger(fromIndex)) throw new Error("Can only move a command out of an array");
+  // a step alone in a branch (a switch case of one step) has no index; removeAt leaves the branch empty (0.3.75)
+  if (!Number.isInteger(fromIndex) && !isBranchSlot(getAt(definition, fromList), fromPath[fromPath.length - 1])) throw new Error("Can only move a command out of an array");
   // Moving a step into its own subtree is refused.
   if (toPath.length >= fromPath.length && samePath(fromPath, toPath.slice(0, fromPath.length))) throw new Error("Cannot move a step inside itself");
   let {
@@ -2421,7 +2442,10 @@ function moveStepsEdit(definition, paths, toChildrenPath, index) {
   let found = moving.map(stepPath => {
     let list = getAt(draft, stepPath.slice(0, -1)),
       step = getAt(draft, stepPath);
-    if (!Array.isArray(list) || !step || typeof step != "object" || Array.isArray(step)) throw new Error("A selected step is no longer where it was — select again and retry.");
+    if (!step || typeof step != "object" || Array.isArray(step)) throw new Error("A selected step is no longer where it was — select again and retry.");
+    // a step alone in a branch (0.3.75): taken out by leaving an empty series in its place
+    if (!Array.isArray(list) && isBranchSlot(list, stepPath[stepPath.length - 1])) return { holder: list, key: stepPath[stepPath.length - 1], step };
+    if (!Array.isArray(list)) throw new Error("A selected step is no longer where it was — select again and retry.");
     return { list, step };
   });
   seriesForSteps(draft, toChildrenPath);
@@ -2434,7 +2458,10 @@ function moveStepsEdit(definition, paths, toChildrenPath, index) {
   // a marker where they go, then each step out of its list, then the steps in place of the marker
   let marker = {};
   target.splice(typeof index == "number" && index >= 0 && index <= target.length ? index : target.length, 0, marker);
-  for (let { list, step } of found) list.splice(list.indexOf(step), 1);
+  for (let { list, holder, key, step } of found) {
+    if (list) list.splice(list.indexOf(step), 1);
+    else holder[key] = { type: "series", commands: [] };
+  }
   target.splice(target.indexOf(marker), 1, ...found.map(({ step }) => step));
   return draft;
 }
